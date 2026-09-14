@@ -1,0 +1,206 @@
+{
+  "authorized_microdollars": 50000,
+  "cases": [
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": "invalid_citation",
+        "mode": "direct",
+        "reason_code": null,
+        "source": "none",
+        "status": "unavailable",
+        "trace": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "failure_code": "invalid_citation",
+              "http_status": 200,
+              "latency_ms": 792.079167,
+              "requested_model": "deepseek-flash",
+              "reservation_state": "unknown",
+              "response_model": "deepseek-flash",
+              "retry_number": 0,
+              "usage": {
+                "input_tokens": 996,
+                "output_tokens": 93,
+                "provider_cache_tokens": 0,
+                "reasoning_tokens": null
+              }
+            }
+          ]
+        }
+      },
+      "label": "original-direct",
+      "mode": "direct",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "7ba90ede-749a-4289-8115-6fec37981c7f"
+    },
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": "invalid_citation",
+        "mode": "hybrid",
+        "reason_code": null,
+        "source": "none",
+        "status": "unavailable",
+        "trace": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "failure_code": "invalid_citation",
+              "http_status": 200,
+              "latency_ms": 783.53025,
+              "requested_model": "deepseek-flash",
+              "reservation_state": "unknown",
+              "response_model": "deepseek-flash",
+              "retry_number": 0,
+              "usage": {
+                "input_tokens": 1061,
+                "output_tokens": 90,
+                "provider_cache_tokens": 256,
+                "reasoning_tokens": null
+              }
+            }
+          ]
+        }
+      },
+      "label": "original-hybrid",
+      "mode": "hybrid",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "3b7e1cd6-3382-4c0e-a79a-1f78a9afec96"
+    },
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": "invalid_citation",
+        "mode": "direct",
+        "reason_code": null,
+        "source": "none",
+        "status": "unavailable",
+        "trace": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "failure_code": "invalid_citation",
+              "http_status": 200,
+              "latency_ms": 901.66675,
+              "requested_model": "deepseek-flash",
+              "reservation_state": "unknown",
+              "response_model": "deepseek-flash",
+              "retry_number": 0,
+              "usage": {
+                "input_tokens": 1015,
+                "output_tokens": 88,
+                "provider_cache_tokens": 256,
+                "reasoning_tokens": null
+              }
+            }
+          ]
+        }
+      },
+      "label": "counterfactual-direct",
+      "mode": "direct",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "bfe0935a-8af3-4bcd-a74d-a14f08a6b921"
+    },
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": "missing_evidence",
+        "mode": "direct",
+        "reason_code": "insufficient_evidence",
+        "source": "none",
+        "status": "needs_review",
+        "trace": {}
+      },
+      "label": "evidence-ablation",
+      "mode": "direct",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "4176e7f0-13cd-49c7-a10a-be1990af39e1"
+    }
+  ],
+  "created_on": "2026-09-14",
+  "dataset": "synthetic development smoke; not independently domain validated",
+  "estimated_microdollars": 0,
+  "execution_id": "phase4-20260914-live01",
+  "gates": {
+    "altered_evidence_changed_or_invalidated": true,
+    "attempt_limit_respected": true,
+    "direct_and_hybrid_same_input_observed": false,
+    "execution_budget_respected": true,
+    "missing_evidence_made_no_call": true,
+    "provider_created_no_application": true
+  },
+  "passed": false,
+  "provider_attempts": [
+    {
+      "attempt": 1,
+      "cached_input_tokens": null,
+      "error_code": "invalid_citation",
+      "estimated_microdollars": null,
+      "input_tokens": null,
+      "latency_ms": 793,
+      "output_tokens": null,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 4258,
+      "response_model": "deepseek-flash",
+      "status": "UNKNOWN_BILLING"
+    },
+    {
+      "attempt": 1,
+      "cached_input_tokens": null,
+      "error_code": "invalid_citation",
+      "estimated_microdollars": null,
+      "input_tokens": null,
+      "latency_ms": 784,
+      "output_tokens": null,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 4258,
+      "response_model": "deepseek-flash",
+      "status": "UNKNOWN_BILLING"
+    },
+    {
+      "attempt": 1,
+      "cached_input_tokens": null,
+      "error_code": "invalid_citation",
+      "estimated_microdollars": null,
+      "input_tokens": null,
+      "latency_ms": 902,
+      "output_tokens": null,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 4258,
+      "response_model": "deepseek-flash",
+      "status": "UNKNOWN_BILLING"
+    }
+  ],
+  "requested_model": "deepseek-flash",
+  "retained_microdollars": 12774,
+  "version": "llm-v1"
+}

@@ -80,3 +80,36 @@ No provider call, paid benchmark, cloud deployment, sealed evaluation, or human
 validation occurred. Next bounded phase: Phase 4 provider adapter and bounded
 DeepSeek interpretation, only after explicit authorization and budget/credential
 verification.
+
+## Phase 4 — complete
+
+Froze the bounded interpretation contract, verified authenticated access to the
+`deepseek-flash` catalog entry and positive existing credit, and recorded the
+official 2026-09-14 peak rate card. Implemented strict Direct and Hybrid requests,
+exact source-slice citations, whole-candidate selection, deterministic allocation
+revalidation, explicit failure states, one bounded retry, cancellation checks,
+transactional PostgreSQL quota reservations, usage reconciliation, validated
+cache replay/invalidation, and persisted proposal revisions. Interpretation never
+applies money. The UI calls it only from explicit Direct/Hybrid actions and labels
+live, cached, and unavailable results.
+
+The synthetic development smoke observed eight attempts under one USD 0.05
+execution cap. Three initial responses failed citation validation and produced no
+revision or application; their complete usage was reconciled as billed failures.
+Five later responses were valid. On the final identical-input comparison, rules,
+Direct, and Hybrid safely abstained on the original ambiguity; changing the source
+to “alphabetically last” produced a validated Direct selection of `INV-B`; removing
+evidence made no provider call. Total observed estimated cost was USD 0.002765,
+with zero retained unknown-billing reservation and zero applications. These are
+synthetic observations, not model-quality or human-validation claims.
+
+Checks: final `make check` passed Ruff, strict mypy, 44 non-PostgreSQL tests,
+TypeScript, 6 Vitest tests, and the Vite production build. The isolated Reconcile
+Neon branch passed 15/15 PostgreSQL tests in 107.38 s. `make cost-preflight` passed;
+unguarded `make smoke-live` and Phase 5 `make perf` remained closed (exit 2).
+Live evidence: `reports/llm-v1/live-smoke.json`. Integration commit: `7502876`.
+PRs: #9–#12 plus the Phase 4 integration PR.
+
+No deployment, sealed evaluation, autonomous application, paid benchmark, credit
+top-up, plan upgrade, or real-world validation occurred. Next bounded phase:
+Phase 5 reliability, security, and local performance gates.

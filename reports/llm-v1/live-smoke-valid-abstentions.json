@@ -1,0 +1,238 @@
+{
+  "authorized_microdollars": 50000,
+  "cases": [
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": null,
+        "mode": "direct",
+        "reason_code": "ambiguous",
+        "source": "live",
+        "status": "needs_review",
+        "trace": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "http_status": 200,
+              "latency_ms": 723.206417,
+              "requested_model": "deepseek-flash",
+              "reservation_state": "reconciled",
+              "response_model": "deepseek-flash",
+              "retry_number": 0,
+              "usage": {
+                "input_tokens": 1061,
+                "output_tokens": 24,
+                "provider_cache_tokens": 0,
+                "reasoning_tokens": null
+              }
+            }
+          ],
+          "cache_hit": false,
+          "cache_key": "d3ab1529e06bf8005f69e91398b06cbd5fcd101c38327d872215541147fb7f4a"
+        }
+      },
+      "label": "original-direct",
+      "mode": "direct",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "976ad6ac-cfed-4928-aabe-74a4933569db"
+    },
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": null,
+        "mode": "hybrid",
+        "reason_code": "insufficient_evidence",
+        "source": "live",
+        "status": "needs_review",
+        "trace": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "failure_code": null,
+              "http_status": 200,
+              "latency_ms": 694.507375,
+              "requested_model": "deepseek-flash",
+              "reservation_state": "reconciled",
+              "response_model": "deepseek-flash",
+              "retry_number": 0,
+              "usage": {
+                "input_tokens": 1127,
+                "output_tokens": 27,
+                "provider_cache_tokens": 256,
+                "reasoning_tokens": null
+              }
+            }
+          ],
+          "cache_hit": false,
+          "cache_key": "f5064f2d78030359df151637a7e2d9c166aa071f6711d71df89f096f9a48714a"
+        }
+      },
+      "label": "original-hybrid",
+      "mode": "hybrid",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "d6f74645-3812-49f4-9c09-3c907d339f95"
+    },
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": "budget_unavailable",
+        "mode": "direct",
+        "reason_code": null,
+        "source": "none",
+        "status": "unavailable",
+        "trace": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "failure_code": "budget_unavailable",
+              "http_status": null,
+              "latency_ms": 0.041667,
+              "requested_model": "deepseek-flash",
+              "reservation_state": "not_reserved",
+              "response_model": null,
+              "retry_number": 0,
+              "usage": {
+                "input_tokens": null,
+                "output_tokens": null,
+                "provider_cache_tokens": null,
+                "reasoning_tokens": null
+              }
+            }
+          ]
+        }
+      },
+      "label": "counterfactual-direct",
+      "mode": "direct",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "e3a57598-adaa-48bc-9d6e-e9ba4fa192b2"
+    },
+    {
+      "interpretation": {
+        "candidate_id": null,
+        "citations": [],
+        "failure_code": "missing_evidence",
+        "mode": "direct",
+        "reason_code": "insufficient_evidence",
+        "source": "none",
+        "status": "needs_review",
+        "trace": {}
+      },
+      "label": "evidence-ablation",
+      "mode": "direct",
+      "proposal_status": "NEEDS_REVIEW",
+      "rules": {
+        "selected_invoice_ids": [],
+        "status": "NEEDS_REVIEW"
+      },
+      "selected_invoice_ids": [],
+      "workspace_id": "c75a66b4-dbf6-4754-9578-f1368a48491c"
+    }
+  ],
+  "created_on": "2026-09-14",
+  "dataset": "synthetic development smoke; not independently domain validated",
+  "estimated_microdollars": 644,
+  "execution_id": "phase4-20260914-live01",
+  "gates": {
+    "altered_evidence_changed_or_invalidated": true,
+    "attempt_limit_respected": true,
+    "direct_and_hybrid_same_input_observed": true,
+    "execution_budget_respected": true,
+    "missing_evidence_made_no_call": true,
+    "provider_created_no_application": true
+  },
+  "passed": true,
+  "provider_attempts": [
+    {
+      "attempt": 1,
+      "cached_input_tokens": null,
+      "error_code": "invalid_citation",
+      "estimated_microdollars": null,
+      "input_tokens": null,
+      "latency_ms": 793,
+      "output_tokens": null,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 4258,
+      "response_model": "deepseek-flash",
+      "status": "UNKNOWN_BILLING"
+    },
+    {
+      "attempt": 1,
+      "cached_input_tokens": null,
+      "error_code": "invalid_citation",
+      "estimated_microdollars": null,
+      "input_tokens": null,
+      "latency_ms": 784,
+      "output_tokens": null,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 4258,
+      "response_model": "deepseek-flash",
+      "status": "UNKNOWN_BILLING"
+    },
+    {
+      "attempt": 1,
+      "cached_input_tokens": null,
+      "error_code": "invalid_citation",
+      "estimated_microdollars": null,
+      "input_tokens": null,
+      "latency_ms": 902,
+      "output_tokens": null,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 4258,
+      "response_model": "deepseek-flash",
+      "status": "UNKNOWN_BILLING"
+    },
+    {
+      "attempt": 1,
+      "cached_input_tokens": 0,
+      "error_code": null,
+      "estimated_microdollars": 348,
+      "input_tokens": 1061,
+      "latency_ms": 724,
+      "output_tokens": 24,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 0,
+      "response_model": "deepseek-flash",
+      "status": "SUCCEEDED"
+    },
+    {
+      "attempt": 1,
+      "cached_input_tokens": 256,
+      "error_code": null,
+      "estimated_microdollars": 296,
+      "input_tokens": 1127,
+      "latency_ms": 695,
+      "output_tokens": 27,
+      "reasoning_tokens": null,
+      "requested_model": "deepseek-flash",
+      "reservation_retained_microdollars": 0,
+      "response_model": "deepseek-flash",
+      "status": "SUCCEEDED"
+    }
+  ],
+  "requested_model": "deepseek-flash",
+  "retained_microdollars": 12774,
+  "version": "llm-v1"
+}
