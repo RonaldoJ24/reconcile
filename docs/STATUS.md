@@ -144,3 +144,38 @@ latency remain unmeasured. Reports: `reports/release-v1/`.
 No deployment, publication, human validation, autonomous application, or real-world
 accuracy claim occurred. PR: #14. Next bounded phase: Phase 6 zero-new-spend
 deployment preflight and owner-authorized Render/Neon deployment.
+
+## Phase 6 — prepared, deployment blocked
+
+Added a single-process hosted profile: same-origin FastAPI/React serving, a
+concurrency-one lifecycle consumer that sleeps without database polling, guarded
+direct-connection migrations under a PostgreSQL advisory lock, separate pooled
+runtime connections, 24-hour lazy preview cleanup, a 300 MiB database admission
+stop, and invite-gated provider sessions. Live provider access is disabled. The
+minimal multi-stage image excludes tests, datasets, evaluation labels, reports,
+local environment files, and credentials. The validated Render Blueprint requests
+one Free web service with explicit deploys and no worker, disk, cron, or domain.
+
+Checks: `make check` passed Ruff, strict mypy, 1,047 offline backend tests, six
+frontend tests, and the production build. The existing expiring Reconcile Neon
+test branch accepted the committed startup migration and passed 44/44 tests through
+the pooled endpoint in 262.20 s, including 25 contested-balance races; a final
+invite/preview check passed separately. Same-origin desktop/mobile Playwright
+passed 2/2 in 1.1 minutes against the production frontend and pooled test endpoint.
+The release scan inspected 128 tracked text files with zero findings, and Render
+validated the one-action Blueprint. Docker/Podman was unavailable, so the image
+itself was not built locally.
+
+Deployment is withheld by the brief's zero-new-spend gate. The authenticated
+Render CLI confirms workspace ownership and an existing unrelated Free service,
+but does not expose payment-method or bandwidth-overage hard-stop state; the
+dashboard requires interactive sign-in. GitHub Actions similarly did not expose
+an allowance/no-overage boundary, so no workflow was added. No Reconcile Render
+service exists, the Neon main database was not migrated, and no hosted/provider
+smoke or hosted memory/latency measurement occurred. Evidence:
+`reports/deployment-v1/`.
+
+Next bounded action: the owner verifies the Render workspace has no billable
+overage path (or signs in for read-only inspection). Then deploy this reviewed
+commit, install only the two database secrets, run the bounded external smoke,
+record service URL/ID/SHA, and rotate the deferred credentials.

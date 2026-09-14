@@ -1,0 +1,77 @@
+{
+  "schema_version": "deployment-preflight-v1",
+  "checked_at": "2026-09-14",
+  "prepared_code_sha": "f583b5c4e5962e738ff9e3edd032c9a54d41e6a4",
+  "status": "deployment_withheld",
+  "zero_new_spend_verified": false,
+  "github": {
+    "repository": "RonaldoJ24/reconcile",
+    "visibility": "private",
+    "actions_enabled": true,
+    "allowance_visible_to_cli": false,
+    "workflow_added": false
+  },
+  "render": {
+    "workspace_id": "tea-dak152142hec73bjsic0",
+    "workspace_name": "My Workspace",
+    "existing_services": [
+      {
+        "id": "srv-dak1vemq1p3s73caj8u0",
+        "name": "incident-lens-api",
+        "plan": "free",
+        "changed": false
+      }
+    ],
+    "reconcile_service_created": false,
+    "blueprint_valid": true,
+    "blueprint_actions": 1,
+    "requested_plan": "free",
+    "auto_deploy": "off",
+    "billing_hard_stop_verified": false,
+    "blocker": "The authenticated CLI does not expose payment-method or bandwidth-overage hard-stop state, and dashboard inspection requires an interactive sign-in."
+  },
+  "neon": {
+    "organization_id": "org-broad-boat-80792120",
+    "plan": "free",
+    "project_id": "polished-block-65726106",
+    "region": "aws-us-east-2",
+    "main_branch_id": "br-dark-brook-ae354u3z",
+    "test_branch_id": "br-broad-haze-aelm777j",
+    "test_branch_expires_at": "2026-09-22T00:00:00Z",
+    "main_database_bytes": 7520256,
+    "test_database_bytes_before_smoke": 10305536,
+    "production_migrated": false,
+    "test_revision": "0004_preview_lifecycle",
+    "direct_migration_verified": true,
+    "pooled_schema_visibility_verified": true,
+    "consumption_api_available_on_plan": false
+  },
+  "runtime": {
+    "same_origin_verified_locally": true,
+    "worker_mode": "web_lifecycle",
+    "worker_concurrency": 1,
+    "idle_database_polling": false,
+    "provider_enabled": false,
+    "ranker_mode": "shadow",
+    "container_build_run": false
+  },
+  "checks": {
+    "offline_backend": "1047 passed",
+    "postgres_pooled": "44 passed in 262.20s",
+    "postgres_targeted_invite": "1 passed in 16.46s",
+    "frontend_unit": "6 passed",
+    "frontend_build": "passed",
+    "playwright_same_origin_preview": "2 passed in 1.1m",
+    "release_scan": "passed; 128 tracked text files; zero findings",
+    "render_blueprint": "valid; one action"
+  },
+  "not_run": [
+    "Render service creation",
+    "production Neon migration",
+    "container build because Docker and Podman are unavailable",
+    "external hosted smoke",
+    "hosted memory measurement",
+    "hosted cold-start or latency measurement",
+    "provider-backed preview smoke"
+  ]
+}
