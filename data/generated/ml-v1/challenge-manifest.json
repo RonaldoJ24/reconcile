@@ -1,0 +1,97 @@
+{
+  "challenge_counts": {
+    "development": 30,
+    "sealed-test": 20
+  },
+  "dataset_version": "ml-v1-2026-09-14",
+  "generator_version": "ml-v1-data-1",
+  "manifest_version": "1",
+  "sealed": {
+    "challenge_test_input_sha256": "04090ea2770f11b5effa6e77ddfdc2a483c5c37f0cae535275e43e0ea632d20a",
+    "challenge_test_target_sha256": "6d78c21fee65966717939fc1372aa8494a71fdac4f91bd22f14e70686f6a4c33"
+  },
+  "seed": 20260914,
+  "splits": {
+    "development": {
+      "candidates": 76,
+      "customer_entities": 30,
+      "groups": 30,
+      "input": {
+        "bytes": 56421,
+        "groups": 30,
+        "path": "challenge/inputs/development.jsonl",
+        "sha256": "b2a235aaf0e3aa699d0ab43f29a65820b2c6821376b3ecccba76baf97a8473aa"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 7956,
+        "groups": 30,
+        "path": "challenge/targets/development.jsonl",
+        "sha256": "a36f6bd36db38af8ec8b8b24a5819e9fa57c00cf2d9b4845099c11a6ae4d0fa0"
+      },
+      "template_families": [
+        "abbreviated_payer",
+        "ambiguous_reference",
+        "compact_remittance",
+        "conflict_notice",
+        "credit_note_notice",
+        "invoice_list",
+        "plain_remittance",
+        "prompt_like_content",
+        "spanish_remittance",
+        "unsupported_notice"
+      ]
+    },
+    "sealed-test": {
+      "candidates": 51,
+      "customer_entities": 20,
+      "groups": 20,
+      "input": {
+        "bytes": 38444,
+        "groups": 20,
+        "path": "challenge/inputs/sealed-test.jsonl",
+        "sha256": "04090ea2770f11b5effa6e77ddfdc2a483c5c37f0cae535275e43e0ea632d20a"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 5282,
+        "groups": 20,
+        "path": "challenge/targets/sealed-test.jsonl",
+        "sha256": "6d78c21fee65966717939fc1372aa8494a71fdac4f91bd22f14e70686f6a4c33"
+      },
+      "template_families": [
+        "abbreviated_payer",
+        "ambiguous_reference",
+        "compact_remittance",
+        "conflict_notice",
+        "credit_note_notice",
+        "invoice_list",
+        "prompt_like_content",
+        "spanish_remittance",
+        "unsupported_notice"
+      ]
+    }
+  }
+}

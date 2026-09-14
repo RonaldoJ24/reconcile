@@ -1,0 +1,239 @@
+{
+  "challenge_counts": {
+    "development": 30,
+    "sealed-test": 20
+  },
+  "dataset_version": "ml-v1-2026-09-14",
+  "generator_version": "ml-v1-data-1",
+  "manifest_version": "1",
+  "sealed": {
+    "challenge_test_input_sha256": "04090ea2770f11b5effa6e77ddfdc2a483c5c37f0cae535275e43e0ea632d20a",
+    "challenge_test_target_sha256": "6d78c21fee65966717939fc1372aa8494a71fdac4f91bd22f14e70686f6a4c33",
+    "final_input_sha256": "c4a1150bd73ac85a2296cf3782ffbe15bb7604459ad7ffbccb2bd55166715bf9",
+    "final_target_sha256": "25fc784e9b6ac539649c20a8758f604718b362f35cb7c04a590ffdca3fbcb0fb"
+  },
+  "seed": 20260914,
+  "split_counts": {
+    "calibration": 500,
+    "final": 500,
+    "train": 3000,
+    "validation": 1000
+  },
+  "splits": {
+    "calibration": {
+      "candidates": 1291,
+      "customer_entities": 500,
+      "groups": 500,
+      "input": {
+        "bytes": 969047,
+        "groups": 500,
+        "path": "inputs/calibration.jsonl",
+        "sha256": "bb04c84eb689834df69ce087e3aa4a5158baaf24a79cd256bf955d2e6cbaafdc"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 132440,
+        "groups": 500,
+        "path": "targets/calibration.jsonl",
+        "sha256": "0cc596aa4c166362581d283980945444d25ca616df0f962f72bb10a90b12a16a"
+      },
+      "template_families": [
+        "ambiguous_reference",
+        "conflict_notice"
+      ]
+    },
+    "development": {
+      "candidates": 76,
+      "customer_entities": 30,
+      "groups": 30,
+      "input": {
+        "bytes": 56421,
+        "groups": 30,
+        "path": "challenge/inputs/development.jsonl",
+        "sha256": "b2a235aaf0e3aa699d0ab43f29a65820b2c6821376b3ecccba76baf97a8473aa"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 7956,
+        "groups": 30,
+        "path": "challenge/targets/development.jsonl",
+        "sha256": "a36f6bd36db38af8ec8b8b24a5819e9fa57c00cf2d9b4845099c11a6ae4d0fa0"
+      },
+      "template_families": [
+        "abbreviated_payer",
+        "ambiguous_reference",
+        "compact_remittance",
+        "conflict_notice",
+        "credit_note_notice",
+        "invoice_list",
+        "plain_remittance",
+        "prompt_like_content",
+        "spanish_remittance",
+        "unsupported_notice"
+      ]
+    },
+    "final": {
+      "candidates": 1298,
+      "customer_entities": 500,
+      "groups": 500,
+      "input": {
+        "bytes": 974268,
+        "groups": 500,
+        "path": "inputs/final.jsonl",
+        "sha256": "c4a1150bd73ac85a2296cf3782ffbe15bb7604459ad7ffbccb2bd55166715bf9"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 133165,
+        "groups": 500,
+        "path": "targets/final.jsonl",
+        "sha256": "25fc784e9b6ac539649c20a8758f604718b362f35cb7c04a590ffdca3fbcb0fb"
+      },
+      "template_families": [
+        "prompt_like_content",
+        "unsupported_notice"
+      ]
+    },
+    "sealed-test": {
+      "candidates": 51,
+      "customer_entities": 20,
+      "groups": 20,
+      "input": {
+        "bytes": 38444,
+        "groups": 20,
+        "path": "challenge/inputs/sealed-test.jsonl",
+        "sha256": "04090ea2770f11b5effa6e77ddfdc2a483c5c37f0cae535275e43e0ea632d20a"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 5282,
+        "groups": 20,
+        "path": "challenge/targets/sealed-test.jsonl",
+        "sha256": "6d78c21fee65966717939fc1372aa8494a71fdac4f91bd22f14e70686f6a4c33"
+      },
+      "template_families": [
+        "abbreviated_payer",
+        "ambiguous_reference",
+        "compact_remittance",
+        "conflict_notice",
+        "credit_note_notice",
+        "invoice_list",
+        "prompt_like_content",
+        "spanish_remittance",
+        "unsupported_notice"
+      ]
+    },
+    "train": {
+      "candidates": 7808,
+      "customer_entities": 3000,
+      "groups": 3000,
+      "input": {
+        "bytes": 5719834,
+        "groups": 3000,
+        "path": "inputs/train.jsonl",
+        "sha256": "7ace3ccc0daa12be64c03ad0a3da36938cab8d8196aa9b6f575a940252289a07"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 791146,
+        "groups": 3000,
+        "path": "targets/train.jsonl",
+        "sha256": "3be54b5b4e402fcc37717c783110e4f69eb6eb35a18a2dc88c2b36081a3ac17f"
+      },
+      "template_families": [
+        "compact_remittance",
+        "invoice_list",
+        "plain_remittance",
+        "spanish_remittance"
+      ]
+    },
+    "validation": {
+      "candidates": 2603,
+      "customer_entities": 1000,
+      "groups": 1000,
+      "input": {
+        "bytes": 1878666,
+        "groups": 1000,
+        "path": "inputs/validation.jsonl",
+        "sha256": "3c67ad5a203fa078c0d0f08c4ae741003998c1ff6fae9497240bd90d317adcb6"
+      },
+      "scenario_families": [
+        "abbreviated_ambiguous_payer_identity",
+        "bundled_invoices",
+        "conflicting_evidence",
+        "credit_linkage",
+        "exact_reference",
+        "misleading_equal_amount_alternatives",
+        "no_valid_match",
+        "out_of_scope",
+        "prompt_like_document_content",
+        "single_partial_payment"
+      ],
+      "target": {
+        "bytes": 265301,
+        "groups": 1000,
+        "path": "targets/validation.jsonl",
+        "sha256": "204f504537f7bfc60dfc8a1c189674bb10a591565a10f6566b626d442223c7c5"
+      },
+      "template_families": [
+        "abbreviated_payer",
+        "credit_note_notice"
+      ]
+    }
+  }
+}
