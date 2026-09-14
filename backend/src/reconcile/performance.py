@@ -54,6 +54,13 @@ def _cpu() -> str:
     return platform.processor() or "unknown"
 
 
+def _release_commit() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+
 def _guarded_url() -> str:
     if os.getenv("ALLOW_PERF_TEST") != "1":
         raise RuntimeError("set ALLOW_PERF_TEST=1 for the isolated Phase 5 workload")
@@ -207,6 +214,7 @@ def run_performance() -> dict[str, Any]:
         detail_p95 = _p95(detail_samples)
         return {
             "schema_version": "release-performance-v1",
+            "release_commit": _release_commit(),
             "scope": "generated-local-application-workload",
             "environment": {
                 "os": platform.platform(),

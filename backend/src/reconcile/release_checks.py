@@ -42,6 +42,13 @@ def _tracked_files(repo: Path) -> list[Path]:
     return [repo / item.decode() for item in result.stdout.split(b"\0") if item]
 
 
+def _release_commit(repo: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+
 def scan_release(repo: Path) -> dict[str, Any]:
     findings: list[dict[str, str]] = []
     scanned = 0
@@ -72,6 +79,7 @@ def scan_release(repo: Path) -> dict[str, Any]:
     passed = not findings and not missing_runtime and not forbidden_runtime
     return {
         "schema_version": "release-scan-v1",
+        "release_commit": _release_commit(repo),
         "passed": passed,
         "tracked_text_files_scanned": scanned,
         "secret_findings": findings,
