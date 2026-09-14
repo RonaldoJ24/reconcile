@@ -250,3 +250,58 @@ class Job(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InterpretationBudgetCounter(Base):
+    __tablename__ = "interpretation_budget_counters"
+    key: Mapped[str] = mapped_column(String(160), primary_key=True)
+    reserved_microdollars: Mapped[int] = mapped_column(BigInteger, default=0)
+    committed_microdollars: Mapped[int] = mapped_column(BigInteger, default=0)
+    reserved_tokens: Mapped[int] = mapped_column(BigInteger, default=0)
+    committed_tokens: Mapped[int] = mapped_column(BigInteger, default=0)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now_utc, onupdate=now_utc
+    )
+
+
+class InterpretationCall(Base):
+    __tablename__ = "interpretation_calls"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Deliberately not a foreign key: global spend history survives workspace cleanup.
+    workspace_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), index=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), index=True)
+    execution_id: Mapped[str] = mapped_column(String(100), index=True)
+    mode: Mapped[str] = mapped_column(String(20))
+    requested_model: Mapped[str] = mapped_column(String(100))
+    response_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    attempt: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(30), default="RESERVED", index=True)
+    reservation_microdollars: Mapped[int] = mapped_column(BigInteger)
+    estimated_microdollars: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_cache_hit: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    reservation_retained: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InterpretationCache(Base):
+    __tablename__ = "interpretation_cache"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    cache_key: Mapped[str] = mapped_column(String(64))
+    source_fingerprint: Mapped[str] = mapped_column(String(64))
+    requested_model: Mapped[str] = mapped_column(String(100))
+    response_model: Mapped[str] = mapped_column(String(100))
+    mode: Mapped[str] = mapped_column(String(20))
+    result: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "cache_key", name="uq_interpretation_cache_key"),
+    )
