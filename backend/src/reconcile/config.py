@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal, InvalidOperation
 
@@ -12,6 +13,15 @@ def server_mode() -> str:
     if mode not in {"local", "preview"}:
         raise RuntimeError("RECONCILE_MODE must be local or preview")
     return mode
+
+
+def provider_invite_hash() -> str | None:
+    value = os.getenv("RECONCILE_PROVIDER_INVITE_SHA256", "").strip().lower()
+    if not value:
+        return None
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise RuntimeError("RECONCILE_PROVIDER_INVITE_SHA256 must be a SHA-256 hex digest")
+    return value
 
 
 @dataclass(frozen=True)

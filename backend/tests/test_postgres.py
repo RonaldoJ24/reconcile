@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, timedelta
 from threading import Barrier
 
 import pytest
@@ -27,6 +28,10 @@ from reconcile.interpretation.budget import (
 )
 from reconcile.jobs.queue import claim_one
 from reconcile.persistence.db import normalize_database_url
+from reconcile.persistence.maintenance import (
+    cleanup_expired_preview_workspaces,
+    enforce_database_admission,
+)
 from reconcile.persistence.models import (
     Base,
     CashApplication,
@@ -38,6 +43,8 @@ from reconcile.persistence.models import (
     Payment,
     ProposalRevision,
     Source,
+    Workspace,
+    now_utc,
 )
 from reconcile.persistence.service import ReconcileService, ServiceError
 
@@ -59,9 +66,8 @@ def db_engine():
     # Every test object lives below this explicitly dedicated schema.
     engine = create_engine(
         normalize_database_url(url),
-        connect_args={"options": "-csearch_path=reconcile_test"},
         pool_pre_ping=True,
-    )
+    ).execution_options(schema_translate_map={None: "reconcile_test"})
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS reconcile_test"))
     Base.metadata.create_all(engine)
@@ -182,6 +188,37 @@ def test_expired_job_lease_is_reclaimed(session) -> None:
     assert first is not None and second is not None
     assert second.id == first.id
     assert second.attempts == 2
+
+
+def test_preview_cleanup_is_bounded_and_never_deletes_local_workspaces(session) -> None:
+    expired = ReconcileService(session).create_workspace("preview")
+    retained = ReconcileService(session).create_workspace("local")
+    expired.last_active_at = now_utc() - timedelta(hours=25)
+    retained.last_active_at = now_utc() - timedelta(hours=25)
+    batch = ImportBatch(workspace_id=expired.id)
+    session.add(batch)
+    session.flush()
+    session.add(
+        Source(
+            workspace_id=expired.id,
+            batch_id=batch.id,
+            kind="bank",
+            sha256=uuid.uuid4().hex,
+            raw_bytes=b"synthetic",
+        )
+    )
+    session.commit()
+
+    assert cleanup_expired_preview_workspaces(session, batch_size=1) == 1
+    assert session.get(Workspace, expired.id) is None
+    assert session.get(Workspace, retained.id) is not None
+    assert session.scalar(select(Source).where(Source.workspace_id == expired.id)) is None
+
+
+def test_database_admission_stops_at_configured_limit(session, monkeypatch) -> None:
+    monkeypatch.setenv("RECONCILE_MAX_DATABASE_BYTES", "1")
+    with pytest.raises(ServiceError, match="storage admission is paused"):
+        enforce_database_admission(session)
 
 
 def test_interpretation_budget_reservation_is_transactional_and_reconciled(session) -> None:
@@ -491,11 +528,18 @@ def test_api_session_uses_server_mode_and_csrf(session, monkeypatch) -> None:
 
 def test_preview_rejects_non_sample_upload(session, monkeypatch) -> None:
     monkeypatch.setenv("RECONCILE_MODE", "preview")
+    invite = "phase-six-preview-invite"
+    monkeypatch.setenv(
+        "RECONCILE_PROVIDER_INVITE_SHA256", hashlib.sha256(invite.encode()).hexdigest()
+    )
     api = create_app()
     api.dependency_overrides[_db] = lambda: session
     client = TestClient(api, base_url="https://testserver")
     session_response = client.post("/api/v1/session", json={})
-    csrf = session_response.json()["csrf_token"]
+    assert session_response.json()["provider_access"] is False
+    unlocked = client.post("/api/v1/session", json={"invite_token": invite})
+    assert unlocked.json()["provider_access"] is True
+    csrf = unlocked.json()["csrf_token"]
     files = {
         "bank": ("bank.csv", b"not the built-in packet", "text/csv"),
         "invoices": ("invoices.csv", SAMPLE_FILES["invoices"], "text/csv"),

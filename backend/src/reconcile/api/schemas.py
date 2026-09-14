@@ -11,13 +11,14 @@ class StrictModel(BaseModel):
 
 
 class SessionRequest(StrictModel):
-    pass
+    invite_token: str | None = Field(default=None, min_length=16, max_length=200)
 
 
 class SessionResponse(StrictModel):
     mode: str
     expires_at: datetime
     csrf_token: str
+    provider_access: bool
 
 
 class AllocationLine(StrictModel):

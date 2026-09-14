@@ -52,9 +52,8 @@ def interpretation_engine():
         pytest.fail("set ALLOW_DESTRUCTIVE_TEST_DB=1 for the isolated test schema")
     engine = create_engine(
         normalize_database_url(url),
-        connect_args={"options": "-csearch_path=reconcile_interpretation_test"},
         pool_pre_ping=True,
-    )
+    ).execution_options(schema_translate_map={None: "reconcile_interpretation_test"})
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS reconcile_interpretation_test"))
     Base.metadata.create_all(engine)
