@@ -1,6 +1,8 @@
 from datetime import date
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from reconcile.domain.matching import propose, validate_allocation
 from reconcile.domain.money import MoneyError, format_money, parse_money
@@ -100,6 +102,33 @@ def test_allocation_validator_rejects_overconsumption() -> None:
         validate_allocation(
             2_000_000, {"a": invoice("a", 1_000_000)}, {}, [CashLine("a", 1_000_001)], []
         )
+
+
+@given(st.lists(st.integers(min_value=1, max_value=100_000_000), min_size=1, max_size=3))
+def test_generated_exact_cash_allocations_conserve_centavos(amounts: list[int]) -> None:
+    invoices = {str(index): invoice(str(index), amount) for index, amount in enumerate(amounts)}
+    lines = [CashLine(identifier, fact.outstanding_amount) for identifier, fact in invoices.items()]
+
+    validate_allocation(sum(amounts), invoices, {}, lines, [])
+
+
+@given(
+    payment_amount=st.integers(min_value=1, max_value=100_000_000),
+    unrelated_active_cash=st.integers(min_value=1, max_value=100_000_000),
+)
+def test_generated_unrelated_active_cash_does_not_consume_payment(
+    payment_amount: int, unrelated_active_cash: int
+) -> None:
+    current = invoice("current", payment_amount)
+
+    validate_allocation(
+        payment_amount,
+        {"current": current},
+        {},
+        [CashLine("current", payment_amount)],
+        [],
+        already_cash={"unrelated": unrelated_active_cash},
+    )
 
 
 def test_csv_validation_returns_row_errors_without_rounding() -> None:

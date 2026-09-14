@@ -25,11 +25,14 @@ and locators, conflict-safe commits/opening snapshots, exact centavo arithmetic,
 deterministic `rules-v1` proposals, evidence and alternatives, revisions,
 transactional/idempotent application and reversal, CSV-safe export, and leased
 PostgreSQL jobs. Workspace scoping, stale version tokens, shared-balance locking,
-CSRF/origin checks, and synthetic-only preview admission are enforced.
+CSRF/origin checks, and synthetic-only preview admission are enforced. Generated
+properties exercise exact-centavo conservation and isolation between unrelated
+payments; PostgreSQL tests cover both contested and independent balances.
 
-Checks: `make check` passed (`ruff`, `mypy`, 13 unit/contract tests; 6 PostgreSQL
-tests deselected); the guarded Neon run passed 6/6 PostgreSQL tests in 36.77 s.
-Commits: `b35d12a`, `73db264`, `0c69c2b`, `f94397e`. PR: #2.
+Checks: `make check` passed (`ruff`, `mypy`, 15 unit/property/contract tests; 7
+PostgreSQL tests deselected); the guarded Neon run passed 7/7 PostgreSQL tests in
+48.38 s. Commits: `b35d12a`, `73db264`, `0c69c2b`, `f94397e`, `1bf8189`.
+PRs: #2, #3.
 
 ## Phase 2 — complete
 
@@ -41,7 +44,7 @@ reverse actions, reload persistence, and application-history export. The UI show
 proxy preserves the backend origin check. Mobile detail grids are constrained to
 the viewport while wide data tables remain locally scrollable.
 
-Checks: integrated `make check` passed (Ruff, mypy, 13 backend tests, TypeScript,
+Checks: integrated `make check` passed (Ruff, mypy, 15 backend tests, TypeScript,
 2 Vitest tests, and Vite production build). Playwright against live FastAPI and
 the dedicated PostgreSQL branch passed desktop and mobile: 2/2 in 59.9 s. Both
 paths asserted no page-level horizontal overflow while exercising fresh-file
