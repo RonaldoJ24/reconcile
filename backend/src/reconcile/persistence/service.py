@@ -138,6 +138,7 @@ def _revision_from_result(
     token: str,
     *,
     provenance: str = "rules-v1",
+    model_trace: dict[str, object] | None = None,
     reviewer: str | None = None,
 ) -> ProposalRevision:
     return ProposalRevision(
@@ -162,6 +163,7 @@ def _revision_from_result(
         status=result.status.value,
         version_token=token,
         provenance=provenance,
+        model_trace=model_trace or {},
         reviewer=reviewer,
     )
 

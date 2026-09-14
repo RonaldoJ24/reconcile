@@ -164,6 +164,7 @@ class ProposalRevision(Base):
     status: Mapped[str] = mapped_column(String(20))
     version_token: Mapped[str] = mapped_column(String(64))
     provenance: Mapped[str] = mapped_column(String(30), default="rules-v1")
+    model_trace: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     reviewer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     __table_args__ = (UniqueConstraint("proposal_id", "revision", name="uq_proposal_revision"),)
