@@ -204,7 +204,7 @@ def validate_allocation(
     ):
         raise ValueError("application amounts must be positive")
     used_cash = sum(line.amount for line in cash_lines)
-    if used_cash + sum((already_cash or {}).values()) > payment_amount:
+    if used_cash > payment_amount:
         raise ValueError("cash allocation exceeds payment")
     cash_by_invoice: dict[str, int] = {}
     for cash_line in cash_lines:

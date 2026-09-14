@@ -240,6 +240,66 @@ def test_two_payments_cannot_consume_one_invoice(session) -> None:
         service.apply(workspace.id, proposal_two.id, 1, token_two, "reviewer", "two")
 
 
+def test_two_payments_can_settle_different_invoices(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    batch = ImportBatch(workspace_id=workspace.id)
+    session.add(batch)
+    session.flush()
+    source = Source(
+        workspace_id=workspace.id,
+        batch_id=batch.id,
+        kind="bank",
+        sha256=uuid.uuid4().hex,
+        raw_bytes=b"",
+    )
+    session.add(source)
+    session.flush()
+    invoices = [
+        Invoice(
+            workspace_id=workspace.id,
+            source_id=source.id,
+            customer_id="c",
+            customer_name="C",
+            invoice_id=identifier,
+            issued_date=date(2026, 1, 1),
+            due_date=date(2026, 1, 15),
+            balance_as_of=date(2026, 1, 15),
+            outstanding_amount=10000,
+            currency="MXN",
+        )
+        for identifier in ("first", "second")
+    ]
+    payments = [
+        Payment(
+            workspace_id=workspace.id,
+            source_id=source.id,
+            source_account_id="acct",
+            transaction_id=identifier,
+            booking_date=date(2026, 1, 15),
+            payer_name="C",
+            reference=f"invoice {identifier}",
+            amount=10000,
+            currency="MXN",
+        )
+        for identifier in ("first", "second")
+    ]
+    session.add_all([*invoices, *payments])
+    session.commit()
+
+    for payment in payments:
+        proposal = service.process_match(workspace.id, payment.id)
+        revision = session.query(ProposalRevision).filter_by(proposal_id=proposal.id).one()
+        service.apply(
+            workspace.id,
+            proposal.id,
+            revision.revision,
+            revision.version_token,
+            "reviewer",
+            f"apply-{payment.transaction_id}",
+        )
+
+
 def test_api_session_uses_server_mode_and_csrf(session, monkeypatch) -> None:
     monkeypatch.setenv("RECONCILE_MODE", "local")
     api = create_app()
