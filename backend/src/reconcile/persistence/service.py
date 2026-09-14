@@ -8,7 +8,7 @@ import uuid
 from collections import defaultdict
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
 from sqlalchemy.orm import Session
 
 from reconcile.domain.matching import propose, validate_allocation
@@ -628,20 +628,6 @@ class ReconcileService:
         )
         if payment is None:
             raise ServiceError("not_found", "payment not found", 404)
-        invoices = list(
-            self.session.scalars(
-                select(Invoice)
-                .where(Invoice.workspace_id == workspace_id, Invoice.outstanding_amount > 0)
-                .order_by(Invoice.invoice_id)
-            )
-        )
-        credits = list(
-            self.session.scalars(
-                select(CreditNote)
-                .where(CreditNote.workspace_id == workspace_id, CreditNote.available_amount > 0)
-                .order_by(CreditNote.credit_note_id)
-            )
-        )
         evidence: dict[str, str] = {}
         for source in self.session.scalars(
             select(Source).where(Source.workspace_id == workspace_id, Source.kind == "message")
@@ -651,6 +637,77 @@ class ReconcileService:
                 and source.source_metadata.get("payment_transaction_id") == payment.transaction_id
             ):
                 evidence[str(source.id)] = source.raw_bytes.decode("utf-8")
+        all_text = " ".join((payment.reference, *evidence.values())).lower()
+        invoice_filters = [
+            Invoice.workspace_id == workspace_id,
+            Invoice.outstanding_amount > 0,
+            Invoice.balance_as_of <= payment.booking_date,
+            Invoice.currency == payment.currency,
+            Invoice.conflicted.is_(False),
+        ]
+        if payment.customer_id is not None:
+            invoice_filters.append(Invoice.customer_id == payment.customer_id)
+
+        # PostgreSQL performs the broad containment filter; the domain boundary matcher
+        # below rejects substrings before they can become evidence.
+        mentioned_rows = list(
+            self.session.scalars(
+                select(Invoice)
+                .where(
+                    *invoice_filters,
+                    func.strpos(literal(all_text), func.lower(Invoice.invoice_id)) > 0,
+                )
+                .order_by(Invoice.invoice_id)
+                .limit(40)
+            )
+        )
+        invoices = [
+            row for row in mentioned_rows if _identifier_mentioned(row.invoice_id, all_text)
+        ][:10]
+        invoice_keys = {(row.customer_id, row.invoice_id) for row in invoices}
+        if len(invoices) < 10:
+            exact_rows = self.session.scalars(
+                select(Invoice)
+                .where(*invoice_filters, Invoice.outstanding_amount == payment.amount)
+                .order_by(Invoice.invoice_id)
+                .limit(10)
+            )
+            for row in exact_rows:
+                key = (row.customer_id, row.invoice_id)
+                if key not in invoice_keys:
+                    invoices.append(row)
+                    invoice_keys.add(key)
+                if len(invoices) == 10:
+                    break
+
+        selected_invoice_ids = {row.invoice_id for row in invoices}
+        credit_filters = [
+            CreditNote.workspace_id == workspace_id,
+            CreditNote.available_amount > 0,
+            CreditNote.balance_as_of <= payment.booking_date,
+            CreditNote.currency == payment.currency,
+            CreditNote.conflicted.is_(False),
+            CreditNote.invoice_id.in_(selected_invoice_ids),
+        ]
+        if payment.customer_id is not None:
+            credit_filters.append(CreditNote.customer_id == payment.customer_id)
+        credits = (
+            [
+                row
+                for row in self.session.scalars(
+                    select(CreditNote)
+                    .where(
+                        *credit_filters,
+                        func.strpos(literal(all_text), func.lower(CreditNote.credit_note_id)) > 0,
+                    )
+                    .order_by(CreditNote.credit_note_id)
+                    .limit(10)
+                )
+                if _identifier_mentioned(row.credit_note_id, all_text)
+            ]
+            if selected_invoice_ids
+            else []
+        )
         result = propose(
             _payment_fact(payment),
             [_invoice_fact(i) for i in invoices],

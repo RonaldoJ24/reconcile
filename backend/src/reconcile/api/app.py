@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from reconcile.api.sample import is_exact_sample_packet, sample_zip
@@ -66,14 +66,14 @@ def _session(request: Request, db: Session) -> tuple[DbSession, Workspace]:
     raw = request.cookies.get(SESSION_COOKIE)
     if not raw:
         raise HTTPException(401, "authentication required")
-    record = db.scalar(
-        select(DbSession).where(DbSession.token_hash == _sha(raw), DbSession.expires_at > now_utc())
-    )
-    if record is None:
+    row = db.execute(
+        select(DbSession, Workspace)
+        .join(Workspace, Workspace.id == DbSession.workspace_id)
+        .where(DbSession.token_hash == _sha(raw), DbSession.expires_at > now_utc())
+    ).one_or_none()
+    if row is None:
         raise HTTPException(401, "authentication required")
-    workspace = db.get(Workspace, record.workspace_id)
-    if workspace is None:
-        raise HTTPException(401, "authentication required")
+    record, workspace = row
     return record, workspace
 
 
@@ -362,30 +362,36 @@ def create_app() -> FastAPI:
     @app.get("/api/v1/proposals")
     def list_proposals(request: Request, db: Session = Depends(_db)) -> list[dict[str, object]]:
         _, workspace = _session(request, db)
-        rows = []
-        for proposal in db.scalars(
-            select(Proposal)
-            .where(Proposal.workspace_id == workspace.id)
+        application_id = (
+            select(ApplicationGroup.id)
+            .where(ApplicationGroup.proposal_id == Proposal.id)
+            .order_by(ApplicationGroup.created_at.desc(), ApplicationGroup.id.desc())
+            .limit(1)
+            .correlate(Proposal)
+            .scalar_subquery()
+        )
+        rows: list[dict[str, object]] = []
+        query = (
+            select(Proposal, Payment, application_id.label("application_id"))
+            .join(Payment, Payment.id == Proposal.payment_id)
+            .where(Proposal.workspace_id == workspace.id, Payment.workspace_id == workspace.id)
             .order_by(Proposal.updated_at.desc())
-        ):
-            payment = db.get(Payment, proposal.payment_id)
-            application = db.scalar(
-                select(ApplicationGroup)
-                .where(ApplicationGroup.proposal_id == proposal.id)
-                .order_by(ApplicationGroup.created_at.desc())
-            )
+        )
+        for proposal, payment, latest_application_id in db.execute(query):
             rows.append(
                 {
                     "proposal_id": str(proposal.id),
                     "status": proposal.status,
                     "revision": proposal.current_revision,
                     "payment_id": str(proposal.payment_id),
-                    "amount": payment.amount if payment else None,
-                    "payer_name": payment.payer_name if payment else None,
-                    "source_account_id": payment.source_account_id if payment else None,
-                    "transaction_id": payment.transaction_id if payment else None,
-                    "booking_date": payment.booking_date if payment else None,
-                    "application_id": str(application.id) if application else None,
+                    "amount": payment.amount,
+                    "payer_name": payment.payer_name,
+                    "source_account_id": payment.source_account_id,
+                    "transaction_id": payment.transaction_id,
+                    "booking_date": payment.booking_date,
+                    "application_id": (
+                        str(latest_application_id) if latest_application_id else None
+                    ),
                 }
             )
         return rows
@@ -395,25 +401,49 @@ def create_app() -> FastAPI:
         proposal_id: uuid.UUID, request: Request, db: Session = Depends(_db)
     ) -> dict[str, object]:
         _, workspace = _session(request, db)
-        proposal = db.scalar(
-            select(Proposal).where(
-                Proposal.id == proposal_id, Proposal.workspace_id == workspace.id
-            )
+        application_id = (
+            select(ApplicationGroup.id)
+            .where(ApplicationGroup.proposal_id == Proposal.id)
+            .order_by(ApplicationGroup.created_at.desc(), ApplicationGroup.id.desc())
+            .limit(1)
+            .correlate(Proposal)
+            .scalar_subquery()
         )
-        if proposal is None:
+        used_cash = (
+            select(func.coalesce(func.sum(CashApplication.amount), 0))
+            .where(
+                CashApplication.workspace_id == workspace.id,
+                CashApplication.payment_id == Payment.id,
+                CashApplication.active.is_(True),
+            )
+            .correlate(Payment)
+            .scalar_subquery()
+        )
+        row = db.execute(
+            select(
+                Proposal,
+                ProposalRevision,
+                Payment,
+                application_id.label("application_id"),
+                used_cash.label("used_cash"),
+            )
+            .join(Payment, Payment.id == Proposal.payment_id)
+            .outerjoin(
+                ProposalRevision,
+                and_(
+                    ProposalRevision.proposal_id == Proposal.id,
+                    ProposalRevision.revision == Proposal.current_revision,
+                ),
+            )
+            .where(
+                Proposal.id == proposal_id,
+                Proposal.workspace_id == workspace.id,
+                Payment.workspace_id == workspace.id,
+            )
+        ).one_or_none()
+        if row is None:
             raise HTTPException(404, "proposal not found")
-        revision = db.scalar(
-            select(ProposalRevision).where(
-                ProposalRevision.proposal_id == proposal.id,
-                ProposalRevision.revision == proposal.current_revision,
-            )
-        )
-        payment = db.get(Payment, proposal.payment_id)
-        application = db.scalar(
-            select(ApplicationGroup)
-            .where(ApplicationGroup.proposal_id == proposal.id)
-            .order_by(ApplicationGroup.created_at.desc())
-        )
+        proposal, revision, payment, latest_application_id, payment_used_cash = row
         invoice_ids = {
             item["invoice_id"]
             for item in (
@@ -421,59 +451,53 @@ def create_app() -> FastAPI:
                 + (revision.credit_lines if revision else [])
             )
         }
+        cash_applied = (
+            select(func.coalesce(func.sum(CashApplication.amount), 0))
+            .where(
+                CashApplication.workspace_id == workspace.id,
+                CashApplication.invoice_id == Invoice.id,
+                CashApplication.active.is_(True),
+            )
+            .correlate(Invoice)
+            .scalar_subquery()
+        )
+        credit_applied = (
+            select(func.coalesce(func.sum(CreditApplication.amount), 0))
+            .where(
+                CreditApplication.workspace_id == workspace.id,
+                CreditApplication.invoice_id == Invoice.id,
+                CreditApplication.active.is_(True),
+            )
+            .correlate(Invoice)
+            .scalar_subquery()
+        )
         invoice_rows = (
             list(
-                db.scalars(
-                    select(Invoice).where(
-                        Invoice.workspace_id == workspace.id, Invoice.invoice_id.in_(invoice_ids)
+                db.execute(
+                    select(
+                        Invoice,
+                        cash_applied.label("cash_applied"),
+                        credit_applied.label("credit_applied"),
+                    ).where(
+                        Invoice.workspace_id == workspace.id,
+                        Invoice.invoice_id.in_(invoice_ids),
                     )
                 )
             )
             if invoice_ids
             else []
         )
-        active_cash: dict[uuid.UUID, int] = {}
-        for cash_row in db.scalars(
-            select(CashApplication).where(
-                CashApplication.workspace_id == workspace.id, CashApplication.active.is_(True)
-            )
-        ):
-            active_cash[cash_row.invoice_id] = (
-                active_cash.get(cash_row.invoice_id, 0) + cash_row.amount
-            )
-        active_credit: dict[uuid.UUID, int] = {}
-        for credit_row in db.scalars(
-            select(CreditApplication).where(
-                CreditApplication.workspace_id == workspace.id, CreditApplication.active.is_(True)
-            )
-        ):
-            active_credit[credit_row.invoice_id] = (
-                active_credit.get(credit_row.invoice_id, 0) + credit_row.amount
-            )
         balances = {
             invoice.invoice_id: {
                 "opening_amount": invoice.outstanding_amount,
-                "cash_applied": active_cash.get(invoice.id, 0),
-                "credit_applied": active_credit.get(invoice.id, 0),
-                "remaining_amount": invoice.outstanding_amount
-                - active_cash.get(invoice.id, 0)
-                - active_credit.get(invoice.id, 0),
+                "cash_applied": int(invoice_cash),
+                "credit_applied": int(invoice_credit),
+                "remaining_amount": (
+                    invoice.outstanding_amount - int(invoice_cash) - int(invoice_credit)
+                ),
             }
-            for invoice in invoice_rows
+            for invoice, invoice_cash, invoice_credit in invoice_rows
         }
-        unapplied_cash = None
-        if payment:
-            used = sum(
-                row.amount
-                for row in db.scalars(
-                    select(CashApplication).where(
-                        CashApplication.workspace_id == workspace.id,
-                        CashApplication.payment_id == payment.id,
-                        CashApplication.active.is_(True),
-                    )
-                )
-            )
-            unapplied_cash = payment.amount - used
         return {
             "proposal_id": str(proposal.id),
             "status": proposal.status,
@@ -486,9 +510,7 @@ def create_app() -> FastAPI:
                 "source_account_id": payment.source_account_id,
                 "transaction_id": payment.transaction_id,
                 "booking_date": payment.booking_date,
-            }
-            if payment
-            else None,
+            },
             "cash": revision.cash_lines if revision else [],
             "credits": revision.credit_lines if revision else [],
             "evidence": revision.evidence if revision else [],
@@ -497,8 +519,10 @@ def create_app() -> FastAPI:
             "reason": revision.reason if revision else None,
             "version_token": revision.version_token if revision else None,
             "balances": balances,
-            "unapplied_cash": unapplied_cash,
-            "application_id": str(application.id) if application else None,
+            "unapplied_cash": payment.amount - int(payment_used_cash),
+            "application_id": (
+                str(latest_application_id) if latest_application_id else None
+            ),
             "trace": {
                 "mode": revision.provenance if revision else "rules-v1",
                 **(revision.model_trace if revision else {}),

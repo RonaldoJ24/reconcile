@@ -4,6 +4,7 @@ backend/src/reconcile/api/
 backend/src/reconcile/config.py
 backend/src/reconcile/domain/
 backend/src/reconcile/ingest/
+backend/src/reconcile/interpretation/
 backend/src/reconcile/jobs/
 backend/src/reconcile/persistence/
 backend/src/reconcile/ml/__init__.py

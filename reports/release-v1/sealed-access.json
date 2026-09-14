@@ -1,0 +1,54 @@
+{
+  "completed_at": "2026-09-14T23:12:09.196979+00:00",
+  "files": [
+    {
+      "access": "hash-and-evaluate",
+      "expected_sha256": "c4a1150bd73ac85a2296cf3782ffbe15bb7604459ad7ffbccb2bd55166715bf9",
+      "path": "inputs/final.jsonl"
+    },
+    {
+      "access": "hash-and-evaluate",
+      "expected_sha256": "25fc784e9b6ac539649c20a8758f604718b362f35cb7c04a590ffdca3fbcb0fb",
+      "path": "targets/final.jsonl"
+    },
+    {
+      "access": "hash-and-evaluate",
+      "expected_sha256": "04090ea2770f11b5effa6e77ddfdc2a483c5c37f0cae535275e43e0ea632d20a",
+      "path": "challenge/inputs/sealed-test.jsonl"
+    },
+    {
+      "access": "hash-and-evaluate",
+      "expected_sha256": "6d78c21fee65966717939fc1372aa8494a71fdac4f91bd22f14e70686f6a4c33",
+      "path": "challenge/targets/sealed-test.jsonl"
+    }
+  ],
+  "observed_files": [
+    {
+      "bytes": 974268,
+      "path": "inputs/final.jsonl",
+      "sha256": "c4a1150bd73ac85a2296cf3782ffbe15bb7604459ad7ffbccb2bd55166715bf9"
+    },
+    {
+      "bytes": 133165,
+      "path": "targets/final.jsonl",
+      "sha256": "25fc784e9b6ac539649c20a8758f604718b362f35cb7c04a590ffdca3fbcb0fb"
+    },
+    {
+      "bytes": 38444,
+      "path": "challenge/inputs/sealed-test.jsonl",
+      "sha256": "04090ea2770f11b5effa6e77ddfdc2a483c5c37f0cae535275e43e0ea632d20a"
+    },
+    {
+      "bytes": 5282,
+      "path": "challenge/targets/sealed-test.jsonl",
+      "sha256": "6d78c21fee65966717939fc1372aa8494a71fdac4f91bd22f14e70686f6a4c33"
+    }
+  ],
+  "release_commit": "2325734dd55d9e6a2f028a46437823ff05ac012e",
+  "report_path": "reports/release-v1/evaluation.json",
+  "report_sha256": "a20c40c0a7a0074125b6e7dff4230a420324b5c8fe9b01feb3849ca216214308",
+  "schema_version": "release-access-v1",
+  "scope": "synthetic-agent-generated-not-domain-validated",
+  "started_at": "2026-09-14T23:12:08.747144+00:00",
+  "status": "completed"
+}

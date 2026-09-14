@@ -128,6 +128,8 @@ def rules_scores(groups: Iterable[Mapping[str, Any]]) -> dict[str, list[float]]:
 def evaluate_rules(
     groups: Iterable[Mapping[str, Any]],
     targets: Iterable[Mapping[str, Any]],
+    *,
+    split: str = "validation",
 ) -> dict[str, Any]:
     """Evaluate rules-v1; unsupported/unmatched proposals are abstentions."""
 
@@ -137,7 +139,7 @@ def evaluate_rules(
         targets,
         rules_scores(group_rows),
         proposal_threshold=0.5,
-        split="validation",
+        split=split,
     )
 
 
@@ -148,7 +150,7 @@ def guard_evaluation_split(split: str) -> None:
     if normalized in {"final", "final-test", "sealed", "challenge-test", "challenge-sealed"}:
         if os.getenv("ALLOW_SEALED_EVAL") != "1":
             raise RuntimeError(
-                "sealed evaluation requires ALLOW_SEALED_EVAL=1; Phase 3 does not run it"
+                "sealed evaluation requires ALLOW_SEALED_EVAL=1"
             )
 
 

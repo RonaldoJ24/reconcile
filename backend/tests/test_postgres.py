@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+from threading import Barrier
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from reconcile.api.app import _db, create_app
 from reconcile.api.sample import SAMPLE_CONTEXT, SAMPLE_FILES
-from reconcile.ingest.parsers import parse_batch
+from reconcile.ingest.parsers import parse_batch, parse_message_context
 from reconcile.interpretation.budget import (
     BudgetExceeded,
     BudgetPolicy,
@@ -27,6 +29,7 @@ from reconcile.jobs.queue import claim_one
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.models import (
     Base,
+    CashApplication,
     ImportBatch,
     InterpretationBudgetCounter,
     InterpretationCall,
@@ -507,3 +510,227 @@ def test_preview_rejects_non_sample_upload(session, monkeypatch) -> None:
     )
     assert response.status_code == 403
     api.dependency_overrides.clear()
+
+
+def test_interpretation_rejects_changed_source_hash(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,source-stale,2026-01-15,C,unidentified payment,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,i,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    parsed = parse_batch(
+        bank,
+        invoices,
+        message=b"Please review this payment.",
+        message_context=parse_message_context("2026-01-15T12:00:00+00:00", "acct", "source-stale"),
+    )
+    batch = service.validate_import(workspace.id, parsed, "local")
+    session.commit()
+    service.commit_import(workspace.id, batch.id)
+    payment = session.scalar(select(Payment).where(Payment.workspace_id == workspace.id))
+    assert payment is not None
+    proposal = service.process_match(workspace.id, payment.id)
+    message_source = session.scalar(
+        select(Source).where(Source.workspace_id == workspace.id, Source.kind == "message")
+    )
+    assert message_source is not None
+    expected_hash = message_source.sha256
+    message_source.sha256 = uuid.uuid4().hex
+    session.commit()
+
+    with pytest.raises(ServiceError, match="source evidence changed"):
+        service.record_interpretation(
+            workspace.id,
+            proposal.id,
+            expected_revision=1,
+            mode="direct",
+            source="live",
+            candidate=None,
+            citations=[],
+            reason_code="source_changed",
+            trace={},
+            expected_source_hashes={str(message_source.id): expected_hash},
+            expected_payment_version=payment.version,
+            expected_invoice_versions={},
+            expected_credit_versions={},
+        )
+
+
+def test_cross_workspace_application_and_reversal_are_denied(session) -> None:
+    service = ReconcileService(session)
+    owner = service.create_workspace()
+    outsider = service.create_workspace()
+    batch = ImportBatch(workspace_id=owner.id)
+    session.add(batch)
+    session.flush()
+    source = Source(
+        workspace_id=owner.id,
+        batch_id=batch.id,
+        kind="bank",
+        sha256=uuid.uuid4().hex,
+        raw_bytes=b"",
+    )
+    session.add(source)
+    session.flush()
+    invoice = Invoice(
+        workspace_id=owner.id,
+        source_id=source.id,
+        customer_id="c",
+        customer_name="C",
+        invoice_id="workspace-invoice",
+        issued_date=date(2026, 1, 1),
+        due_date=date(2026, 1, 15),
+        balance_as_of=date(2026, 1, 15),
+        outstanding_amount=10_000,
+        currency="MXN",
+    )
+    payment = Payment(
+        workspace_id=owner.id,
+        source_id=source.id,
+        source_account_id="acct",
+        transaction_id="workspace-payment",
+        booking_date=date(2026, 1, 15),
+        payer_name="C",
+        reference="invoice workspace-invoice",
+        amount=10_000,
+        currency="MXN",
+    )
+    session.add_all([invoice, payment])
+    session.commit()
+    proposal = service.process_match(owner.id, payment.id)
+    revision = session.scalar(
+        select(ProposalRevision).where(
+            ProposalRevision.proposal_id == proposal.id,
+            ProposalRevision.revision == 1,
+        )
+    )
+    assert revision is not None
+    applied = service.apply(
+        owner.id,
+        proposal.id,
+        revision.revision,
+        revision.version_token,
+        "owner",
+        "owner-application",
+    )
+
+    with pytest.raises(ServiceError, match="proposal not found"):
+        service.apply(
+            outsider.id,
+            proposal.id,
+            revision.revision,
+            revision.version_token,
+            "outsider",
+            "outsider-application",
+        )
+    with pytest.raises(ServiceError, match="application not found"):
+        service.reverse(outsider.id, applied.id, "outsider", "no access", "outsider-reversal")
+    assert session.query(CashApplication).filter_by(application_group_id=applied.id).count() == 1
+
+
+@pytest.mark.parametrize("race_number", range(25))
+def test_contested_balance_race_has_one_winner(db_engine, race_number: int) -> None:
+    session_factory = sessionmaker(bind=db_engine, expire_on_commit=False)
+    amount = 10_000
+    with session_factory() as setup:
+        service = ReconcileService(setup)
+        workspace = service.create_workspace()
+        batch = ImportBatch(workspace_id=workspace.id)
+        setup.add(batch)
+        setup.flush()
+        source = Source(
+            workspace_id=workspace.id,
+            batch_id=batch.id,
+            kind="bank",
+            sha256=uuid.uuid4().hex,
+            raw_bytes=b"",
+        )
+        setup.add(source)
+        setup.flush()
+        invoice = Invoice(
+            workspace_id=workspace.id,
+            source_id=source.id,
+            customer_id="c",
+            customer_name="C",
+            invoice_id=f"race-invoice-{race_number}",
+            issued_date=date(2026, 1, 1),
+            due_date=date(2026, 1, 15),
+            balance_as_of=date(2026, 1, 15),
+            outstanding_amount=amount,
+            currency="MXN",
+        )
+        payments = [
+            Payment(
+                workspace_id=workspace.id,
+                source_id=source.id,
+                source_account_id="acct",
+                transaction_id=f"race-payment-{race_number}-{suffix}",
+                booking_date=date(2026, 1, 15),
+                payer_name="C",
+                reference=f"invoice race-invoice-{race_number}",
+                amount=amount,
+                currency="MXN",
+            )
+            for suffix in ("one", "two")
+        ]
+        setup.add_all([invoice, *payments])
+        setup.commit()
+        proposals = [service.process_match(workspace.id, item.id) for item in payments]
+        payloads = []
+        for index, proposal in enumerate(proposals):
+            revision = setup.scalar(
+                select(ProposalRevision).where(
+                    ProposalRevision.proposal_id == proposal.id,
+                    ProposalRevision.revision == 1,
+                )
+            )
+            assert revision is not None
+            payloads.append(
+                (
+                    workspace.id,
+                    proposal.id,
+                    revision.revision,
+                    revision.version_token,
+                    "reviewer",
+                    f"race-{race_number}-{index}",
+                )
+            )
+
+    barrier = Barrier(2)
+
+    def attempt(payload) -> tuple[str, str]:
+        local = session_factory()
+        try:
+            barrier.wait(timeout=10)
+            group = ReconcileService(local).apply(*payload)
+            return "won", str(group.id)
+        except ServiceError as exc:
+            local.rollback()
+            return "lost", exc.code
+        finally:
+            local.close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(attempt, payloads))
+
+    assert [result[0] for result in results].count("won") == 1
+    assert [result[0] for result in results].count("lost") == 1
+    assert results[0][1] != results[1][1]
+    with session_factory() as check:
+        active = list(
+            check.scalars(
+                select(CashApplication).where(
+                    CashApplication.workspace_id == workspace.id,
+                    CashApplication.active.is_(True),
+                )
+            )
+        )
+        assert len(active) == 1
+        assert sum(row.amount for row in active) == amount
+        assert active[0].payment_id in {payments[0].id, payments[1].id}
