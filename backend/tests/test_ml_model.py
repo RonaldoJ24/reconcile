@@ -201,6 +201,16 @@ def test_sealed_guard_and_observed_runtime_prediction(
     assert isinstance(trace["score"], float)
 
 
+def test_explicit_hybrid_ranking_bypasses_shadow_switch(monkeypatch) -> None:
+    monkeypatch.setenv("RECONCILE_RANKER_MODE", "rules-v1")
+
+    trace = rank_candidates(_group(), force=True)
+
+    assert trace["mode"] == "hybrid"
+    assert trace["model_id"] == "ranker-ml-v1-logistic"
+    assert trace["ranked_candidate"] in {"c-a", "c-b"}
+
+
 def test_runtime_allowlist_excludes_training_and_generated_data() -> None:
     allowlist = Path(__file__).parents[2] / "deploy/runtime-allowlist.txt"
     entries = {

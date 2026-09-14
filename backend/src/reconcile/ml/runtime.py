@@ -35,6 +35,7 @@ def rank_candidates(
     *,
     artifact: LoadedArtifact | None = None,
     max_candidates: int = 10,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Return an observational shadow trace and never mutate the proposal.
 
@@ -55,7 +56,7 @@ def rank_candidates(
         "truncated": truncated,
         "truncation": truncated,
     }
-    if trace["mode"] != "shadow" or not candidates:
+    if (trace["mode"] != "shadow" and not force) or not candidates:
         return trace
 
     loaded = artifact or load_artifact()
@@ -72,6 +73,7 @@ def rank_candidates(
     )
     trace.update(
         {
+            "mode": "hybrid" if force and trace["mode"] != "shadow" else trace["mode"],
             "model_id": loaded.model_id,
             "model_version": loaded.model_version,
             "ranked_candidate": ranked[0][0].get("candidate_id"),
