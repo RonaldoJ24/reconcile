@@ -60,9 +60,7 @@ def make_request(*, mode: str = "direct", source_text: str = "INV-1") -> Interpr
         ],
         mode=mode,
         ranked_candidates=(
-            [{"candidate_id": "candidate-1", "raw_score": 1.5}]
-            if mode == "hybrid"
-            else []
+            [{"candidate_id": "candidate-1", "raw_score": 1.5}] if mode == "hybrid" else []
         ),
         decision_timestamp="2026-09-14T12:00:00Z",
     )
@@ -96,9 +94,14 @@ def test_strict_models_and_exact_citations() -> None:
     )
     validate_result(request, result)
     with pytest.raises(ValueError, match="exact source slice"):
-        validate_result(request, result.model_copy(update={"citations": [Citation(
-            source_id="source-1", start=0, end=5, quote="wrong"
-        )]}))
+        validate_result(
+            request,
+            result.model_copy(
+                update={
+                    "citations": [Citation(source_id="source-1", start=0, end=5, quote="wrong")]
+                }
+            ),
+        )
 
 
 def test_prompt_modes_are_bounded_and_delimited() -> None:
@@ -108,6 +111,7 @@ def test_prompt_modes_are_bounded_and_delimited() -> None:
     assert hybrid.mode == "hybrid"
     assert direct.request_bytes <= 6000
     assert "<untrusted_source>INV-1</untrusted_source>" in direct.user
+    assert '"citation_template":{"end":5,"quote":"INV-1"' in direct.user
     assert "rank_context" in hybrid.user
     with pytest.raises(PromptTooLarge):
         compile_prompt(make_request(source_text="x" * 100_000))
@@ -123,9 +127,7 @@ def test_provider_posts_required_deepseek_options_without_network() -> None:
                 "decision": "select",
                 "candidate_id": "candidate-1",
                 "reason_code": "evidence_supported",
-                "citations": [
-                    {"source_id": "source-1", "start": 0, "end": 5, "quote": "INV-1"}
-                ],
+                "citations": [{"source_id": "source-1", "start": 0, "end": 5, "quote": "INV-1"}],
             }
         )
 
@@ -197,4 +199,88 @@ def test_only_transient_failures_retry_and_hooks_run_per_attempt() -> None:
     assert outcome.failure is not None
     assert outcome.failure.code is FailureCode.BAD_REQUEST
     assert len(outcome.attempts) == 1
+    client.close()
+
+
+def test_semantic_failure_reconciles_complete_usage() -> None:
+    finalized: list[AttemptEvent] = []
+    client = httpx.Client(
+        base_url="https://api.deepseek.com",
+        transport=httpx.MockTransport(
+            lambda request: response(
+                {
+                    "decision": "select",
+                    "candidate_id": "candidate-1",
+                    "reason_code": "evidence_supported",
+                    "citations": [
+                        {
+                            "source_id": "source-1",
+                            "start": 0,
+                            "end": 5,
+                            "quote": "wrong",
+                        }
+                    ],
+                }
+            )
+        ),
+    )
+    outcome = DeepSeekProvider(
+        api_key="provided-explicitly",
+        enabled=True,
+        client=client,
+        reserve_attempt=lambda context: context.attempt,
+        finalize_attempt=finalized.append,
+    ).interpret(make_request())
+
+    assert not outcome.ok
+    assert outcome.failure is not None
+    assert outcome.failure.code is FailureCode.INVALID_CITATION
+    assert finalized[0].billing_state == "reconciled"
+    assert finalized[0].telemetry.usage.input_tokens == 101
+    client.close()
+
+
+def test_timeout_retries_once_and_retains_each_unknown_reservation() -> None:
+    finalized: list[AttemptEvent] = []
+
+    def timeout(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    client = httpx.Client(
+        base_url="https://api.deepseek.com",
+        transport=httpx.MockTransport(timeout),
+    )
+    outcome = DeepSeekProvider(
+        api_key="provided-explicitly",
+        enabled=True,
+        client=client,
+        reserve_attempt=lambda context: context.attempt,
+        finalize_attempt=finalized.append,
+    ).interpret(make_request())
+
+    assert not outcome.ok
+    assert outcome.failure is not None
+    assert outcome.failure.code is FailureCode.TIMEOUT
+    assert [item.context.attempt for item in finalized] == [1, 2]
+    assert [item.billing_state for item in finalized] == ["unknown", "unknown"]
+    client.close()
+
+
+def test_definite_provider_rejection_releases_reservation() -> None:
+    finalized: list[AttemptEvent] = []
+    client = httpx.Client(
+        base_url="https://api.deepseek.com",
+        transport=httpx.MockTransport(lambda request: httpx.Response(400)),
+    )
+    outcome = DeepSeekProvider(
+        api_key="provided-explicitly",
+        enabled=True,
+        client=client,
+        reserve_attempt=lambda context: context.attempt,
+        finalize_attempt=finalized.append,
+    ).interpret(make_request())
+
+    assert not outcome.ok
+    assert finalized[0].billing_state == "released"
+    assert finalized[0].telemetry.reservation_state == "released"
     client.close()

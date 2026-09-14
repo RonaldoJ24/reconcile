@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,6 +49,10 @@ class ReverseRequest(StrictModel):
     reviewer: str = Field(min_length=1, max_length=200)
     reason: str = Field(min_length=1, max_length=2000)
     idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class InterpretationRequestBody(StrictModel):
+    mode: Literal["direct", "hybrid"]
 
 
 class ErrorResponse(StrictModel):
