@@ -1,2 +1,2 @@
 source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency
-acct-1,pay-1,2026-09-14,Acme SA,"Invoices 101 and 102; credit 103",54000.00,MXN
+acct-1,pay-54k,2026-01-15,Acme SA,Invoices 101 102 credit 103,54000,MXN
