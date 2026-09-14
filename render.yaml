@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: reconcile-preview
+    runtime: docker
+    plan: free
+    autoDeploy: false
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: RECONCILE_MODE
+        value: preview
+      - key: RECONCILE_PROFILE
+        value: free_preview
+      - key: RECONCILE_PROVIDER
+        value: deepseek
+      - key: RECONCILE_PROVIDER_ACCESS
+        value: invite_only
+      - key: RECONCILE_ALLOW_LIVE_PROVIDER
+        value: "false"
+      - key: RECONCILE_RANKER_MODE
+        value: shadow
+      - key: RECONCILE_WORKER_MODE
+        value: web_lifecycle
+      - key: RECONCILE_LLM_ENABLED
+        value: "0"
+      - key: RECONCILE_LLM_MODEL
+        value: deepseek-flash
+      - key: DEEPSEEK_MODEL
+        value: deepseek-flash
+      - key: DEEPSEEK_BASE_URL
+        value: https://api.deepseek.com
+      - key: RECONCILE_LLM_EXECUTION_BUDGET_USD
+        value: "0"
+      - key: DATABASE_URL
+        sync: false
+      - key: MIGRATION_DATABASE_URL
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: RECONCILE_LLM_EXECUTION_ID
+        sync: false
