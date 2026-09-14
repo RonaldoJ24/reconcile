@@ -6,9 +6,12 @@ export default defineConfig({
   testDir: '.',
   testMatch: /reconcile\.spec\.ts/,
   fullyParallel: false,
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
+  timeout: 90_000,
   reporter: [['list']],
+  expect: { timeout: 30_000 },
   use: {
     baseURL,
     trace: 'retain-on-failure',

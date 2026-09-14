@@ -11,6 +11,7 @@ export default defineConfig({
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        headers: { Origin: apiTarget },
       },
     },
   },

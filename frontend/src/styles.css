@@ -134,6 +134,7 @@ caption { padding: 0 0 10px; color: var(--navy); font-weight: 700; text-align: l
 .empty-symbol { color: #85a4b9; font-size: 2.4rem; }
 .back-link { display: inline-block; margin: -9px 0 24px; padding: 0; color: var(--blue); background: transparent; border: 0; font-size: .8rem; font-weight: 600; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 325px; align-items: start; gap: 18px; }
+.detail-main, .detail-side { min-width: 0; }
 .detail-main > .panel:last-child { margin-bottom: 0; }
 .detail-side { position: sticky; top: 20px; }
 .detail-side .panel { padding: 21px; }
@@ -185,7 +186,7 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 190px minmax(0, 1fr); }
   .content-wrap { padding: 37px 28px 65px; }
-  .detail-grid { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: minmax(0, 1fr); }
   .detail-side { position: static; }
 }
 
