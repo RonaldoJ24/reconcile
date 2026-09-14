@@ -576,6 +576,8 @@ def test_cross_workspace_application_and_reversal_are_denied(session) -> None:
         sha256=uuid.uuid4().hex,
         raw_bytes=b"",
     )
+    session.add(source)
+    session.flush()
     invoice = Invoice(
         workspace_id=owner.id,
         source_id=source.id,
@@ -599,7 +601,7 @@ def test_cross_workspace_application_and_reversal_are_denied(session) -> None:
         amount=10_000,
         currency="MXN",
     )
-    session.add_all([source, invoice, payment])
+    session.add_all([invoice, payment])
     session.commit()
     proposal = service.process_match(owner.id, payment.id)
     revision = session.scalar(
@@ -649,6 +651,8 @@ def test_contested_balance_race_has_one_winner(db_engine, race_number: int) -> N
             sha256=uuid.uuid4().hex,
             raw_bytes=b"",
         )
+        setup.add(source)
+        setup.flush()
         invoice = Invoice(
             workspace_id=workspace.id,
             source_id=source.id,
@@ -675,7 +679,7 @@ def test_contested_balance_race_has_one_winner(db_engine, race_number: int) -> N
             )
             for suffix in ("one", "two")
         ]
-        setup.add_all([source, invoice, *payments])
+        setup.add_all([invoice, *payments])
         setup.commit()
         proposals = [service.process_match(workspace.id, item.id) for item in payments]
         payloads = []
