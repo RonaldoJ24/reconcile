@@ -19,7 +19,7 @@ def migrate() -> None:
         raise RuntimeError("MIGRATION_DATABASE_URL is required for hosted startup")
     engine = create_engine(normalize_database_url(raw_url), poolclass=NullPool, pool_pre_ping=True)
     config = Config("backend/alembic.ini")
-    with engine.connect() as connection:
+    with engine.begin() as connection:
         connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_ID})
         try:
             config.attributes["connection"] = connection
