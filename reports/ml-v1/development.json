@@ -1,0 +1,2523 @@
+{
+  "artifact": {
+    "model_id": "ranker-ml-v1-logistic",
+    "model_version": "1"
+  },
+  "development": {
+    "abstention": 0.0,
+    "by_family": {
+      "abbreviated_ambiguous_payer_identity": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 9,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 12189500,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 12189500,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006946666666666667,
+          "p95_ms": 0.00075
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006946666666666667,
+          "p95_ms": 0.00075
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "bundled_invoices": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 4,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 32244500,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 32244500,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.00048600000000000005,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.00048600000000000005,
+          "p95_ms": 0.000542
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "conflicting_evidence": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 6,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 14232100,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 14232100,
+        "incorrectly_allocated_value": {
+          "amount": 14232100,
+          "denominator": 14232100,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005413333333333333,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005413333333333333,
+          "p95_ms": 0.000542
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 3,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "credit_linkage": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 6,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 23858400,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 23858400,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005693333333333333,
+          "p95_ms": 0.000583
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005693333333333333,
+          "p95_ms": 0.000583
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "exact_reference": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 9,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 8790400,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 8790400,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006666666666666666,
+          "p95_ms": 0.000708
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006666666666666666,
+          "p95_ms": 0.000708
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "misleading_equal_amount_alternatives": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 9,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 6223100,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 6223100,
+        "incorrectly_allocated_value": {
+          "amount": 6223100,
+          "denominator": 6223100,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006663333333333333,
+          "p95_ms": 0.000667
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006663333333333333,
+          "p95_ms": 0.000667
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 3,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "no_valid_match": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 9,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 8161435,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 8161435,
+        "incorrectly_allocated_value": {
+          "amount": 8161435,
+          "denominator": 8161435,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006810000000000001,
+          "p95_ms": 0.000709
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006810000000000001,
+          "p95_ms": 0.000709
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 3,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "out_of_scope": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 6,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 47065400,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 47065400,
+        "incorrectly_allocated_value": {
+          "amount": 47065400,
+          "denominator": 47065400,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.000542,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.000542,
+          "p95_ms": 0.000542
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 3,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "prompt_like_document_content": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 9,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 15960600,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 15960600,
+        "incorrectly_allocated_value": {
+          "amount": 15960600,
+          "denominator": 15960600,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006529999999999999,
+          "p95_ms": 0.000667
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006529999999999999,
+          "p95_ms": 0.000667
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 3,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "single_partial_payment": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 9,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 8056000,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 8056000,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006670000000000001,
+          "p95_ms": 0.000709
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006670000000000001,
+          "p95_ms": 0.000709
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      }
+    },
+    "candidate_recall": 1.0,
+    "coverage": 1.0,
+    "denominators": {
+      "answer_bearing_groups": 15,
+      "candidates": 76,
+      "exact_allocation_groups": 15,
+      "groups": 30,
+      "payment_value": 176781435,
+      "proposals": 30,
+      "ranked_groups": 30,
+      "retrieval_groups": 15
+    },
+    "exact_allocation": {
+      "accuracy": 1.0,
+      "denominator": 15,
+      "numerator": 15
+    },
+    "incorrect_value": 91642635,
+    "incorrectly_allocated_value": {
+      "amount": 91642635,
+      "denominator": 176781435,
+      "rate": 0.5183951301221195
+    },
+    "latency": {
+      "count": 30,
+      "mean_ms": 0.0006528,
+      "p95_ms": 0.000834
+    },
+    "latency_ms": {
+      "count": 30,
+      "mean_ms": 0.0006528,
+      "p95_ms": 0.000834
+    },
+    "precision": 0.5,
+    "proposal": {
+      "abstained_underdetermined": 0,
+      "abstention_rate": 0.0,
+      "abstentions": 0,
+      "coverage": 1.0,
+      "precision": 0.5,
+      "proposals": 30,
+      "underdetermined_groups": 15
+    },
+    "ranking": {
+      "denominator": 30,
+      "numerator": 15,
+      "top1_accuracy": 0.5
+    },
+    "ranking_accuracy": 0.5,
+    "retrieval": {
+      "candidate_recall": 1.0,
+      "denominator": 15,
+      "numerator": 15
+    }
+  },
+  "rules_development": {
+    "abstention": 0.4,
+    "by_family": {
+      "abbreviated_ambiguous_payer_identity": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 9,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 12189500,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 12189500,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0008333333333333334,
+          "p95_ms": 0.000875
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0008333333333333334,
+          "p95_ms": 0.000875
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "bundled_invoices": {
+        "abstention": 0.6666666666666666,
+        "candidate_recall": 1.0,
+        "coverage": 0.3333333333333333,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 4,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 32244500,
+          "proposals": 1,
+          "ranked_groups": 1,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 0.3333333333333333,
+          "denominator": 3,
+          "numerator": 1
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 32244500,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005973333333333333,
+          "p95_ms": 0.00075
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005973333333333333,
+          "p95_ms": 0.00075
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.6666666666666666,
+          "abstentions": 2,
+          "coverage": 0.3333333333333333,
+          "precision": 1.0,
+          "proposals": 1,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 1,
+          "numerator": 1,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "conflicting_evidence": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 6,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 14232100,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 14232100,
+        "incorrectly_allocated_value": {
+          "amount": 14232100,
+          "denominator": 14232100,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005693333333333333,
+          "p95_ms": 0.000583
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005693333333333333,
+          "p95_ms": 0.000583
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 3,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "credit_linkage": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 6,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 23858400,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 23858400,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005693333333333333,
+          "p95_ms": 0.000583
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005693333333333333,
+          "p95_ms": 0.000583
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "exact_reference": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 9,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 8790400,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 8790400,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006809999999999999,
+          "p95_ms": 0.000709
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006809999999999999,
+          "p95_ms": 0.000709
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      },
+      "misleading_equal_amount_alternatives": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 9,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 6223100,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 6223100,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005279999999999999,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005279999999999999,
+          "p95_ms": 0.000542
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 3,
+          "abstention_rate": 1.0,
+          "abstentions": 3,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "no_valid_match": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 9,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 8161435,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 8161435,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0005279999999999999,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0005279999999999999,
+          "p95_ms": 0.000542
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 3,
+          "abstention_rate": 1.0,
+          "abstentions": 3,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "out_of_scope": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 6,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 47065400,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 47065400,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0004443333333333333,
+          "p95_ms": 0.000458
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0004443333333333333,
+          "p95_ms": 0.000458
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 3,
+          "abstention_rate": 1.0,
+          "abstentions": 3,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "prompt_like_document_content": {
+        "abstention": 0.3333333333333333,
+        "candidate_recall": null,
+        "coverage": 0.6666666666666666,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 9,
+          "exact_allocation_groups": 0,
+          "groups": 3,
+          "payment_value": 15960600,
+          "proposals": 2,
+          "ranked_groups": 2,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 12244000,
+        "incorrectly_allocated_value": {
+          "amount": 12244000,
+          "denominator": 15960600,
+          "rate": 0.7671390799844617
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.0006253333333333333,
+          "p95_ms": 0.000709
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.0006253333333333333,
+          "p95_ms": 0.000709
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 1,
+          "abstention_rate": 0.3333333333333333,
+          "abstentions": 1,
+          "coverage": 0.6666666666666666,
+          "precision": 0.0,
+          "proposals": 2,
+          "underdetermined_groups": 3
+        },
+        "ranking": {
+          "denominator": 2,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "single_partial_payment": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 3,
+          "candidates": 9,
+          "exact_allocation_groups": 3,
+          "groups": 3,
+          "payment_value": 8056000,
+          "proposals": 3,
+          "ranked_groups": 3,
+          "retrieval_groups": 3
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 8056000,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 3,
+          "mean_ms": 0.000667,
+          "p95_ms": 0.000667
+        },
+        "latency_ms": {
+          "count": 3,
+          "mean_ms": 0.000667,
+          "p95_ms": 0.000667
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 3,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 3,
+          "numerator": 3,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 3,
+          "numerator": 3
+        }
+      }
+    },
+    "candidate_recall": 1.0,
+    "coverage": 0.6,
+    "denominators": {
+      "answer_bearing_groups": 15,
+      "candidates": 76,
+      "exact_allocation_groups": 15,
+      "groups": 30,
+      "payment_value": 176781435,
+      "proposals": 18,
+      "ranked_groups": 18,
+      "retrieval_groups": 15
+    },
+    "exact_allocation": {
+      "accuracy": 0.8666666666666667,
+      "denominator": 15,
+      "numerator": 13
+    },
+    "incorrect_value": 26476100,
+    "incorrectly_allocated_value": {
+      "amount": 26476100,
+      "denominator": 176781435,
+      "rate": 0.1497674232591222
+    },
+    "latency": {
+      "count": 30,
+      "mean_ms": 0.0006388666666666666,
+      "p95_ms": 0.000917
+    },
+    "latency_ms": {
+      "count": 30,
+      "mean_ms": 0.0006388666666666666,
+      "p95_ms": 0.000917
+    },
+    "precision": 0.7222222222222222,
+    "proposal": {
+      "abstained_underdetermined": 10,
+      "abstention_rate": 0.4,
+      "abstentions": 12,
+      "coverage": 0.6,
+      "precision": 0.7222222222222222,
+      "proposals": 18,
+      "underdetermined_groups": 15
+    },
+    "ranking": {
+      "denominator": 18,
+      "numerator": 13,
+      "top1_accuracy": 0.7222222222222222
+    },
+    "ranking_accuracy": 0.7222222222222222,
+    "retrieval": {
+      "candidate_recall": 1.0,
+      "denominator": 15,
+      "numerator": 15
+    }
+  },
+  "rules_validation": {
+    "abstention": 0.5,
+    "by_family": {
+      "abbreviated_ambiguous_payer_identity": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 300,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 482782900,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 482782900,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00066332,
+          "p95_ms": 0.000709
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00066332,
+          "p95_ms": 0.000709
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "bundled_invoices": {
+        "abstention": 1.0,
+        "candidate_recall": 1.0,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 203,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 1237239900,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 0.0,
+          "denominator": 100,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 1237239900,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00042376999999999996,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00042376999999999996,
+          "p95_ms": 0.000542
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 1.0,
+          "abstentions": 100,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "conflicting_evidence": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 200,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 478415200,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 478415200,
+        "incorrectly_allocated_value": {
+          "amount": 478415200,
+          "denominator": 478415200,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.0005771499999999999,
+          "p95_ms": 0.000625
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.0005771499999999999,
+          "p95_ms": 0.000625
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 100,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "credit_linkage": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 200,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 939600360,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 939600360,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00053086,
+          "p95_ms": 0.000583
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00053086,
+          "p95_ms": 0.000583
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "exact_reference": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 300,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 499765000,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 499765000,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00067548,
+          "p95_ms": 0.000833
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00067548,
+          "p95_ms": 0.000833
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "misleading_equal_amount_alternatives": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 300,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 466205500,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 466205500,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00048871,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00048871,
+          "p95_ms": 0.000542
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 100,
+          "abstention_rate": 1.0,
+          "abstentions": 100,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "no_valid_match": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 300,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 503421500,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 503421500,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00048913,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00048913,
+          "p95_ms": 0.000542
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 100,
+          "abstention_rate": 1.0,
+          "abstentions": 100,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "out_of_scope": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 200,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 1963672600,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 1963672600,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00043244999999999997,
+          "p95_ms": 0.000459
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00043244999999999997,
+          "p95_ms": 0.000459
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 100,
+          "abstention_rate": 1.0,
+          "abstentions": 100,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "prompt_like_document_content": {
+        "abstention": 1.0,
+        "candidate_recall": null,
+        "coverage": 0.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 300,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 493814200,
+          "proposals": 0,
+          "ranked_groups": 0,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 493814200,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00055794,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00055794,
+          "p95_ms": 0.000542
+        },
+        "precision": null,
+        "proposal": {
+          "abstained_underdetermined": 100,
+          "abstention_rate": 1.0,
+          "abstentions": 100,
+          "coverage": 0.0,
+          "precision": null,
+          "proposals": 0,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 0,
+          "numerator": 0,
+          "top1_accuracy": null
+        },
+        "ranking_accuracy": null,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "single_partial_payment": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 300,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 229320000,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 229320000,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.0006799800000000001,
+          "p95_ms": 0.000833
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.0006799800000000001,
+          "p95_ms": 0.000833
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      }
+    },
+    "candidate_recall": 1.0,
+    "coverage": 0.5,
+    "denominators": {
+      "answer_bearing_groups": 500,
+      "candidates": 2603,
+      "exact_allocation_groups": 500,
+      "groups": 1000,
+      "payment_value": 7294237160,
+      "proposals": 500,
+      "ranked_groups": 500,
+      "retrieval_groups": 500
+    },
+    "exact_allocation": {
+      "accuracy": 0.8,
+      "denominator": 500,
+      "numerator": 400
+    },
+    "incorrect_value": 478415200,
+    "incorrectly_allocated_value": {
+      "amount": 478415200,
+      "denominator": 7294237160,
+      "rate": 0.0655881059946233
+    },
+    "latency": {
+      "count": 1000,
+      "mean_ms": 0.000580786,
+      "p95_ms": 0.000709
+    },
+    "latency_ms": {
+      "count": 1000,
+      "mean_ms": 0.000580786,
+      "p95_ms": 0.000709
+    },
+    "precision": 0.8,
+    "proposal": {
+      "abstained_underdetermined": 400,
+      "abstention_rate": 0.5,
+      "abstentions": 500,
+      "coverage": 0.5,
+      "precision": 0.8,
+      "proposals": 500,
+      "underdetermined_groups": 500
+    },
+    "ranking": {
+      "denominator": 500,
+      "numerator": 400,
+      "top1_accuracy": 0.8
+    },
+    "ranking_accuracy": 0.8,
+    "retrieval": {
+      "candidate_recall": 1.0,
+      "denominator": 500,
+      "numerator": 500
+    }
+  },
+  "scope": "synthetic-agent-generated-not-domain-validated",
+  "validation": {
+    "abstention": 0.0,
+    "by_family": {
+      "abbreviated_ambiguous_payer_identity": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 300,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 482782900,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 482782900,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00064795,
+          "p95_ms": 0.00075
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00064795,
+          "p95_ms": 0.00075
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "bundled_invoices": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 203,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 1237239900,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 1237239900,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00054123,
+          "p95_ms": 0.000667
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00054123,
+          "p95_ms": 0.000667
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "conflicting_evidence": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 200,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 478415200,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 478415200,
+        "incorrectly_allocated_value": {
+          "amount": 478415200,
+          "denominator": 478415200,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00057457,
+          "p95_ms": 0.000666
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00057457,
+          "p95_ms": 0.000666
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 100,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "credit_linkage": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 200,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 939600360,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 939600360,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00052753,
+          "p95_ms": 0.000542
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00052753,
+          "p95_ms": 0.000542
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "exact_reference": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 300,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 499765000,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 499765000,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00064503,
+          "p95_ms": 0.000708
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00064503,
+          "p95_ms": 0.000708
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      },
+      "misleading_equal_amount_alternatives": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 300,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 466205500,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 466205500,
+        "incorrectly_allocated_value": {
+          "amount": 466205500,
+          "denominator": 466205500,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.0006850399999999999,
+          "p95_ms": 0.00075
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.0006850399999999999,
+          "p95_ms": 0.00075
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 100,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "no_valid_match": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 300,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 503421500,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 503421500,
+        "incorrectly_allocated_value": {
+          "amount": 503421500,
+          "denominator": 503421500,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.0006870899999999999,
+          "p95_ms": 0.00075
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.0006870899999999999,
+          "p95_ms": 0.00075
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 100,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "out_of_scope": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 200,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 1963672600,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 1963672600,
+        "incorrectly_allocated_value": {
+          "amount": 1963672600,
+          "denominator": 1963672600,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00057039,
+          "p95_ms": 0.000625
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00057039,
+          "p95_ms": 0.000625
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 100,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "prompt_like_document_content": {
+        "abstention": 0.0,
+        "candidate_recall": null,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 0,
+          "candidates": 300,
+          "exact_allocation_groups": 0,
+          "groups": 100,
+          "payment_value": 493814200,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 0
+        },
+        "exact_allocation": {
+          "accuracy": null,
+          "denominator": 0,
+          "numerator": 0
+        },
+        "incorrect_value": 493814200,
+        "incorrectly_allocated_value": {
+          "amount": 493814200,
+          "denominator": 493814200,
+          "rate": 1.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.00067456,
+          "p95_ms": 0.000709
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.00067456,
+          "p95_ms": 0.000709
+        },
+        "precision": 0.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 0.0,
+          "proposals": 100,
+          "underdetermined_groups": 100
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 0,
+          "top1_accuracy": 0.0
+        },
+        "ranking_accuracy": 0.0,
+        "retrieval": {
+          "candidate_recall": null,
+          "denominator": 0,
+          "numerator": 0
+        }
+      },
+      "single_partial_payment": {
+        "abstention": 0.0,
+        "candidate_recall": 1.0,
+        "coverage": 1.0,
+        "denominators": {
+          "answer_bearing_groups": 100,
+          "candidates": 300,
+          "exact_allocation_groups": 100,
+          "groups": 100,
+          "payment_value": 229320000,
+          "proposals": 100,
+          "ranked_groups": 100,
+          "retrieval_groups": 100
+        },
+        "exact_allocation": {
+          "accuracy": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        },
+        "incorrect_value": 0,
+        "incorrectly_allocated_value": {
+          "amount": 0,
+          "denominator": 229320000,
+          "rate": 0.0
+        },
+        "latency": {
+          "count": 100,
+          "mean_ms": 0.0006454400000000001,
+          "p95_ms": 0.000667
+        },
+        "latency_ms": {
+          "count": 100,
+          "mean_ms": 0.0006454400000000001,
+          "p95_ms": 0.000667
+        },
+        "precision": 1.0,
+        "proposal": {
+          "abstained_underdetermined": 0,
+          "abstention_rate": 0.0,
+          "abstentions": 0,
+          "coverage": 1.0,
+          "precision": 1.0,
+          "proposals": 100,
+          "underdetermined_groups": 0
+        },
+        "ranking": {
+          "denominator": 100,
+          "numerator": 100,
+          "top1_accuracy": 1.0
+        },
+        "ranking_accuracy": 1.0,
+        "retrieval": {
+          "candidate_recall": 1.0,
+          "denominator": 100,
+          "numerator": 100
+        }
+      }
+    },
+    "candidate_recall": 1.0,
+    "coverage": 1.0,
+    "denominators": {
+      "answer_bearing_groups": 500,
+      "candidates": 2603,
+      "exact_allocation_groups": 500,
+      "groups": 1000,
+      "payment_value": 7294237160,
+      "proposals": 1000,
+      "ranked_groups": 1000,
+      "retrieval_groups": 500
+    },
+    "exact_allocation": {
+      "accuracy": 1.0,
+      "denominator": 500,
+      "numerator": 500
+    },
+    "incorrect_value": 3905529000,
+    "incorrectly_allocated_value": {
+      "amount": 3905529000,
+      "denominator": 7294237160,
+      "rate": 0.5354266545399793
+    },
+    "latency": {
+      "count": 1000,
+      "mean_ms": 0.000661926,
+      "p95_ms": 0.000833
+    },
+    "latency_ms": {
+      "count": 1000,
+      "mean_ms": 0.000661926,
+      "p95_ms": 0.000833
+    },
+    "precision": 0.5,
+    "proposal": {
+      "abstained_underdetermined": 0,
+      "abstention_rate": 0.0,
+      "abstentions": 0,
+      "coverage": 1.0,
+      "precision": 0.5,
+      "proposals": 1000,
+      "underdetermined_groups": 500
+    },
+    "ranking": {
+      "denominator": 1000,
+      "numerator": 500,
+      "top1_accuracy": 0.5
+    },
+    "ranking_accuracy": 0.5,
+    "retrieval": {
+      "candidate_recall": 1.0,
+      "denominator": 500,
+      "numerator": 500
+    }
+  }
+}

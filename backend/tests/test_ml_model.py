@@ -232,6 +232,7 @@ def test_rules_unmapped_and_needs_review_cases_abstain() -> None:
     assert scores[group["group_id"]] == []
     report = evaluate_rules([group], targets)
     assert report["proposal"]["proposals"] == 0
+    assert report["incorrectly_allocated_value"]["denominator"] == 100
 
     group = _group()
     for candidate in group["candidates"]:

@@ -51,7 +51,32 @@ paths asserted no page-level horizontal overflow while exercising fresh-file
 import, review/correction, application, reload, CSV export, and reversal.
 Commits: `eb386e7`, `e05ea2d`, `a4d18da`, `d30b2d3`. PR: #1.
 
-No ML training, provider benchmark/call, cloud deployment, or human validation
-has occurred. Next bounded phase: Phase 3 synthetic dataset generation, sealed
-splits, rules comparison, local candidate training, evaluation, and artifact
-verification. Do not start it without a new authorization.
+## Phase 3 — complete
+
+Generated and froze 5,000 deterministic synthetic payment groups plus a 30-case
+development and 20-case sealed challenge suite, with separate input/target files,
+split-disjoint entities/templates, manifests, and SHA-256 digests. Final and sealed
+challenge targets were not evaluated. Labels remain agent-generated and not
+independently domain-validated.
+
+Trained exactly two bounded scikit-learn candidates and selected the simpler
+logistic model after a validation tie. The verified `ranker-ml-v1-logistic` v1
+artifact has model digest `bb9774c99870bfa0d20759c6ceb37aafd6fbf65619b28c71947bdb993c16135e`.
+On 1,000 validation groups, the learned ranker proposed 1,000 at 0.500 precision;
+rules v1 proposed 500 at 0.800 precision. The model is not promoted. Opt-in shadow
+mode records an observed model ID/version, raw score, latency, truncation, and
+candidate ranking in PostgreSQL without changing the rules proposal or any
+financial operation. The existing UI exposes this trace.
+
+Checks: `make data-dev` reproduced all frozen files without a diff; `make train`
+reproduced the model digest; `make evaluate-dev` passed; `make check` passed Ruff,
+mypy, 31 non-PostgreSQL tests, TypeScript, 2 Vitest tests, and the Vite build. The
+Alembic 0002 upgrade and 8/8 PostgreSQL tests passed on the isolated Reconcile test
+branch. `make evaluate-release` remained guarded (exit 2). Commits: `eac20a7`,
+`a7476ae`, `8654f63`, `600d9e7`, `b194865`. PRs: #5, #6; final integration PR
+pending.
+
+No provider call, paid benchmark, cloud deployment, sealed evaluation, or human
+validation occurred. Next bounded phase: Phase 4 provider adapter and bounded
+DeepSeek interpretation, only after explicit authorization and budget/credential
+verification.

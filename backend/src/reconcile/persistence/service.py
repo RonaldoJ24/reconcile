@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
+import re
 import uuid
 from collections import defaultdict
 from typing import Any
@@ -138,6 +140,7 @@ def _revision_from_result(
     token: str,
     *,
     provenance: str = "rules-v1",
+    model_trace: dict[str, object] | None = None,
     reviewer: str | None = None,
 ) -> ProposalRevision:
     return ProposalRevision(
@@ -162,8 +165,208 @@ def _revision_from_result(
         status=result.status.value,
         version_token=token,
         provenance=provenance,
+        model_trace=model_trace or {},
         reviewer=reviewer,
     )
+
+
+def _identifier_mentioned(identifier: str, text: str) -> bool:
+    return bool(
+        re.search(
+            rf"(?<![A-Za-z0-9._:/-]){re.escape(identifier)}(?![A-Za-z0-9._:/-])",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
+def _shadow_group(
+    payment: Payment,
+    invoices: list[Invoice],
+    credits: list[CreditNote],
+    evidence: dict[str, str],
+    rules_result: ProposalResult,
+) -> dict[str, Any]:
+    """Build bounded decision-time candidates without changing the rules result."""
+
+    text = " ".join((payment.reference, *evidence.values()))
+    eligible = [
+        invoice
+        for invoice in invoices
+        if invoice.balance_as_of <= payment.booking_date
+        and invoice.currency == payment.currency
+        and (payment.customer_id is None or invoice.customer_id == payment.customer_id)
+    ]
+    eligible.sort(
+        key=lambda invoice: (
+            not _identifier_mentioned(invoice.invoice_id, text),
+            invoice.outstanding_amount != payment.amount,
+            abs((invoice.due_date - payment.booking_date).days),
+            invoice.invoice_id,
+        )
+    )
+    retrieval_truncated = len(eligible) > 10
+    eligible = eligible[:10]
+    eligible_ids = {invoice.invoice_id for invoice in eligible}
+    eligible_by_id = {invoice.invoice_id: invoice for invoice in eligible}
+    eligible_credit = next(
+        (
+            credit
+            for credit in credits
+            if credit.invoice_id in eligible_ids
+            and credit.available_amount <= eligible_by_id[credit.invoice_id].outstanding_amount
+            and credit.balance_as_of <= payment.booking_date
+            and credit.currency == payment.currency
+            and _identifier_mentioned(credit.credit_note_id, text)
+        ),
+        None,
+    )
+
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_candidate(cash: list[dict[str, object]], credit_lines: list[dict[str, object]]) -> None:
+        invoice_ids = sorted(
+            {str(line["invoice_id"]) for line in [*cash, *credit_lines] if line.get("invoice_id")}
+        )
+        if not 1 <= len(invoice_ids) <= 3 or not set(invoice_ids) <= eligible_ids:
+            return
+        allocation = {"invoice_ids": invoice_ids, "cash": cash, "credits": credit_lines}
+        digest = _hash(allocation)
+        if digest in seen:
+            return
+        seen.add(digest)
+        candidates.append({"candidate_id": f"online-{digest[:16]}", **allocation})
+
+    if rules_result.status == ProposalStatus.PROPOSED:
+        add_candidate(
+            [
+                {"invoice_id": line.invoice_id, "amount": line.amount}
+                for line in rules_result.cash
+            ],
+            [
+                {
+                    "credit_note_id": line.credit_note_id,
+                    "invoice_id": line.invoice_id,
+                    "amount": line.amount,
+                }
+                for line in rules_result.credits
+            ],
+        )
+
+    for invoice in eligible:
+        amount = min(payment.amount, invoice.outstanding_amount)
+        if amount > 0:
+            add_candidate([{"invoice_id": invoice.invoice_id, "amount": amount}], [])
+
+    for size in (2, 3):
+        for group in itertools.combinations(eligible, size):
+            credit_amount = (
+                eligible_credit.available_amount
+                if eligible_credit is not None
+                and any(invoice.invoice_id == eligible_credit.invoice_id for invoice in group)
+                else 0
+            )
+            group_total = sum(invoice.outstanding_amount for invoice in group) - credit_amount
+            if group_total != payment.amount:
+                continue
+            cash: list[dict[str, object]] = []
+            for invoice in group:
+                amount = invoice.outstanding_amount - (
+                    credit_amount
+                    if eligible_credit is not None
+                    and invoice.invoice_id == eligible_credit.invoice_id
+                    else 0
+                )
+                if amount:
+                    cash.append({"invoice_id": invoice.invoice_id, "amount": amount})
+            credit_lines: list[dict[str, object]] = (
+                [
+                    {
+                        "credit_note_id": eligible_credit.credit_note_id,
+                        "invoice_id": eligible_credit.invoice_id,
+                        "amount": credit_amount,
+                    }
+                ]
+                if eligible_credit is not None and credit_amount
+                else []
+            )
+            add_candidate(cash, credit_lines)
+
+    return {
+        "group_id": str(payment.id),
+        "payment": {
+            "booking_date": payment.booking_date.isoformat(),
+            "payer_name": payment.payer_name,
+            "reference": payment.reference,
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "customer_id": payment.customer_id,
+        },
+        "invoices": [
+            {
+                "customer_id": invoice.customer_id,
+                "customer_name": invoice.customer_name,
+                "invoice_id": invoice.invoice_id,
+                "issued_date": invoice.issued_date.isoformat(),
+                "due_date": invoice.due_date.isoformat(),
+                "balance_as_of": invoice.balance_as_of.isoformat(),
+                "outstanding_amount": invoice.outstanding_amount,
+                "currency": invoice.currency,
+            }
+            for invoice in eligible
+        ],
+        "credit": (
+            {
+                "customer_id": eligible_credit.customer_id,
+                "credit_note_id": eligible_credit.credit_note_id,
+                "balance_as_of": eligible_credit.balance_as_of.isoformat(),
+                "available_amount": eligible_credit.available_amount,
+                "currency": eligible_credit.currency,
+                "invoice_id": eligible_credit.invoice_id,
+            }
+            if eligible_credit is not None
+            else None
+        ),
+        "message": "\n".join(evidence.values()),
+        "candidates": candidates,
+        "retrieval_truncated": retrieval_truncated,
+    }
+
+
+def _shadow_model_trace(
+    payment: Payment,
+    invoices: list[Invoice],
+    credits: list[CreditNote],
+    evidence: dict[str, str],
+    rules_result: ProposalResult,
+) -> dict[str, object]:
+    from reconcile.ml.artifact import ArtifactError
+    from reconcile.ml.runtime import rank_candidates, runtime_mode
+
+    if runtime_mode() != "shadow":
+        return {}
+    group = _shadow_group(payment, invoices, credits, evidence, rules_result)
+    try:
+        ranker = rank_candidates(group)
+        ranker["status"] = "observed" if ranker.get("model_id") else "no_candidates"
+    except ArtifactError:
+        ranker = {
+            "mode": "shadow",
+            "status": "artifact_unavailable",
+            "model_id": None,
+            "model_version": None,
+        }
+    except (ArithmeticError, TypeError, ValueError):
+        ranker = {
+            "mode": "shadow",
+            "status": "prediction_failed",
+            "model_id": None,
+            "model_version": None,
+        }
+    ranker["retrieval_truncated"] = group["retrieval_truncated"]
+    ranker["candidate_count"] = len(group["candidates"])
+    return {"ranker": ranker}
 
 
 class ReconcileService:
@@ -490,6 +693,7 @@ class ReconcileService:
             proposal_revision,
             result,
             _token(payment, selected_invoices, selected_credits, result),
+            model_trace=_shadow_model_trace(payment, invoices, credits, evidence, result),
         )
         self.session.add(revision)
         self.session.commit()

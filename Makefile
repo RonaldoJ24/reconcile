@@ -68,6 +68,21 @@ cost-preflight:
 	@neon projects list --org-id org-broad-boat-80792120 --output json | \
 		jq '{project_count: length, project_names: map(.name)}'
 
-data-dev train evaluate-dev evaluate-release smoke-live perf:
-	@echo "$@ belongs to a later authorized phase and is intentionally unavailable in Phases 0-2." >&2
+data-dev:
+	uv run python -m reconcile.ml.data --output data/generated/ml-v1
+	uv run python -m reconcile.ml.data --output data/generated/ml-v1 --validate
+
+train:
+	uv run python -m reconcile.ml.train --report reports/ml-v1/training.json
+
+evaluate-dev:
+	uv run python -m reconcile.ml.evaluate --report reports/ml-v1/development.json
+
+evaluate-release:
+	@test "$${ALLOW_SEALED_EVAL:-0}" = 1 || { echo "set ALLOW_SEALED_EVAL=1 only during the authorized Phase 5 release freeze" >&2; exit 2; }
+	@echo "sealed evaluation is intentionally not implemented or run in Phase 3" >&2
+	@exit 2
+
+smoke-live perf:
+	@echo "$@ belongs to a later authorized phase and is intentionally unavailable in Phase 3." >&2
 	@exit 2

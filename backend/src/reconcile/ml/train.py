@@ -98,7 +98,6 @@ def _models() -> dict[str, Pipeline[Any]]:
                         max_iter=500,
                         random_state=TRAINING_SEED,
                         solver="lbfgs",
-                        n_jobs=1,
                     ),
                 ),
             ]
@@ -256,22 +255,25 @@ def train_from_directory(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the two ML v1 ranker candidates")
     parser.add_argument("--root", type=Path, default=Path("data/generated/ml-v1"))
+    parser.add_argument("--report", type=Path, default=Path("reports/ml-v1/training.json"))
     parser.add_argument("--no-artifact", action="store_true")
     args = parser.parse_args()
     result = train_from_directory(args.root, write_artifact=not args.no_artifact)
-    print(
-        json.dumps(
-            {
-                "selected_model": result.selected_model,
-                "validation": result.validation_metrics,
-                "calibration": result.calibration_metrics,
-                "rules": result.rules_metrics,
-                "artifact": str(result.artifact_path) if result.artifact_path else None,
-            },
-            indent=2,
-            sort_keys=True,
-        )
+    artifact = (
+        result.artifact_path.relative_to(Path.cwd()).as_posix() if result.artifact_path else None
     )
+    payload = {
+        "scope": "synthetic-agent-generated-not-domain-validated",
+        "selected_model": result.selected_model,
+        "validation": result.validation_metrics,
+        "calibration": result.calibration_metrics,
+        "rules": result.rules_metrics,
+        "artifact": artifact,
+    }
+    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(rendered, encoding="utf-8")
+    print(rendered, end="")
 
 
 if __name__ == "__main__":

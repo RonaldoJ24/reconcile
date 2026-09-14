@@ -491,7 +491,10 @@ def create_app() -> FastAPI:
             "balances": balances,
             "unapplied_cash": unapplied_cash,
             "application_id": str(application.id) if application else None,
-            "trace": {"mode": revision.provenance if revision else "rules-v1"},
+            "trace": {
+                "mode": revision.provenance if revision else "rules-v1",
+                **(revision.model_trace if revision else {}),
+            },
             "review_required": proposal.review_required,
         }
 

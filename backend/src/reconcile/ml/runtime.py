@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import os
 from collections.abc import Mapping
+from time import perf_counter_ns
 from typing import Any
 
 from .artifact import ArtifactError, LoadedArtifact, load_artifact
@@ -58,6 +59,7 @@ def rank_candidates(
         return trace
 
     loaded = artifact or load_artifact()
+    started = perf_counter_ns()
     values = _raw_scores(
         loaded.model, [candidate_features(group, candidate) for candidate in candidates]
     )
@@ -78,6 +80,7 @@ def rank_candidates(
                 {"candidate_id": candidate.get("candidate_id"), "score": score}
                 for candidate, score in ranked
             ],
+            "latency_ms": (perf_counter_ns() - started) / 1_000_000,
         }
     )
     return trace
