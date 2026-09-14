@@ -73,8 +73,8 @@ reproduced the model digest; `make evaluate-dev` passed; `make check` passed Ruf
 mypy, 31 non-PostgreSQL tests, TypeScript, 2 Vitest tests, and the Vite build. The
 Alembic 0002 upgrade and 8/8 PostgreSQL tests passed on the isolated Reconcile test
 branch. `make evaluate-release` remained guarded (exit 2). Commits: `eac20a7`,
-`a7476ae`, `8654f63`, `600d9e7`, `b194865`. PRs: #5, #6; final integration PR
-pending.
+`a7476ae`, `8654f63`, `600d9e7`, `b194865`. PRs: #5, #6, #7. Phase 3
+merged to main as `7758263`.
 
 No provider call, paid benchmark, cloud deployment, sealed evaluation, or human
 validation occurred. Next bounded phase: Phase 4 provider adapter and bounded
