@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from .artifact import save_artifact
-from .evaluate import evaluate
+from .evaluate import evaluate, evaluate_rules
 from .features import FEATURE_NAMES, FEATURE_SCHEMA_VERSION, candidate_features
 
 TRAINING_SEED = 20260914
@@ -27,6 +27,7 @@ class TrainingResult:
     models: dict[str, Any]
     validation_metrics: dict[str, dict[str, Any]]
     calibration_metrics: dict[str, Any] | None
+    rules_metrics: dict[str, Any]
     selected_model: str
     artifact_path: Path | None
 
@@ -176,6 +177,7 @@ def train_models(
     selected_name = max(
         metrics, key=lambda name: (_selection_key(metrics[name]), name == "logistic")
     )
+    rules_metrics = evaluate_rules(validation_groups, validation_targets)
 
     calibration_metrics = None
     if calibration_groups is not None and calibration_targets is not None:
@@ -196,20 +198,27 @@ def train_models(
             "metrics": {
                 "validation": metrics,
                 "calibration": calibration_metrics,
+                "rules": rules_metrics,
             },
             "decision": {
                 "selected_model": selected_name,
                 "promotion_decision": "shadow",
                 "reason": (
-                    "ML promotion requires a documented baseline improvement and remains "
-                    "shadow by default"
+                    "validation selected model precision="
+                    f"{metrics[selected_name]['proposal']['precision']!r}, coverage="
+                    f"{metrics[selected_name]['proposal']['coverage']!r}; rules-v1 "
+                    f"precision={rules_metrics['proposal']['precision']!r}, "
+                    f"coverage={rules_metrics['proposal']['coverage']!r}. "
+                    "Promotion remains disabled pending documented owner approval."
                 ),
             },
         }
         metadata["data_hashes"] = metadata["dataset_hashes"]
         metadata["dependencies"] = metadata["dependency_versions"]
         artifact_path = save_artifact(fitted[selected_name], metadata)
-    return TrainingResult(fitted, metrics, calibration_metrics, selected_name, artifact_path)
+    return TrainingResult(
+        fitted, metrics, calibration_metrics, rules_metrics, selected_name, artifact_path
+    )
 
 
 def train_from_directory(
@@ -256,6 +265,7 @@ def main() -> None:
                 "selected_model": result.selected_model,
                 "validation": result.validation_metrics,
                 "calibration": result.calibration_metrics,
+                "rules": result.rules_metrics,
                 "artifact": str(result.artifact_path) if result.artifact_path else None,
             },
             indent=2,

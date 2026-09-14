@@ -7,10 +7,8 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
-from threadpoolctl import threadpool_limits
-
 from .artifact import ArtifactError, LoadedArtifact, load_artifact
-from .features import candidate_features
+from .features import candidate_features, score_classifier
 
 
 def runtime_mode() -> str:
@@ -28,12 +26,7 @@ def _candidate_rows(group: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def _raw_scores(model: Any, rows: list[tuple[float, ...]]) -> list[float]:
-    with threadpool_limits(limits=1):
-        if hasattr(model, "decision_function"):
-            values = model.decision_function(rows)
-        else:
-            values = model.predict(rows)
-    return [float(value) for value in values]
+    return score_classifier(model, rows)
 
 
 def rank_candidates(

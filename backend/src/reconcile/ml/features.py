@@ -8,6 +8,8 @@ from datetime import date
 from difflib import SequenceMatcher
 from typing import Any
 
+from threadpoolctl import threadpool_limits
+
 FEATURE_NAMES: tuple[str, ...] = (
     "all_candidate_invoice_ids_explicitly_mentioned",
     "fraction_candidate_ids_explicitly_mentioned",
@@ -219,3 +221,20 @@ def extract_features(group: Mapping[str, Any]) -> list[list[float]]:
 extract_candidate_features = extract_features
 extract_group_features = extract_features
 features_for_candidate = candidate_features
+
+
+def score_classifier(model: Any, rows: Sequence[Sequence[float]]) -> list[float]:
+    """Return raw classifier scores, preferring margins over hard labels."""
+
+    with threadpool_limits(limits=1):
+        if hasattr(model, "decision_function"):
+            values = model.decision_function(rows)
+        elif hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(rows)
+            values = [row[1] for row in probabilities]
+        else:
+            raise TypeError("ranker must expose decision_function or predict_proba")
+    try:
+        return [float(value) for value in values]
+    except TypeError:
+        return [float(values)]

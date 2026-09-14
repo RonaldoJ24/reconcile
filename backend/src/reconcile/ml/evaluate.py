@@ -2,14 +2,143 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import math
 import os
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
+from datetime import date
+from pathlib import Path
 from time import perf_counter_ns
 from typing import Any
 
-from .features import candidate_features
+from .features import candidate_features, score_classifier
+
+
+def _domain_records(group: Mapping[str, Any]) -> tuple[Any, tuple[Any, ...], tuple[Any, ...]]:
+    """Convert the input-only JSONL shape into the rules engine's records."""
+
+    from reconcile.domain.types import CreditFact, InvoiceFact, PaymentFact
+
+    payment = group.get("payment")
+    payment = payment if isinstance(payment, Mapping) else {}
+    group_id = str(group.get("group_id", ""))
+    payment_record = PaymentFact(
+        source_account_id="ml-evaluator",
+        transaction_id=group_id,
+        booking_date=date.fromisoformat(str(payment.get("booking_date"))),
+        payer_name=str(payment.get("payer_name", "")),
+        reference=str(payment.get("reference", "")),
+        amount=int(payment.get("amount", 0)),
+        customer_id=(str(payment["customer_id"]) if payment.get("customer_id") else None),
+    )
+    invoices: list[Any] = []
+    raw_invoices = group.get("invoices", ())
+    if isinstance(raw_invoices, Sequence) and not isinstance(raw_invoices, str):
+        for invoice in raw_invoices:
+            if not isinstance(invoice, Mapping):
+                continue
+            invoices.append(
+                InvoiceFact(
+                    customer_id=str(invoice.get("customer_id", "")),
+                    invoice_id=str(invoice.get("invoice_id", "")),
+                    customer_name=str(invoice.get("customer_name", "")),
+                    issued_date=date.fromisoformat(str(invoice.get("issued_date"))),
+                    due_date=date.fromisoformat(str(invoice.get("due_date"))),
+                    balance_as_of=date.fromisoformat(str(invoice.get("balance_as_of"))),
+                    outstanding_amount=int(invoice.get("outstanding_amount", 0)),
+                )
+            )
+    credits: list[Any] = []
+    credit = group.get("credit")
+    if isinstance(credit, Mapping):
+        credits.append(
+            CreditFact(
+                customer_id=str(credit.get("customer_id", "")),
+                credit_note_id=str(credit.get("credit_note_id", "")),
+                balance_as_of=date.fromisoformat(str(credit.get("balance_as_of"))),
+                available_amount=int(credit.get("available_amount", 0)),
+                invoice_id=(str(credit["invoice_id"]) if credit.get("invoice_id") else None),
+            )
+        )
+    return payment_record, tuple(invoices), tuple(credits)
+
+
+def _candidate_allocation_key(candidate: Mapping[str, Any]) -> tuple[Any, ...]:
+    def line_key(name: str, fields: tuple[str, ...]) -> tuple[tuple[Any, ...], ...]:
+        raw = candidate.get(name, ())
+        if not isinstance(raw, Sequence) or isinstance(raw, str):
+            return ()
+        rows: list[tuple[Any, ...]] = []
+        for line in raw:
+            if isinstance(line, Mapping):
+                rows.append(
+                    tuple(line.get(field) for field in fields) + (int(line.get("amount", 0)),)
+                )
+        return tuple(sorted(rows))
+
+    raw_ids = candidate.get("invoice_ids", ())
+    invoice_ids = (
+        tuple(sorted(str(value) for value in raw_ids))
+        if isinstance(raw_ids, Sequence) and not isinstance(raw_ids, str)
+        else ()
+    )
+    return (
+        invoice_ids,
+        line_key("cash", ("invoice_id",)),
+        line_key("credits", ("credit_note_id", "invoice_id")),
+    )
+
+
+def _proposal_key(proposal: Any) -> tuple[Any, ...]:
+    invoice_ids = tuple(sorted({line.invoice_id for line in (*proposal.cash, *proposal.credits)}))
+    return (
+        invoice_ids,
+        tuple(sorted((line.invoice_id, line.amount) for line in proposal.cash)),
+        tuple(
+            sorted((line.credit_note_id, line.invoice_id, line.amount) for line in proposal.credits)
+        ),
+    )
+
+
+def rules_scores(groups: Iterable[Mapping[str, Any]]) -> dict[str, list[float]]:
+    """Score only candidates exactly enumerated by deterministic rules."""
+
+    from reconcile.domain.matching import propose
+    from reconcile.domain.types import ProposalStatus
+
+    result: dict[str, list[float]] = {}
+    for group in groups:
+        payment, invoices, credits = _domain_records(group)
+        proposal = propose(payment, invoices, credits, {"message": str(group.get("message", ""))})
+        candidates = group.get("candidates", ())
+        if proposal.status != ProposalStatus.PROPOSED or not isinstance(candidates, Sequence):
+            result[str(group.get("group_id", ""))] = []
+            continue
+        proposed_key = _proposal_key(proposal)
+        result[str(group.get("group_id", ""))] = [
+            1.0 if _candidate_allocation_key(candidate) == proposed_key else 0.0
+            for candidate in candidates
+            if isinstance(candidate, Mapping)
+        ]
+    return result
+
+
+def evaluate_rules(
+    groups: Iterable[Mapping[str, Any]],
+    targets: Iterable[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Evaluate rules-v1; unsupported/unmatched proposals are abstentions."""
+
+    group_rows = _groups(groups)
+    return evaluate_scores(
+        group_rows,
+        targets,
+        rules_scores(group_rows),
+        proposal_threshold=0.5,
+        split="validation",
+    )
 
 
 def guard_evaluation_split(split: str) -> None:
@@ -131,6 +260,11 @@ def _evaluate_rows(
     incorrect_value = 0
     value_denominator = 0
     latencies: list[float] = []
+    answer_bearing_count = sum(
+        bool(_acceptable(targets.get(str(group.get("group_id", "")), {})))
+        or _expected_allocation(targets.get(str(group.get("group_id", "")), {})) is not None
+        for group in groups
+    )
 
     for group in groups:
         group_id = str(group.get("group_id", ""))
@@ -189,9 +323,13 @@ def _evaluate_rows(
         if should_propose and not winner_correct:
             incorrect_value += payment_value
         expected = _expected_allocation(target)
-        if expected is not None:
-            exact_allocation_total += 1
-            exact_allocation_correct += int(_allocation_key(winner) == expected)
+        answer_bearing = bool(acceptable)
+        if expected is not None or answer_bearing:
+            exact_allocation_correct += int(
+                _allocation_key(winner) == expected if expected is not None else winner_correct
+            )
+
+    exact_allocation_total = answer_bearing_count
 
     latency = {
         "count": len(latencies),
@@ -208,6 +346,7 @@ def _evaluate_rows(
             "proposals": proposals,
             "retrieval_groups": retrieval_total,
             "exact_allocation_groups": exact_allocation_total,
+            "answer_bearing_groups": answer_bearing_count,
             "payment_value": value_denominator,
         },
         "retrieval": {
@@ -228,6 +367,7 @@ def _evaluate_rows(
             "denominator": exact_allocation_total,
         },
         "proposal": {
+            "proposals": proposals,
             "precision": correct_proposals / proposals if proposals else None,
             "coverage": proposals / group_count if group_count else None,
             "abstention_rate": abstentions / group_count if group_count else None,
@@ -297,11 +437,7 @@ def model_scores(model: Any, groups: Iterable[Mapping[str, Any]]) -> dict[str, l
         if not rows:
             result[str(group.get("group_id", ""))] = []
             continue
-        if hasattr(model, "decision_function"):
-            raw = model.decision_function(rows)
-        else:
-            raw = model.predict(rows)
-        result[str(group.get("group_id", ""))] = [float(value) for value in raw]
+        result[str(group.get("group_id", ""))] = score_classifier(model, rows)
     return result
 
 
@@ -323,3 +459,44 @@ def evaluate(
         proposal_threshold=proposal_threshold,
         split=split,
     )
+
+
+def evaluate_development(root: Path = Path("data/generated/ml-v1")) -> dict[str, Any]:
+    """Evaluate the verified artifact on validation and development challenge data only."""
+
+    guard_evaluation_split("validation")
+    guard_evaluation_split("development")
+    from .artifact import load_artifact
+    from .train import read_jsonl
+
+    loaded = load_artifact()
+    validation_groups = read_jsonl(root / "inputs/validation.jsonl")
+    validation_targets = read_jsonl(root / "targets/validation.jsonl")
+    development_groups = read_jsonl(root / "challenge/inputs/development.jsonl")
+    development_targets = read_jsonl(root / "challenge/targets/development.jsonl")
+    return {
+        "artifact": {
+            "model_id": loaded.model_id,
+            "model_version": loaded.model_version,
+        },
+        "validation": evaluate(loaded.model, validation_groups, validation_targets),
+        "development": evaluate(loaded.model, development_groups, development_targets),
+        "rules_validation": evaluate_rules(validation_groups, validation_targets),
+        "rules_development": evaluate_rules(development_groups, development_targets),
+    }
+
+
+evaluate_dev = evaluate_development
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Evaluate the verified ranker on validation and development data"
+    )
+    parser.add_argument("--root", type=Path, default=Path("data/generated/ml-v1"))
+    args = parser.parse_args()
+    print(json.dumps(evaluate_development(args.root), indent=2, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
