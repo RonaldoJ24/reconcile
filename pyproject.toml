@@ -27,6 +27,7 @@ dev = [
 
 [project.scripts]
 reconcile-worker = "reconcile.jobs.worker:main"
+reconcile-web = "reconcile.web:main"
 
 [build-system]
 requires = ["hatchling"]

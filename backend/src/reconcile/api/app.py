@@ -3,15 +3,19 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import os
 import secrets
 import uuid
-from collections.abc import Generator
+from collections.abc import AsyncIterator, Generator
+from contextlib import asynccontextmanager
 from datetime import timedelta
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
@@ -23,7 +27,7 @@ from reconcile.api.schemas import (
     ReverseRequest,
     SessionRequest,
 )
-from reconcile.config import server_mode
+from reconcile.config import provider_invite_hash, server_mode
 from reconcile.domain.types import CashLine, CreditLine
 from reconcile.ingest.parsers import (
     parse_batch,
@@ -32,8 +36,13 @@ from reconcile.ingest.parsers import (
     parse_message_context,
 )
 from reconcile.interpretation.workflow import compile_workflow
+from reconcile.jobs.lifecycle import LifecycleConsumer
 from reconcile.jobs.queue import run_once
-from reconcile.persistence.db import readiness, session_scope
+from reconcile.persistence.db import SessionLocal, readiness, session_scope
+from reconcile.persistence.maintenance import (
+    cleanup_expired_preview_workspaces,
+    enforce_database_admission,
+)
 from reconcile.persistence.models import (
     ApplicationGroup,
     CashApplication,
@@ -54,12 +63,23 @@ from reconcile.persistence.models import (
 from reconcile.persistence.service import ReconcileService, ServiceError
 
 SESSION_COOKIE = "reconcile_session"
-SESSION_TTL = timedelta(hours=8)
+LOCAL_SESSION_TTL = timedelta(hours=8)
+PREVIEW_SESSION_TTL = timedelta(hours=24)
 INTERPRETATION_WORKFLOW = compile_workflow()
 
 
 def _sha(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def _session_ttl(mode: str) -> timedelta:
+    return PREVIEW_SESSION_TTL if mode == "preview" else LOCAL_SESSION_TTL
+
+
+def _wake_consumer(request: Request) -> None:
+    consumer = getattr(request.app.state, "consumer", None)
+    if isinstance(consumer, LifecycleConsumer):
+        consumer.wake()
 
 
 def _session(request: Request, db: Session) -> tuple[DbSession, Workspace]:
@@ -74,6 +94,11 @@ def _session(request: Request, db: Session) -> tuple[DbSession, Workspace]:
     if row is None:
         raise HTTPException(401, "authentication required")
     record, workspace = row
+    now = now_utc()
+    record.expires_at = now + _session_ttl(workspace.mode)
+    workspace.last_active_at = now
+    db.commit()
+    _wake_consumer(request)
     return record, workspace
 
 
@@ -119,7 +144,21 @@ def _error(exc: ServiceError) -> HTTPException:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Reconcile API", version="1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        consumer: LifecycleConsumer | None = None
+        if server_mode() == "preview":
+            with SessionLocal() as maintenance_session:
+                cleanup_expired_preview_workspaces(maintenance_session)
+            if os.getenv("RECONCILE_WORKER_MODE", "") == "web_lifecycle":
+                consumer = LifecycleConsumer(SessionLocal)
+                app.state.consumer = consumer
+                consumer.start()
+        yield
+        if consumer is not None:
+            consumer.stop()
+
+    app = FastAPI(title="Reconcile API", version="1.0", lifespan=lifespan)
 
     @app.exception_handler(HTTPException)
     async def http_error(_: Request, exc: HTTPException) -> JSONResponse:
@@ -161,6 +200,9 @@ def create_app() -> FastAPI:
         body: SessionRequest | None = None,
         db: Session = Depends(_db),
     ) -> Response:
+        mode = server_mode()
+        if mode == "preview":
+            cleanup_expired_preview_workspaces(db)
         old = request.cookies.get(SESSION_COOKIE)
         workspace: Workspace | None = None
         if old:
@@ -172,15 +214,24 @@ def create_app() -> FastAPI:
             if session:
                 workspace = db.get(Workspace, session.workspace_id)
                 if workspace:
+                    if body and body.invite_token:
+                        expected = provider_invite_hash()
+                        if expected is None or not secrets.compare_digest(
+                            expected, _sha(body.invite_token)
+                        ):
+                            raise HTTPException(403, "provider invite is invalid")
+                        session.provider_access = True
                     raw_token, csrf_token = old, secrets.token_urlsafe(32)
                     session.csrf_hash = _sha(csrf_token)
-                    session.expires_at = now_utc() + SESSION_TTL
+                    session.expires_at = now_utc() + _session_ttl(workspace.mode)
+                    workspace.last_active_at = now_utc()
                     db.commit()
                     response = JSONResponse(
                         {
                             "mode": workspace.mode,
                             "expires_at": session.expires_at.isoformat(),
                             "csrf_token": csrf_token,
+                            "provider_access": session.provider_access,
                         }
                     )
                     response.set_cookie(
@@ -189,16 +240,26 @@ def create_app() -> FastAPI:
                         httponly=True,
                         secure=workspace.mode == "preview",
                         samesite="strict",
-                        max_age=int(SESSION_TTL.total_seconds()),
+                        max_age=int(_session_ttl(workspace.mode).total_seconds()),
                     )
+                    _wake_consumer(request)
                     return response
-        workspace = ReconcileService(db).create_workspace(server_mode())
+        if mode == "preview":
+            enforce_database_admission(db)
+        workspace = ReconcileService(db).create_workspace(mode)
         raw_token, csrf_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+        provider_access = mode == "local"
+        if body and body.invite_token:
+            expected = provider_invite_hash()
+            if expected is None or not secrets.compare_digest(expected, _sha(body.invite_token)):
+                raise HTTPException(403, "provider invite is invalid")
+            provider_access = True
         session = DbSession(
             workspace_id=workspace.id,
             token_hash=_sha(raw_token),
             csrf_hash=_sha(csrf_token),
-            expires_at=now_utc() + SESSION_TTL,
+            expires_at=now_utc() + _session_ttl(mode),
+            provider_access=provider_access,
         )
         db.add(session)
         db.commit()
@@ -207,6 +268,7 @@ def create_app() -> FastAPI:
                 "mode": workspace.mode,
                 "expires_at": session.expires_at.isoformat(),
                 "csrf_token": csrf_token,
+                "provider_access": session.provider_access,
             }
         )
         response.set_cookie(
@@ -215,8 +277,9 @@ def create_app() -> FastAPI:
             httponly=True,
             secure=workspace.mode == "preview",
             samesite="strict",
-            max_age=int(SESSION_TTL.total_seconds()),
+            max_age=int(_session_ttl(workspace.mode).total_seconds()),
         )
+        _wake_consumer(request)
         return response
 
     @app.post("/api/v1/imports/validate")
@@ -232,6 +295,8 @@ def create_app() -> FastAPI:
         db: Session = Depends(_db),
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         from reconcile.ingest.parsers import LIMITS
 
         limit = LIMITS[workspace.mode]["file"]
@@ -300,8 +365,12 @@ def create_app() -> FastAPI:
         batch_id: uuid.UUID, request: Request, db: Session = Depends(_db)
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
-            return ReconcileService(db).commit_import(workspace.id, batch_id)
+            result = ReconcileService(db).commit_import(workspace.id, batch_id)
+            _wake_consumer(request)
+            return result
         except ServiceError as exc:
             raise _error(exc)
 
@@ -358,6 +427,12 @@ def create_app() -> FastAPI:
             if job
             else {"job_id": None, "status": "IDLE"}
         )
+
+    @app.get("/api/v1/jobs/status")
+    def job_status(request: Request, db: Session = Depends(_db)) -> dict[str, str]:
+        _session(request, db)
+        consumer = getattr(request.app.state, "consumer", None)
+        return {"status": consumer.state if isinstance(consumer, LifecycleConsumer) else "manual"}
 
     @app.get("/api/v1/proposals")
     def list_proposals(request: Request, db: Session = Depends(_db)) -> list[dict[str, object]]:
@@ -520,9 +595,7 @@ def create_app() -> FastAPI:
             "version_token": revision.version_token if revision else None,
             "balances": balances,
             "unapplied_cash": payment.amount - int(payment_used_cash),
-            "application_id": (
-                str(latest_application_id) if latest_application_id else None
-            ),
+            "application_id": (str(latest_application_id) if latest_application_id else None),
             "trace": {
                 "mode": revision.provenance if revision else "rules-v1",
                 **(revision.model_trace if revision else {}),
@@ -543,6 +616,8 @@ def create_app() -> FastAPI:
         db: Session = Depends(_db),
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
             proposal = ReconcileService(db).correct(
                 workspace.id,
@@ -568,6 +643,10 @@ def create_app() -> FastAPI:
         db: Session = Depends(_db),
     ) -> dict[str, object]:
         record, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview" and not record.provider_access:
+            raise HTTPException(403, "provider invite is required")
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
             outcome = INTERPRETATION_WORKFLOW.run(
                 db,
@@ -603,6 +682,8 @@ def create_app() -> FastAPI:
         proposal_id: uuid.UUID, body: ApplyRequest, request: Request, db: Session = Depends(_db)
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
             group = ReconcileService(db).apply(
                 workspace.id,
@@ -717,6 +798,10 @@ def create_app() -> FastAPI:
             media_type="application/zip",
             headers={"Content-Disposition": "attachment; filename=reconcile-sample.zip"},
         )
+
+    frontend_dir = Path(os.getenv("RECONCILE_FRONTEND_DIR", "frontend/dist"))
+    if frontend_dir.is_dir():
+        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
     return app
 

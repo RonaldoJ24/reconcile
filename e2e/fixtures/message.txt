@@ -1,1 +1,1 @@
-Please apply payment pay-1 to invoice 101 and invoice 102. Credit note 103 is linked to invoice 102.
+Please apply payment pay-54k to invoices 101 and 102, using credit note 103 on invoice 102.

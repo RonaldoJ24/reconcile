@@ -19,7 +19,7 @@ cust-1,103,2026-01-15,1000,MXN,102
 """,
     "message": (
         b"Please apply payment pay-54k to invoices 101 and 102, "
-        b"using credit note 103 on invoice 102."
+        b"using credit note 103 on invoice 102.\n"
     ),
 }
 

@@ -1,3 +1,4 @@
 customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,outstanding_amount,currency
-customer-1,Acme SA,101,2026-09-01,2026-09-30,2026-09-14,30000.00,MXN
-customer-1,Acme SA,102,2026-09-01,2026-09-30,2026-09-14,25000.00,MXN
+cust-1,Acme SA,100,2025-12-01,2026-01-01,2026-01-15,54000,MXN
+cust-1,Acme SA,101,2025-12-01,2026-01-01,2026-01-15,30000,MXN
+cust-1,Acme SA,102,2025-12-01,2026-01-01,2026-01-15,25000,MXN
