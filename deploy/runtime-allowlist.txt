@@ -1,0 +1,23 @@
+# Runtime image boundary for Reconcile ML v1.
+backend/src/reconcile/__init__.py
+backend/src/reconcile/api/
+backend/src/reconcile/config.py
+backend/src/reconcile/domain/
+backend/src/reconcile/ingest/
+backend/src/reconcile/jobs/
+backend/src/reconcile/persistence/
+backend/src/reconcile/ml/__init__.py
+backend/src/reconcile/ml/artifact.py
+backend/src/reconcile/ml/features.py
+backend/src/reconcile/ml/runtime.py
+backend/alembic/
+backend/alembic.ini
+frontend/dist/
+artifacts/ranker-ml-v1/model.pkl
+artifacts/ranker-ml-v1/metadata.json
+deploy/runtime-allowlist.txt
+pyproject.toml
+uv.lock
+
+# Deliberately excluded: generated inputs/targets/manifests, reports, notebooks,
+# caches, and training utilities.
