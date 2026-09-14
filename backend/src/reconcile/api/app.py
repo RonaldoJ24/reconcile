@@ -616,6 +616,8 @@ def create_app() -> FastAPI:
         db: Session = Depends(_db),
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
             proposal = ReconcileService(db).correct(
                 workspace.id,
@@ -643,6 +645,8 @@ def create_app() -> FastAPI:
         record, workspace = _require_mutation(request, db)
         if workspace.mode == "preview" and not record.provider_access:
             raise HTTPException(403, "provider invite is required")
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
             outcome = INTERPRETATION_WORKFLOW.run(
                 db,
@@ -678,6 +682,8 @@ def create_app() -> FastAPI:
         proposal_id: uuid.UUID, body: ApplyRequest, request: Request, db: Session = Depends(_db)
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
         try:
             group = ReconcileService(db).apply(
                 workspace.id,

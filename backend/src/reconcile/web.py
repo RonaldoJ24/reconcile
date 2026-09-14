@@ -20,12 +20,10 @@ def migrate() -> None:
     engine = create_engine(normalize_database_url(raw_url), poolclass=NullPool, pool_pre_ping=True)
     config = Config("backend/alembic.ini")
     with engine.begin() as connection:
-        connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_ID})
-        try:
-            config.attributes["connection"] = connection
-            command.upgrade(config, "head")
-        finally:
-            connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_ID})
+        # The transaction-scoped lock is released on either commit or rollback.
+        connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": MIGRATION_LOCK_ID})
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
     engine.dispose()
 
 
