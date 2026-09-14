@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+!.env.free.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
+*.log
