@@ -162,7 +162,7 @@ test branch accepted the committed startup migration and passed 44/44 tests thro
 the pooled endpoint in 262.20 s, including 25 contested-balance races; a final
 invite/preview check passed separately. Same-origin desktop/mobile Playwright
 passed 2/2 in 1.1 minutes against the production frontend and pooled test endpoint.
-The release scan inspected 128 tracked text files with zero findings, and Render
+The release scan inspected 130 tracked text files with zero findings, and Render
 validated the one-action Blueprint. Docker/Podman was unavailable, so the image
 itself was not built locally.
 

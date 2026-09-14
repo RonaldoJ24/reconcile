@@ -1,7 +1,7 @@
 {
   "schema_version": "deployment-preflight-v1",
   "checked_at": "2026-09-14",
-  "prepared_code_sha": "f583b5c4e5962e738ff9e3edd032c9a54d41e6a4",
+  "prepared_code_sha": "6a6c119a04e78a0b722efa819422a7e5be0a2507",
   "status": "deployment_withheld",
   "zero_new_spend_verified": false,
   "github": {
@@ -62,7 +62,7 @@
     "frontend_unit": "6 passed",
     "frontend_build": "passed",
     "playwright_same_origin_preview": "2 passed in 1.1m",
-    "release_scan": "passed; 128 tracked text files; zero findings",
+    "release_scan": "passed; 130 tracked text files; zero findings",
     "render_blueprint": "valid; one action"
   },
   "not_run": [
