@@ -1,6 +1,8 @@
 import type {
   ImportSummary,
   ImportValidation,
+  InterpretationMode,
+  InterpretationResponse,
   JobState,
   ProposalDetail,
   ProposalSummary,
@@ -77,6 +79,13 @@ export function listProposals() {
 
 export function getProposal(id: string) {
   return request<ProposalDetail>(`/api/v1/proposals/${encodeURIComponent(id)}`)
+}
+
+export function interpretProposal(id: string, mode: InterpretationMode) {
+  return request<InterpretationResponse>(`/api/v1/proposals/${encodeURIComponent(id)}/interpret`, {
+    method: 'POST',
+    body: JSON.stringify({ mode }),
+  })
 }
 
 export function validateImport(form: FormData) {
