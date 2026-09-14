@@ -13,6 +13,7 @@ from reconcile.domain.types import (
     ProposalStatus,
 )
 from reconcile.ingest.parsers import parse_batch, parse_csv_source, parse_message_context
+from reconcile.persistence.db import normalize_database_url
 
 DAY = date(2026, 1, 15)
 
@@ -76,6 +77,24 @@ def test_credit_must_be_explicitly_linked() -> None:
     assert result.credits == ()
 
 
+def test_opening_snapshot_after_payment_is_ineligible() -> None:
+    result = propose(
+        payment(1_000_000),
+        [InvoiceFact("c1", "a", "Customer", date(2025, 1, 1), DAY, date(2026, 1, 16), 1_000_000)],
+        evidence={"m": "a"},
+    )
+    assert result.status == ProposalStatus.NEEDS_REVIEW
+
+
+def test_group_cannot_cross_customers() -> None:
+    result = propose(
+        payment(2_000_000),
+        [invoice("a", 1_000_000, "c1"), invoice("b", 1_000_000, "c2")],
+        evidence={"m": "a and b"},
+    )
+    assert result.status == ProposalStatus.NEEDS_REVIEW
+
+
 def test_allocation_validator_rejects_overconsumption() -> None:
     with pytest.raises(ValueError, match="invoice allocation"):
         validate_allocation(
@@ -112,3 +131,32 @@ def test_parser_batch_requires_context_for_message() -> None:
     )
     with pytest.raises(ValueError, match="context"):
         parse_batch(bank, invoices, message=b"invoice i")
+
+
+def test_csv_source_retains_immutable_record_locators() -> None:
+    raw = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"a,t,2026-01-15,p,r,1,MXN\n"
+    )
+    parsed = parse_csv_source("bank", raw)
+    assert parsed.row_locators[0] == {
+        "record": 1,
+        "start_byte": 0,
+        "end_byte": raw.index(b"\n") + 1,
+    }
+    assert parsed.row_locators[1]["start_byte"] == raw.index(b"\n") + 1
+
+
+def test_provider_postgres_urls_use_psycopg3() -> None:
+    assert (
+        normalize_database_url("postgresql://db.example/reconcile")
+        == "postgresql+psycopg://db.example/reconcile"
+    )
+    assert (
+        normalize_database_url("postgres://db.example/reconcile")
+        == "postgresql+psycopg://db.example/reconcile"
+    )
+    assert (
+        normalize_database_url("postgresql+psycopg://db.example/reconcile")
+        == "postgresql+psycopg://db.example/reconcile"
+    )

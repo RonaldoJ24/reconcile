@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,14 +11,13 @@ class StrictModel(BaseModel):
 
 
 class SessionRequest(StrictModel):
-    mode: str = Field(default="local", pattern="^(local|preview)$")
+    pass
 
 
 class SessionResponse(StrictModel):
     mode: str
     expires_at: datetime
     csrf_token: str
-    workspace_id: UUID
 
 
 class AllocationLine(StrictModel):

@@ -6,7 +6,7 @@ import uuid
 from collections import defaultdict
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from reconcile.domain.matching import propose, validate_allocation
@@ -14,12 +14,14 @@ from reconcile.domain.types import (
     CashLine,
     CreditFact,
     CreditLine,
+    Evidence,
     InvoiceFact,
     PaymentFact,
     ProposalResult,
     ProposalStatus,
 )
 from reconcile.ingest.parsers import (
+    LIMITS,
     ParsedBatch,
     parse_credit_source,
     parse_csv_source,
@@ -177,6 +179,55 @@ class ReconcileService:
     def validate_import(
         self, workspace_id: uuid.UUID, batch: ParsedBatch, profile: str
     ) -> ImportBatch:
+        limits = LIMITS[profile]
+        if (
+            sum(
+                len(source.raw)
+                for source in (batch.bank, batch.invoices, batch.credits, batch.message)
+                if source
+            )
+            > limits["batch"]
+        ):
+            raise ServiceError("quota", "batch exceeds byte limit", 413)
+        entity_count = sum(
+            len(source.rows) for source in (batch.bank, batch.invoices, batch.credits) if source
+        )
+        if entity_count > limits["entities"]:
+            raise ServiceError("quota", "batch exceeds entity limit", 413)
+        sources = (batch.bank, batch.invoices, batch.credits, batch.message)
+        current_workspace_bytes = int(
+            self.session.scalar(
+                select(func.coalesce(func.sum(func.length(Source.raw_bytes)), 0)).where(
+                    Source.workspace_id == workspace_id
+                )
+            )
+            or 0
+        )
+        new_bytes = 0
+        for parsed in sources:
+            if (
+                parsed is not None
+                and self.session.scalar(
+                    select(Source.id).where(
+                        Source.workspace_id == workspace_id,
+                        Source.kind == parsed.kind,
+                        Source.sha256 == parsed.sha256,
+                    )
+                )
+                is None
+            ):
+                new_bytes += len(parsed.raw)
+        if current_workspace_bytes + new_bytes > limits["workspace"]:
+            raise ServiceError("quota", "workspace source retention limit exceeded", 413)
+        if profile == "preview":
+            global_bytes = int(
+                self.session.scalar(
+                    select(func.coalesce(func.sum(func.length(Source.raw_bytes)), 0))
+                )
+                or 0
+            )
+            if global_bytes + new_bytes > 50 * 1024 * 1024:
+                raise ServiceError("quota", "global source retention limit exceeded", 413)
         record = ImportBatch(workspace_id=workspace_id, profile=profile, status="VALIDATED")
         self.session.add(record)
         self.session.flush()
@@ -210,6 +261,8 @@ class ReconcileService:
                         }
                         for issue in parsed.issues
                     ]
+                if parsed.row_locators:
+                    metadata["row_locators"] = list(parsed.row_locators)
                 self.session.add(
                     Source(
                         workspace_id=workspace_id,
@@ -581,8 +634,8 @@ class ReconcileService:
                 return existing
         if revision.version_token != version_token:
             raise ServiceError("stale_version", "proposal version token is stale")
-        if proposal.status == ProposalStatus.APPLIED.value:
-            raise ServiceError("already_applied", "proposal is already applied")
+        if proposal.status != ProposalStatus.PROPOSED.value:
+            raise ServiceError("not_proposed", "only a proposed revision can be applied")
         payment = self.session.scalar(
             select(Payment)
             .where(Payment.id == proposal.payment_id, Payment.workspace_id == workspace_id)
@@ -597,22 +650,20 @@ class ReconcileService:
         ]
         invoice_ids = {x.invoice_id for x in cash_lines} | {x.invoice_id for x in credit_lines}
         credit_ids = {x.credit_note_id for x in credit_lines}
-        invoices = list(
+        all_invoices = list(
             self.session.scalars(
                 select(Invoice)
-                .where(Invoice.workspace_id == workspace_id, Invoice.invoice_id.in_(invoice_ids))
+                .where(Invoice.workspace_id == workspace_id)
                 .order_by(Invoice.id)
                 .with_for_update()
             )
         )
+        invoices = [invoice for invoice in all_invoices if invoice.invoice_id in invoice_ids]
         credits = (
             list(
                 self.session.scalars(
                     select(CreditNote)
-                    .where(
-                        CreditNote.workspace_id == workspace_id,
-                        CreditNote.credit_note_id.in_(credit_ids),
-                    )
+                    .where(CreditNote.workspace_id == workspace_id)
                     .order_by(CreditNote.id)
                     .with_for_update()
                 )
@@ -620,25 +671,48 @@ class ReconcileService:
             if credit_ids
             else []
         )
+        credits = [credit for credit in credits if credit.credit_note_id in credit_ids]
         inv_map = {i.invoice_id: _invoice_fact(i) for i in invoices}
         credit_map = {c.credit_note_id: _credit_fact(c) for c in credits}
         if any(i.conflicted for i in invoices) or any(c.conflicted for c in credits):
             raise ServiceError("stale_balance", "opening snapshot is conflicted")
         if len(inv_map) != len(invoices):
             raise ServiceError("stale_balance", "invoice identity is ambiguous")
+        customer_ids = {invoice.customer_id for invoice in invoices} | {
+            credit.customer_id for credit in credits
+        }
+        if len(customer_ids) > 1:
+            raise ServiceError("validation", "selected records must belong to one customer", 422)
         if payment.customer_id and any(i.customer_id != payment.customer_id for i in invoices):
             raise ServiceError("validation", "payment and invoice customer do not agree", 422)
+        current_result = ProposalResult(
+            ProposalStatus(revision.status),
+            tuple(cash_lines),
+            tuple(credit_lines),
+            tuple(
+                Evidence(
+                    item["source_id"], int(item["start"]), int(item["end"]), item.get("quote", "")
+                )
+                for item in revision.evidence
+            ),
+            tuple(tuple(item) for item in revision.alternatives),
+            tuple(revision.signals),
+            revision.reason,
+        )
+        if _token(payment, invoices, credits, current_result) != version_token:
+            raise ServiceError("stale_version", "proposal version token is stale")
         already_cash: defaultdict[str, int] = defaultdict(int)
+        cash_by_payment: defaultdict[uuid.UUID, int] = defaultdict(int)
         for cash_application in self.session.scalars(
             select(CashApplication).where(
                 CashApplication.workspace_id == workspace_id,
-                CashApplication.payment_id == payment.id,
                 CashApplication.active.is_(True),
             )
         ):
             invoice = self.session.get(Invoice, cash_application.invoice_id)
             if invoice:
                 already_cash[invoice.invoice_id] += cash_application.amount
+            cash_by_payment[cash_application.payment_id] += cash_application.amount
         already_credit: defaultdict[str, int] = defaultdict(int)
         already_credit_by_invoice: defaultdict[str, int] = defaultdict(int)
         for credit_application in self.session.scalars(
@@ -651,6 +725,8 @@ class ReconcileService:
             if invoice and credit:
                 already_credit[credit.credit_note_id] += credit_application.amount
                 already_credit_by_invoice[invoice.invoice_id] += credit_application.amount
+        if cash_by_payment[payment.id] + sum(line.amount for line in cash_lines) > payment.amount:
+            raise ServiceError("stale_balance", "cash allocation exceeds payment")
         try:
             validate_allocation(
                 payment.amount,
@@ -695,6 +771,11 @@ class ReconcileService:
                     amount=credit_line.amount,
                 )
             )
+        payment.version += 1
+        for invoice in invoices:
+            invoice.version += 1
+        for credit in credits:
+            credit.version += 1
         proposal.status = ProposalStatus.APPLIED.value
         proposal.applied_revision = revision_number
         self.session.add(
@@ -765,18 +846,61 @@ class ReconcileService:
                 return existing
         if group.reversed_at is not None:
             raise ServiceError("already_reversed", "application is already reversed")
-        for cash_application in self.session.scalars(
-            select(CashApplication)
-            .where(CashApplication.application_group_id == group.id)
+        cash_applications = list(
+            self.session.scalars(
+                select(CashApplication)
+                .where(CashApplication.application_group_id == group.id)
+                .with_for_update()
+            )
+        )
+        credit_applications = list(
+            self.session.scalars(
+                select(CreditApplication)
+                .where(CreditApplication.application_group_id == group.id)
+                .with_for_update()
+            )
+        )
+        payment = self.session.scalar(
+            select(Payment)
+            .where(Payment.id == group.payment_id, Payment.workspace_id == workspace_id)
             .with_for_update()
-        ):
+        )
+        invoice_ids = {row.invoice_id for row in cash_applications + credit_applications}
+        credit_ids = {row.credit_note_id for row in credit_applications}
+        invoices = (
+            list(
+                self.session.scalars(
+                    select(Invoice)
+                    .where(Invoice.workspace_id == workspace_id, Invoice.id.in_(invoice_ids))
+                    .order_by(Invoice.id)
+                    .with_for_update()
+                )
+            )
+            if invoice_ids
+            else []
+        )
+        credits = (
+            list(
+                self.session.scalars(
+                    select(CreditNote)
+                    .where(CreditNote.workspace_id == workspace_id, CreditNote.id.in_(credit_ids))
+                    .order_by(CreditNote.id)
+                    .with_for_update()
+                )
+            )
+            if credit_ids
+            else []
+        )
+        for cash_application in cash_applications:
             cash_application.active = False
-        for credit_application in self.session.scalars(
-            select(CreditApplication)
-            .where(CreditApplication.application_group_id == group.id)
-            .with_for_update()
-        ):
+        for credit_application in credit_applications:
             credit_application.active = False
+        if payment:
+            payment.version += 1
+        for invoice in invoices:
+            invoice.version += 1
+        for credit in credits:
+            credit.version += 1
         group.reversed_at = now_utc()
         proposal = self.session.get(Proposal, group.proposal_id)
         if proposal:
@@ -807,7 +931,11 @@ class ReconcileService:
             select(Proposal).where(
                 Proposal.workspace_id == workspace_id,
                 Proposal.status.in_(
-                    [ProposalStatus.PROPOSED.value, ProposalStatus.NEEDS_REVIEW.value]
+                    [
+                        ProposalStatus.PROPOSED.value,
+                        ProposalStatus.NEEDS_REVIEW.value,
+                        ProposalStatus.APPLIED.value,
+                    ]
                 ),
             )
         ):
@@ -821,7 +949,10 @@ class ReconcileService:
                 x.get("invoice_id") == invoice_id
                 for x in revision.cash_lines + revision.credit_lines
             ):
-                proposal.status = ProposalStatus.STALE.value
+                if proposal.status == ProposalStatus.APPLIED.value:
+                    proposal.review_required = True
+                else:
+                    proposal.status = ProposalStatus.STALE.value
 
     def _stale_for_payment(self, workspace_id: uuid.UUID, payment_id: uuid.UUID) -> None:
         proposals = self.session.scalars(
@@ -832,19 +963,27 @@ class ReconcileService:
                     [
                         ProposalStatus.PROPOSED.value,
                         ProposalStatus.NEEDS_REVIEW.value,
+                        ProposalStatus.APPLIED.value,
                     ]
                 ),
             )
         )
         for proposal in proposals:
-            proposal.status = ProposalStatus.STALE.value
+            if proposal.status == ProposalStatus.APPLIED.value:
+                proposal.review_required = True
+            else:
+                proposal.status = ProposalStatus.STALE.value
 
     def _stale_for_credit(self, workspace_id: uuid.UUID, credit_id: str) -> None:
         for proposal in self.session.scalars(
             select(Proposal).where(
                 Proposal.workspace_id == workspace_id,
                 Proposal.status.in_(
-                    [ProposalStatus.PROPOSED.value, ProposalStatus.NEEDS_REVIEW.value]
+                    [
+                        ProposalStatus.PROPOSED.value,
+                        ProposalStatus.NEEDS_REVIEW.value,
+                        ProposalStatus.APPLIED.value,
+                    ]
                 ),
             )
         ):
@@ -857,7 +996,10 @@ class ReconcileService:
             if revision and any(
                 x.get("credit_note_id") == credit_id for x in revision.credit_lines
             ):
-                proposal.status = ProposalStatus.STALE.value
+                if proposal.status == ProposalStatus.APPLIED.value:
+                    proposal.review_required = True
+                else:
+                    proposal.status = ProposalStatus.STALE.value
 
 
 def _payment_equal(row: Payment, data: dict[str, Any]) -> bool:

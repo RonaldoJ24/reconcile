@@ -8,7 +8,6 @@ import uuid
 from collections.abc import Generator
 from datetime import timedelta
 from typing import Annotated
-from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -16,7 +15,9 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from reconcile.api.sample import is_exact_sample_packet, sample_zip
 from reconcile.api.schemas import ApplyRequest, CorrectionRequest, ReverseRequest, SessionRequest
+from reconcile.config import server_mode
 from reconcile.domain.types import CashLine, CreditLine
 from reconcile.ingest.parsers import (
     parse_batch,
@@ -91,6 +92,20 @@ def _db() -> Generator[Session, None, None]:
     yield from session_scope()
 
 
+async def _read_bounded(upload: UploadFile, limit: int) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await upload.read(min(64 * 1024, limit - total + 1)):
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(
+                413,
+                detail={"code": "quota", "message": "source exceeds file-size limit"},
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _error(exc: ServiceError) -> HTTPException:
     return HTTPException(exc.status, detail={"code": exc.code, "message": exc.message})
 
@@ -134,7 +149,9 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/session", response_model=dict)
     def create_session(
-        body: SessionRequest, request: Request, db: Session = Depends(_db)
+        request: Request,
+        body: SessionRequest | None = None,
+        db: Session = Depends(_db),
     ) -> Response:
         old = request.cookies.get(SESSION_COOKIE)
         workspace: Workspace | None = None
@@ -156,7 +173,6 @@ def create_app() -> FastAPI:
                             "mode": workspace.mode,
                             "expires_at": session.expires_at.isoformat(),
                             "csrf_token": csrf_token,
-                            "workspace_id": str(workspace.id),
                         }
                     )
                     response.set_cookie(
@@ -168,7 +184,7 @@ def create_app() -> FastAPI:
                         max_age=int(SESSION_TTL.total_seconds()),
                     )
                     return response
-        workspace = ReconcileService(db).create_workspace(body.mode)
+        workspace = ReconcileService(db).create_workspace(server_mode())
         raw_token, csrf_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         session = DbSession(
             workspace_id=workspace.id,
@@ -183,7 +199,6 @@ def create_app() -> FastAPI:
                 "mode": workspace.mode,
                 "expires_at": session.expires_at.isoformat(),
                 "csrf_token": csrf_token,
-                "workspace_id": str(workspace.id),
             }
         )
         response.set_cookie(
@@ -209,9 +224,28 @@ def create_app() -> FastAPI:
         db: Session = Depends(_db),
     ) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
-        bank_bytes, invoice_bytes = await bank.read(), await invoices.read()
-        credit_bytes = await credits.read() if credits else None
-        message_bytes = await message.read() if message else None
+        from reconcile.ingest.parsers import LIMITS
+
+        limit = LIMITS[workspace.mode]["file"]
+        bank_bytes = await _read_bounded(bank, limit)
+        invoice_bytes = await _read_bounded(invoices, limit)
+        credit_bytes = await _read_bounded(credits, limit) if credits else None
+        message_bytes = await _read_bounded(message, limit) if message else None
+        if workspace.mode == "preview" and not is_exact_sample_packet(
+            {
+                "bank": bank_bytes,
+                "invoices": invoice_bytes,
+                "credits": credit_bytes or b"",
+                "message": message_bytes or b"",
+            }
+        ):
+            raise HTTPException(
+                403,
+                detail={
+                    "code": "preview_only",
+                    "message": "preview accepts only the built-in sample packet",
+                },
+            )
         try:
             context = (
                 parse_message_context(
@@ -232,6 +266,8 @@ def create_app() -> FastAPI:
             )
             record = ReconcileService(db).validate_import(workspace.id, batch, workspace.mode)
             db.commit()
+        except ServiceError as exc:
+            raise _error(exc) from exc
         except ValueError as exc:
             raise HTTPException(422, detail={"code": "validation", "message": str(exc)}) from exc
         source_reports = [
@@ -301,13 +337,14 @@ def create_app() -> FastAPI:
             "text": text,
             "rows": rows,
             "issues": source.source_metadata.get("issues", []),
+            "row_locators": source.source_metadata.get("row_locators", []),
             "metadata": source.source_metadata,
         }
 
     @app.post("/api/v1/jobs/run-once")
     def run_job(request: Request, db: Session = Depends(_db)) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
-        job = run_once(db, owner=f"api:{workspace.id}")
+        job = run_once(db, owner=f"api:{workspace.id}", workspace_id=workspace.id)
         return (
             {"job_id": str(job.id), "status": job.status}
             if job
@@ -324,6 +361,11 @@ def create_app() -> FastAPI:
             .order_by(Proposal.updated_at.desc())
         ):
             payment = db.get(Payment, proposal.payment_id)
+            application = db.scalar(
+                select(ApplicationGroup)
+                .where(ApplicationGroup.proposal_id == proposal.id)
+                .order_by(ApplicationGroup.created_at.desc())
+            )
             rows.append(
                 {
                     "proposal_id": str(proposal.id),
@@ -331,6 +373,11 @@ def create_app() -> FastAPI:
                     "revision": proposal.current_revision,
                     "payment_id": str(proposal.payment_id),
                     "amount": payment.amount if payment else None,
+                    "payer_name": payment.payer_name if payment else None,
+                    "source_account_id": payment.source_account_id if payment else None,
+                    "transaction_id": payment.transaction_id if payment else None,
+                    "booking_date": payment.booking_date if payment else None,
+                    "application_id": str(application.id) if application else None,
                 }
             )
         return rows
@@ -354,6 +401,71 @@ def create_app() -> FastAPI:
             )
         )
         payment = db.get(Payment, proposal.payment_id)
+        application = db.scalar(
+            select(ApplicationGroup)
+            .where(ApplicationGroup.proposal_id == proposal.id)
+            .order_by(ApplicationGroup.created_at.desc())
+        )
+        invoice_ids = {
+            item["invoice_id"]
+            for item in (
+                (revision.cash_lines if revision else [])
+                + (revision.credit_lines if revision else [])
+            )
+        }
+        invoice_rows = (
+            list(
+                db.scalars(
+                    select(Invoice).where(
+                        Invoice.workspace_id == workspace.id, Invoice.invoice_id.in_(invoice_ids)
+                    )
+                )
+            )
+            if invoice_ids
+            else []
+        )
+        active_cash: dict[uuid.UUID, int] = {}
+        for cash_row in db.scalars(
+            select(CashApplication).where(
+                CashApplication.workspace_id == workspace.id, CashApplication.active.is_(True)
+            )
+        ):
+            active_cash[cash_row.invoice_id] = (
+                active_cash.get(cash_row.invoice_id, 0) + cash_row.amount
+            )
+        active_credit: dict[uuid.UUID, int] = {}
+        for credit_row in db.scalars(
+            select(CreditApplication).where(
+                CreditApplication.workspace_id == workspace.id, CreditApplication.active.is_(True)
+            )
+        ):
+            active_credit[credit_row.invoice_id] = (
+                active_credit.get(credit_row.invoice_id, 0) + credit_row.amount
+            )
+        balances = {
+            invoice.invoice_id: {
+                "opening_amount": invoice.outstanding_amount,
+                "cash_applied": active_cash.get(invoice.id, 0),
+                "credit_applied": active_credit.get(invoice.id, 0),
+                "remaining_amount": invoice.outstanding_amount
+                - active_cash.get(invoice.id, 0)
+                - active_credit.get(invoice.id, 0),
+            }
+            for invoice in invoice_rows
+        }
+        unapplied_cash = None
+        if payment:
+            used = sum(
+                row.amount
+                for row in db.scalars(
+                    select(CashApplication).where(
+                        CashApplication.workspace_id == workspace.id,
+                        CashApplication.payment_id == payment.id,
+                        CashApplication.active.is_(True),
+                    )
+                )
+            )
+            unapplied_cash = payment.amount - used
         return {
             "proposal_id": str(proposal.id),
             "status": proposal.status,
@@ -362,6 +474,10 @@ def create_app() -> FastAPI:
                 "id": str(payment.id),
                 "amount": payment.amount,
                 "reference": payment.reference,
+                "payer_name": payment.payer_name,
+                "source_account_id": payment.source_account_id,
+                "transaction_id": payment.transaction_id,
+                "booking_date": payment.booking_date,
             }
             if payment
             else None,
@@ -372,6 +488,11 @@ def create_app() -> FastAPI:
             "signals": revision.signals if revision else [],
             "reason": revision.reason if revision else None,
             "version_token": revision.version_token if revision else None,
+            "balances": balances,
+            "unapplied_cash": unapplied_cash,
+            "application_id": str(application.id) if application else None,
+            "trace": {"mode": revision.provenance if revision else "rules-v1"},
+            "review_required": proposal.review_required,
         }
 
     @app.post("/api/v1/proposals/{proposal_id}/correct")
@@ -513,36 +634,8 @@ def create_app() -> FastAPI:
 
     @app.get("/api/v1/sample")
     def sample() -> Response:
-        bank = """source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency
-acct-1,pay-54k,2026-01-15,Acme SA,Invoices 101 102 credit 103,54000,MXN
-"""
-        invoices = (
-            "customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
-            "outstanding_amount,currency\n"
-            "cust-1,Acme SA,100,2025-12-01,2026-01-01,2026-01-15,54000,MXN\n"
-            "cust-1,Acme SA,101,2025-12-01,2026-01-01,2026-01-15,30000,MXN\n"
-            "cust-1,Acme SA,102,2025-12-01,2026-01-01,2026-01-15,25000,MXN\n"
-        )
-        credits = """customer_id,credit_note_id,balance_as_of,available_amount,currency,invoice_id
-cust-1,103,2026-01-15,1000,MXN,102
-"""
-        message = (
-            "Please apply payment pay-54k to invoices 101 and 102, "
-            "using credit note 103 on invoice 102."
-        )
-        output = io.BytesIO()
-        with ZipFile(output, "w", ZIP_DEFLATED) as archive:
-            archive.writestr("bank.csv", bank)
-            archive.writestr("invoices.csv", invoices)
-            archive.writestr("credits.csv", credits)
-            archive.writestr("message.txt", message)
-            archive.writestr(
-                "README.txt",
-                "Use message_time=2026-01-15T12:00:00+00:00 and associate "
-                "acct-1/pay-54k when importing message.txt.\n",
-            )
         return Response(
-            output.getvalue(),
+            sample_zip(),
             media_type="application/zip",
             headers={"Content-Disposition": "attachment; filename=reconcile-sample.zip"},
         )

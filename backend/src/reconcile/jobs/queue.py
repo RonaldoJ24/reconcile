@@ -13,7 +13,12 @@ from reconcile.persistence.models import Job, now_utc
 from reconcile.persistence.service import ReconcileService
 
 
-def claim_one(session: Session, owner: str | None = None, lease_seconds: int = 60) -> Job | None:
+def claim_one(
+    session: Session,
+    owner: str | None = None,
+    lease_seconds: int = 60,
+    workspace_id: uuid.UUID | None = None,
+) -> Job | None:
     owner = owner or f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex}"
     now = now_utc()
     job = session.scalar(
@@ -22,6 +27,7 @@ def claim_one(session: Session, owner: str | None = None, lease_seconds: int = 6
             Job.status == JobStatus.PENDING.value,
             Job.available_at <= now,
             or_(Job.lease_expires_at.is_(None), Job.lease_expires_at <= now),
+            *([Job.workspace_id == workspace_id] if workspace_id else []),
         )
         .order_by(Job.available_at, Job.created_at)
         .with_for_update(skip_locked=True)
@@ -34,6 +40,7 @@ def claim_one(session: Session, owner: str | None = None, lease_seconds: int = 6
                 Job.status == JobStatus.RUNNING.value,
                 Job.lease_expires_at <= now,
                 Job.attempts < Job.max_attempts,
+                *([Job.workspace_id == workspace_id] if workspace_id else []),
             )
             .order_by(Job.lease_expires_at)
             .with_for_update(skip_locked=True)
@@ -48,8 +55,14 @@ def claim_one(session: Session, owner: str | None = None, lease_seconds: int = 6
     return job
 
 
-def run_once(session: Session, *, owner: str | None = None, lease_seconds: int = 60) -> Job | None:
-    job = claim_one(session, owner=owner, lease_seconds=lease_seconds)
+def run_once(
+    session: Session,
+    *,
+    owner: str | None = None,
+    lease_seconds: int = 60,
+    workspace_id: uuid.UUID | None = None,
+) -> Job | None:
+    job = claim_one(session, owner=owner, lease_seconds=lease_seconds, workspace_id=workspace_id)
     if job is None:
         return None
     try:

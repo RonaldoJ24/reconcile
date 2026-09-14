@@ -6,11 +6,12 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.models import Base
 
 config = context.config
 if os.getenv("DATABASE_URL"):
-    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+    config.set_main_option("sqlalchemy.url", normalize_database_url(os.environ["DATABASE_URL"]))
 if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata

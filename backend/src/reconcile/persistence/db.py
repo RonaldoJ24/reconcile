@@ -7,21 +7,30 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from .models import Base
-
 
 def database_url() -> str:
-    value = os.getenv("DATABASE_URL", "postgresql+psycopg://localhost/reconcile")
+    value = normalize_database_url(
+        os.getenv("DATABASE_URL", "postgresql+psycopg://localhost/reconcile")
+    )
     if value.startswith("sqlite"):
         raise RuntimeError("PostgreSQL is required; SQLite is not supported")
     return value
 
 
 def make_engine(url: str | None = None) -> Engine:
-    value = url or database_url()
+    value = normalize_database_url(url or database_url())
     if value.startswith("sqlite"):
         raise RuntimeError("PostgreSQL is required; SQLite is not supported")
     return create_engine(value, pool_pre_ping=True, pool_size=2, max_overflow=0)
+
+
+def normalize_database_url(value: str) -> str:
+    """Use psycopg3 for provider URLs emitted as postgres/postgresql schemes."""
+    if value.startswith("postgres://"):
+        return "postgresql+psycopg://" + value[len("postgres://") :]
+    if value.startswith("postgresql://"):
+        return "postgresql+psycopg://" + value[len("postgresql://") :]
+    return value
 
 
 engine = make_engine()
@@ -34,10 +43,6 @@ def session_scope() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
-
-
-def create_schema() -> None:
-    Base.metadata.create_all(engine)
 
 
 def readiness() -> bool:

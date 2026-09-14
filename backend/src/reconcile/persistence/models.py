@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Date,
     DateTime,
@@ -82,7 +83,7 @@ class Payment(Base):
     booking_date: Mapped[date] = mapped_column(Date)
     payer_name: Mapped[str] = mapped_column(String(200))
     reference: Mapped[str] = mapped_column(String(500))
-    amount: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)
     currency: Mapped[str] = mapped_column(String(3), default="MXN")
     customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -105,7 +106,7 @@ class Invoice(Base):
     issued_date: Mapped[date] = mapped_column(Date)
     due_date: Mapped[date] = mapped_column(Date)
     balance_as_of: Mapped[date] = mapped_column(Date)
-    outstanding_amount: Mapped[int] = mapped_column(Integer)
+    outstanding_amount: Mapped[int] = mapped_column(BigInteger)
     currency: Mapped[str] = mapped_column(String(3), default="MXN")
     version: Mapped[int] = mapped_column(Integer, default=1)
     conflicted: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -122,7 +123,7 @@ class CreditNote(Base):
     customer_id: Mapped[str] = mapped_column(String(100))
     credit_note_id: Mapped[str] = mapped_column(String(100))
     balance_as_of: Mapped[date] = mapped_column(Date)
-    available_amount: Mapped[int] = mapped_column(Integer)
+    available_amount: Mapped[int] = mapped_column(BigInteger)
     invoice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default="MXN")
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -142,6 +143,7 @@ class Proposal(Base):
     )
     current_revision: Mapped[int] = mapped_column(Integer, default=0)
     applied_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    review_required: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
@@ -188,7 +190,7 @@ class CashApplication(Base):
     )
     payment_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("payments.id"))
     invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id"))
-    amount: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -201,7 +203,7 @@ class CreditApplication(Base):
     )
     credit_note_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("credit_notes.id"))
     invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id"))
-    amount: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[int] = mapped_column(BigInteger)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 

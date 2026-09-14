@@ -40,8 +40,20 @@ def propose(
     evidence: Mapping[str, str] | None = None,
 ) -> ProposalResult:
     """Produce a safe, rules-only proposal; evidence-free amounts never identify an invoice."""
-    invoice_list = tuple(i for i in invoices if i.outstanding_amount > 0)
-    credit_list = tuple(c for c in credits if c.available_amount > 0)
+    invoice_list = tuple(
+        i
+        for i in invoices
+        if i.outstanding_amount > 0
+        and i.balance_as_of <= payment.booking_date
+        and (payment.customer_id is None or i.customer_id == payment.customer_id)
+    )
+    credit_list = tuple(
+        c
+        for c in credits
+        if c.available_amount > 0
+        and c.balance_as_of <= payment.booking_date
+        and (payment.customer_id is None or c.customer_id == payment.customer_id)
+    )
     all_text = " ".join((payment.reference, *(evidence or {}).values()))
     mentioned_invoices = tuple(i for i in invoice_list if _mentions(i.invoice_id, all_text))
     exact = tuple(i for i in invoice_list if i.outstanding_amount == payment.amount)
@@ -58,13 +70,22 @@ def propose(
             signals=tuple(signals),
             reason="no explicit invoice reference",
         )
+    if len({invoice.customer_id for invoice in mentioned_invoices}) > 1:
+        return ProposalResult(
+            ProposalStatus.NEEDS_REVIEW,
+            alternatives=(tuple(invoice.invoice_id for invoice in mentioned_invoices),),
+            reason="selected invoices belong to different customers",
+        )
 
     mentioned_credits = tuple(
         c
         for c in credit_list
         if c.invoice_id
         and _mentions(c.credit_note_id, all_text)
-        and any(i.invoice_id == c.invoice_id for i in mentioned_invoices)
+        and any(
+            i.invoice_id == c.invoice_id and i.customer_id == c.customer_id
+            for i in mentioned_invoices
+        )
     )
     if len(mentioned_invoices) == 1:
         invoice = mentioned_invoices[0]

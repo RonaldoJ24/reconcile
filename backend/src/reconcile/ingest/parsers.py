@@ -70,6 +70,7 @@ class ParsedSource:
     rows: tuple[dict[str, Any], ...] = ()
     issues: tuple[RowIssue, ...] = ()
     text: str | None = None
+    row_locators: tuple[dict[str, int], ...] = ()
 
     @property
     def accepted_count(self) -> int:
@@ -102,6 +103,32 @@ class ParsedBatch:
 
 def source_hash(kind: SourceKind, raw: bytes) -> str:
     return hashlib.sha256(kind.encode() + b"\0" + raw).hexdigest()
+
+
+def _csv_record_spans(raw: bytes) -> tuple[dict[str, int], ...]:
+    spans: list[dict[str, int]] = []
+    start = 0
+    quoted = False
+    index = 0
+    while index < len(raw):
+        byte = raw[index]
+        if byte == 34:
+            if quoted and index + 1 < len(raw) and raw[index + 1] == 34:
+                index += 2
+                continue
+            quoted = not quoted
+        elif not quoted and byte in (10, 13):
+            end = index + 1
+            if byte == 13 and end < len(raw) and raw[end] == 10:
+                end += 1
+            spans.append({"record": len(spans) + 1, "start_byte": start, "end_byte": end})
+            start = end
+            index = end
+            continue
+        index += 1
+    if start < len(raw):
+        spans.append({"record": len(spans) + 1, "start_byte": start, "end_byte": len(raw)})
+    return tuple(spans)
 
 
 def _decode(raw: bytes) -> str:
@@ -228,7 +255,14 @@ def parse_csv_source(
             issues.extend(row_issues)
         else:
             rows.append(parsed)
-    return ParsedSource(kind, raw, source_hash(kind, raw), tuple(rows), tuple(issues))
+    return ParsedSource(
+        kind,
+        raw,
+        source_hash(kind, raw),
+        tuple(rows),
+        tuple(issues),
+        row_locators=_csv_record_spans(raw),
+    )
 
 
 def parse_credit_source(raw: bytes, *, profile: str = "local") -> ParsedSource:
@@ -285,7 +319,14 @@ def parse_credit_source(raw: bytes, *, profile: str = "local") -> ParsedSource:
             issues.extend(row_issues)
         else:
             rows.append(parsed)
-    return ParsedSource("credit", raw, source_hash("credit", raw), tuple(rows), tuple(issues))
+    return ParsedSource(
+        "credit",
+        raw,
+        source_hash("credit", raw),
+        tuple(rows),
+        tuple(issues),
+        row_locators=_csv_record_spans(raw),
+    )
 
 
 def parse_message_source(raw: bytes, *, profile: str = "local") -> ParsedSource:
