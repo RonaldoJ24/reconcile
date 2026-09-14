@@ -1,5 +1,35 @@
 export type Mode = 'rules-v1' | string
 
+export type InterpretationStatus = 'selected' | 'needs_review' | 'unavailable'
+export type InterpretationSource = 'live' | 'cache' | 'none'
+export type InterpretationMode = 'direct' | 'hybrid'
+
+export type InterpretationCitation = {
+  source_id?: string
+  start?: number
+  end?: number
+  quote?: string
+  [key: string]: unknown
+}
+
+export type Interpretation = {
+  status: InterpretationStatus
+  source: InterpretationSource
+  mode: InterpretationMode
+  candidate_id?: string
+  reason_code?: string
+  citations?: InterpretationCitation[]
+  failure_code?: string
+  trace?: unknown
+}
+
+export type InterpretationResponse = {
+  proposal_id: string
+  revision: number
+  status: string
+  interpretation: Interpretation
+}
+
 export type Session = {
   mode: Mode
   expires_at?: string
@@ -119,6 +149,7 @@ export type ProposalDetail = ProposalSummary & {
   application_id?: string
   applicationId?: string
   application?: Record<string, unknown>
+  interpretation?: Interpretation
   revision?: number
   reviewer?: string
   [key: string]: unknown

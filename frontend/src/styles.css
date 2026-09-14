@@ -99,6 +99,8 @@ input:focus { border-color: var(--blue); }
 .status-pill { display: inline-flex; align-items: center; min-height: 23px; border-radius: 20px; padding: 3px 9px; color: #5a7080; background: #eef3f6; font-size: .68rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
 .status-success, .status-proposed, .status-succeeded { background: var(--green-bg); color: var(--green); }
 .status-review, .status-needs_review, .status-pending { background: var(--amber-bg); color: var(--amber); }
+.status-selected { background: var(--green-bg); color: var(--green); }
+.status-unavailable { background: var(--red-bg); color: var(--red); }
 .status-applied { background: #e8eefb; color: #345b99; }
 .status-reversed { background: #f0eaf6; color: #795188; }
 .status-failed, .status-rejected { background: var(--red-bg); color: var(--red); }
@@ -168,6 +170,18 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
 .trace-panel pre { max-height: 320px; overflow: auto; margin: 15px 0 0; padding: 13px; color: #d4e6f3; background: #152b3e; border-radius: 6px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .67rem; white-space: pre-wrap; }
 .action-panel h2 { font-size: 1.1rem; }
 .action-panel form { display: grid; gap: 17px; }
+.interpretation-panel { border-color: #c7d8e5; }
+.interpretation-panel h2 { font-size: 1.02rem; }
+.interpretation-help { margin: -8px 0 15px; color: #526d81; font-size: .77rem; }
+.interpretation-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.interpretation-actions .button { min-width: 0; text-align: center; }
+.interpretation-result { display: grid; gap: 6px; margin-top: 15px; padding: 12px; border-radius: 7px; background: #f6f9fb; border: 1px solid var(--line); font-size: .76rem; }
+.interpretation-result strong { color: var(--navy); font-size: .78rem; }
+.interpretation-result-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.interpretation-source, .interpretation-detail { color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+.interpretation-selected { background: var(--green-bg); border-color: #b8d9c8; }
+.interpretation-needs_review { background: var(--amber-bg); border-color: #e8d29e; }
+.interpretation-unavailable { background: var(--red-bg); border-color: #e8b4b0; }
 .correction-section { display: grid; gap: 10px; padding-top: 5px; }
 .subheading { justify-content: space-between; }
 .subheading h3 { margin: 0; color: var(--navy); font-size: .8rem; }
