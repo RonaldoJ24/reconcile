@@ -57,8 +57,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T
 }
 
-export async function createSession(mode: 'local' | 'preview' = 'local'): Promise<Session> {
-  const session = await request<Session>('/api/v1/session', { method: 'POST', body: JSON.stringify({ mode }) })
+export async function createSession(): Promise<Session> {
+  const session = await request<Session>('/api/v1/session', { method: 'POST', body: '{}' })
   csrfToken = session.csrf_token ?? session.csrfToken ?? ''
   return session
 }

@@ -110,7 +110,7 @@ export type ProposalDetail = ProposalSummary & {
   unapplied_amount_cents?: number | string
   unappliedAmountCents?: number | string
   unapplied_amount?: number | string
-  balances?: Record<string, unknown>[]
+  balances?: Record<string, unknown> | Record<string, unknown>[]
   evidence?: Evidence[]
   alternatives?: (Record<string, unknown> | unknown[])[]
   trace?: unknown

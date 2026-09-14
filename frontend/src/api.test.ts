@@ -6,14 +6,14 @@ afterEach(() => vi.restoreAllMocks())
 describe('API transport boundary', () => {
   it('establishes the session and sends its CSRF token on mutations', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'rules-v1', csrf_token: 'csrf-test' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-test' }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'APPLIED' }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await createSession()
     await applyProposal('proposal-1', { expected_revision: 1 })
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/session', expect.objectContaining({ credentials: 'include', body: JSON.stringify({ mode: 'local' }) }))
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/session', expect.objectContaining({ credentials: 'include', body: '{}' }))
     const requestInit = fetchMock.mock.calls[1][1] as RequestInit
     const headers = new Headers(requestInit.headers)
     expect(requestInit.credentials).toBe('include')

@@ -83,6 +83,16 @@ function getList<T>(value: T[] | { items?: T[]; data?: T[] } | undefined): T[] {
   return value?.items ?? value?.data ?? []
 }
 
+function balanceRows(value: ProposalDetail['balances']): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value
+  if (!value || typeof value !== 'object') return []
+  return Object.entries(value).map(([invoiceId, row]) => (
+    row && typeof row === 'object' && !Array.isArray(row)
+      ? { invoice_id: invoiceId, ...(row as Record<string, unknown>) }
+      : { invoice_id: invoiceId, remaining_amount: row }
+  ))
+}
+
 function App() {
   const [screen, setScreen] = useState<Screen>('imports')
   const [mode, setMode] = useState<Mode>('rules-v1')
@@ -102,7 +112,7 @@ function App() {
     let cancelled = false
     void (async () => {
       try {
-        const session = await createSession(import.meta.env.VITE_SESSION_MODE === 'preview' ? 'preview' : 'local')
+        const session = await createSession()
         if (!cancelled) setMode(session.mode || 'rules-v1')
         await refresh()
       } catch (cause) {
@@ -137,8 +147,8 @@ function App() {
         </div>
         <div className="session-meta" aria-label="Runtime mode">
           <span className="mode-dot" aria-hidden="true" />
-          <span>{mode}</span>
-          <span className="mode-note">server mode</span>
+          <span>rules-v1 · {mode}</span>
+          <span className="mode-note">runtime</span>
         </div>
       </header>
 
@@ -356,6 +366,7 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
   const payment = detail.payment ?? detail
   const cashLines = detail.cash ?? detail.cash_lines ?? detail.cashLines ?? []
   const creditLines = detail.credits ?? detail.credit_lines ?? detail.creditLines ?? []
+  const balances = balanceRows(detail.balances)
   const applicationId = appliedId || detail.application_id || detail.applicationId || text(detail.application, 'id', 'application_id')
   const status = String(detail.status ?? 'NEEDS_REVIEW')
   const apply = async () => {
@@ -391,7 +402,7 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
         <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><h2>{money(centsOf(payment, 'amount_cents', 'amountCents', 'amount'))}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><dl className="data-list"><Data label="Currency" value={text(payment, 'currency') ?? 'MXN'} /><Data label="Booked" value={dateTime(payment.booking_date ?? payment.bookingDate)} /><Data label="Source account" value={text(payment, 'source_account_id', 'sourceAccountId') ?? '—'} mono /><Data label="Transaction" value={text(payment, 'transaction_id', 'transactionId') ?? '—'} mono /></dl></section>
         <AllocationLines title="Cash applications" lines={cashLines} kind="cash" />
         <AllocationLines title="Credit applications" lines={creditLines} kind="credit" />
-        <section className="panel balances-card"><div className="panel-heading"><div><h2>Balances and cash</h2><p className="muted">Authoritative amounts returned by the server.</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={centsOf(detail as Record<string, unknown>, 'unapplied_amount_cents', 'unappliedAmountCents', 'unapplied_amount')} /><Balance label="Payment" value={centsOf(payment, 'amount_cents', 'amountCents', 'amount')} /></div>{detail.balances && detail.balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Entity</th><th>Opening</th><th>Remaining</th></tr></thead><tbody>{detail.balances.map((balance, index) => <tr key={index}><td>{text(balance, 'invoice_id', 'invoiceId', 'credit_note_id', 'creditNoteId', 'customer_name', 'customerName') ?? '—'}</td><td>{money(centsOf(balance, 'opening_amount_cents', 'openingAmountCents', 'opening_amount', 'available_amount_cents'))}</td><td>{money(centsOf(balance, 'remaining_amount_cents', 'remainingAmountCents', 'remaining_amount', 'available_amount_cents'))}</td></tr>)}</tbody></table></div>}</section>
+        <section className="panel balances-card"><div className="panel-heading"><div><h2>Balances and cash</h2><p className="muted">Authoritative amounts returned by the server.</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={centsOf(detail as Record<string, unknown>, 'unapplied_cash', 'unapplied_amount_cents', 'unappliedAmountCents', 'unapplied_amount')} /><Balance label="Payment" value={centsOf(payment, 'amount_cents', 'amountCents', 'amount')} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance, index) => <tr key={index}><td className="mono">{text(balance, 'invoice_id', 'invoiceId', 'credit_note_id', 'creditNoteId', 'customer_name', 'customerName') ?? '—'}</td><td>{money(centsOf(balance, 'opening_amount_cents', 'openingAmountCents', 'opening_amount', 'available_amount_cents'))}</td><td>{money(centsOf(balance, 'cash_applied', 'cash_applied_cents', 'cashApplied'))}</td><td>{money(centsOf(balance, 'credit_applied', 'credit_applied_cents', 'creditApplied'))}</td><td>{money(centsOf(balance, 'remaining_amount_cents', 'remainingAmountCents', 'remaining_amount', 'available_amount_cents'))}</td></tr>)}</tbody></table></div>}</section>
         <EvidenceSection evidence={detail.evidence ?? []} />
         <AlternativesSection alternatives={detail.alternatives ?? []} />
         <details className="panel trace-panel"><summary>Show execution trace</summary><pre>{JSON.stringify(detail.trace ?? { status: 'not returned' }, null, 2)}</pre></details>
