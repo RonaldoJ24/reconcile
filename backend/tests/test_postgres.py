@@ -14,11 +14,21 @@ from sqlalchemy.orm import sessionmaker
 from reconcile.api.app import _db, create_app
 from reconcile.api.sample import SAMPLE_CONTEXT, SAMPLE_FILES
 from reconcile.ingest.parsers import parse_batch
+from reconcile.interpretation.budget import (
+    BudgetExceeded,
+    BudgetPolicy,
+    RateCard,
+    Usage,
+    finalize_attempt,
+    reserve_attempt,
+)
 from reconcile.jobs.queue import claim_one
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.models import (
     Base,
     ImportBatch,
+    InterpretationBudgetCounter,
+    InterpretationCall,
     Invoice,
     Job,
     Payment,
@@ -168,6 +178,98 @@ def test_expired_job_lease_is_reclaimed(session) -> None:
     assert first is not None and second is not None
     assert second.id == first.id
     assert second.attempts == 2
+
+
+def test_interpretation_budget_reservation_is_transactional_and_reconciled(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    session.commit()
+    visitor = uuid.uuid4()
+    policy = BudgetPolicy(execution_attempts=1)
+    rate = RateCard()
+
+    call_id = reserve_attempt(
+        session,
+        workspace_id=workspace.id,
+        session_id=visitor,
+        execution_id="phase4-test",
+        mode="direct",
+        requested_model="deepseek-flash",
+        attempt=1,
+        policy=policy,
+        rate_card=rate,
+    )
+    call = session.get(InterpretationCall, call_id)
+    assert call is not None
+    assert call.status == "RESERVED"
+    assert call.reservation_microdollars == 4_258
+
+    with pytest.raises(BudgetExceeded, match="attempts budget exhausted"):
+        reserve_attempt(
+            session,
+            workspace_id=workspace.id,
+            session_id=visitor,
+            execution_id="phase4-test",
+            mode="direct",
+            requested_model="deepseek-flash",
+            attempt=2,
+            policy=policy,
+            rate_card=rate,
+        )
+
+    finalized = finalize_attempt(
+        session,
+        call_id=call_id,
+        policy=policy,
+        rate_card=rate,
+        status="SUCCEEDED",
+        usage=Usage(input_tokens=1_000, output_tokens=100, cached_input_tokens=200),
+        response_model="deepseek-v4.1-flash",
+        latency_ms=50,
+    )
+    assert finalized.status == "SUCCEEDED"
+    assert finalized.estimated_microdollars == 362
+    assert finalized.reservation_retained is False
+    counters = session.query(InterpretationBudgetCounter).all()
+    assert all(counter.reserved_microdollars == 0 for counter in counters)
+    assert all(counter.committed_microdollars == 362 for counter in counters)
+
+
+def test_interpretation_timeout_retains_possible_billing_reservation(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    session.commit()
+    policy = BudgetPolicy()
+    rate = RateCard()
+    call_id = reserve_attempt(
+        session,
+        workspace_id=workspace.id,
+        session_id=uuid.uuid4(),
+        execution_id=f"timeout-{uuid.uuid4()}",
+        mode="hybrid",
+        requested_model="deepseek-flash",
+        attempt=1,
+        policy=policy,
+        rate_card=rate,
+    )
+
+    finalized = finalize_attempt(
+        session,
+        call_id=call_id,
+        policy=policy,
+        rate_card=rate,
+        status="FAILED",
+        error_code="timeout",
+        billing_unknown=True,
+    )
+
+    assert finalized.status == "UNKNOWN_BILLING"
+    assert finalized.reservation_retained is True
+    execution = session.get(
+        InterpretationBudgetCounter, f"execution:{finalized.execution_id}"
+    )
+    assert execution is not None
+    assert execution.reserved_microdollars == 4_258
 
 
 def test_two_payments_cannot_consume_one_invoice(session) -> None:
