@@ -479,6 +479,11 @@ class DeepSeekProvider:
                     if exc.kind == "allocation"
                     else FailureCode.INVALID_RESPONSE
                 )
+                billing_state: ReservationState = (
+                    "reconciled"
+                    if usage.input_tokens is not None and usage.output_tokens is not None
+                    else "unknown"
+                )
                 telemetry = self._telemetry(
                     context,
                     started,
@@ -486,10 +491,10 @@ class DeepSeekProvider:
                     usage=usage,
                     status=status,
                     failure_code=code,
-                    reservation_state="unknown",
+                    reservation_state=billing_state,
                 )
                 attempts.append(telemetry)
-                self._finish(finalize, context, telemetry, reservation, "unknown")
+                self._finish(finalize, context, telemetry, reservation, billing_state)
                 failure = self._failure(
                     code,
                     "provider response failed semantic validation",
@@ -500,6 +505,11 @@ class DeepSeekProvider:
                 )
                 return ProviderOutcome(None, failure, tuple(attempts))
             except (ValueError, TypeError, json.JSONDecodeError):
+                billing_state = (
+                    "reconciled"
+                    if usage.input_tokens is not None and usage.output_tokens is not None
+                    else "unknown"
+                )
                 telemetry = self._telemetry(
                     context,
                     started,
@@ -507,10 +517,10 @@ class DeepSeekProvider:
                     usage=usage,
                     status=status,
                     failure_code=FailureCode.INVALID_RESPONSE,
-                    reservation_state="unknown",
+                    reservation_state=billing_state,
                 )
                 attempts.append(telemetry)
-                self._finish(finalize, context, telemetry, reservation, "unknown")
+                self._finish(finalize, context, telemetry, reservation, billing_state)
                 failure = self._failure(
                     FailureCode.INVALID_RESPONSE,
                     "provider response was not valid interpretation JSON",
@@ -521,16 +531,21 @@ class DeepSeekProvider:
                 )
                 return ProviderOutcome(None, failure, tuple(attempts))
 
+            billing_state = (
+                "reconciled"
+                if usage.input_tokens is not None and usage.output_tokens is not None
+                else "unknown"
+            )
             telemetry = self._telemetry(
                 context,
                 started,
                 response_model=response_model,
                 usage=usage,
                 status=status,
-                reservation_state="reconciled",
+                reservation_state=billing_state,
             )
             attempts.append(telemetry)
-            self._finish(finalize, context, telemetry, reservation, "reconciled")
+            self._finish(finalize, context, telemetry, reservation, billing_state)
             return ProviderOutcome(result, None, tuple(attempts))
 
         # The loop always returns from a terminal branch.

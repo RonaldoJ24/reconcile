@@ -240,10 +240,7 @@ def _shadow_group(
 
     if rules_result.status == ProposalStatus.PROPOSED:
         add_candidate(
-            [
-                {"invoice_id": line.invoice_id, "amount": line.amount}
-                for line in rules_result.cash
-            ],
+            [{"invoice_id": line.invoice_id, "amount": line.amount} for line in rules_result.cash],
             [
                 {
                     "credit_note_id": line.credit_note_id,
@@ -329,8 +326,8 @@ def _shadow_group(
             else None
         ),
         "message": "\n".join(evidence.values()),
-        "candidates": candidates,
-        "retrieval_truncated": retrieval_truncated,
+        "candidates": candidates[:10],
+        "retrieval_truncated": retrieval_truncated or len(candidates) > 10,
     }
 
 
@@ -696,6 +693,163 @@ class ReconcileService:
             model_trace=_shadow_model_trace(payment, invoices, credits, evidence, result),
         )
         self.session.add(revision)
+        self.session.commit()
+        return proposal
+
+    def record_interpretation(
+        self,
+        workspace_id: uuid.UUID,
+        proposal_id: uuid.UUID,
+        *,
+        expected_revision: int,
+        mode: str,
+        source: str,
+        candidate: dict[str, Any] | None,
+        citations: list[dict[str, Any]],
+        reason_code: str,
+        trace: dict[str, object],
+        expected_source_hashes: dict[str, str],
+        expected_payment_version: int,
+        expected_invoice_versions: dict[str, int],
+        expected_credit_versions: dict[str, int],
+    ) -> Proposal:
+        if mode not in {"direct", "hybrid"} or source not in {"live", "cache"}:
+            raise ServiceError("validation", "invalid interpretation provenance", 422)
+        proposal = self.session.scalar(
+            select(Proposal)
+            .where(Proposal.id == proposal_id, Proposal.workspace_id == workspace_id)
+            .with_for_update()
+        )
+        if proposal is None:
+            raise ServiceError("not_found", "proposal not found", 404)
+        if proposal.current_revision != expected_revision:
+            raise ServiceError("stale_revision", "proposal changed during interpretation")
+        if proposal.status != ProposalStatus.NEEDS_REVIEW.value:
+            raise ServiceError(
+                "interpretation_not_allowed", "only review-required proposals can be interpreted"
+            )
+        payment = self.session.scalar(
+            select(Payment).where(
+                Payment.id == proposal.payment_id,
+                Payment.workspace_id == workspace_id,
+            )
+        )
+        if payment is None or payment.version != expected_payment_version or payment.conflicted:
+            raise ServiceError("stale_version", "payment changed during interpretation")
+        source_ids = [uuid.UUID(value) for value in expected_source_hashes]
+        current_sources = list(
+            self.session.scalars(
+                select(Source).where(
+                    Source.workspace_id == workspace_id,
+                    Source.id.in_(source_ids),
+                )
+            )
+        )
+        current_hashes = {str(item.id): item.sha256 for item in current_sources}
+        if current_hashes != expected_source_hashes:
+            raise ServiceError("stale_source", "source evidence changed during interpretation")
+
+        cash = [
+            CashLine(str(item["invoice_id"]), int(item["amount_centavos"]))
+            for item in (candidate or {}).get("cash", [])
+        ]
+        credits = [
+            CreditLine(
+                str(item["credit_note_id"]),
+                str(item["invoice_id"]),
+                int(item["amount_centavos"]),
+            )
+            for item in (candidate or {}).get("credits", [])
+        ]
+        invoice_ids = {item.invoice_id for item in cash} | {item.invoice_id for item in credits}
+        credit_ids = {item.credit_note_id for item in credits}
+        invoices = list(
+            self.session.scalars(
+                select(Invoice).where(
+                    Invoice.workspace_id == workspace_id,
+                    Invoice.invoice_id.in_(invoice_ids),
+                )
+            )
+        )
+        credit_rows = list(
+            self.session.scalars(
+                select(CreditNote).where(
+                    CreditNote.workspace_id == workspace_id,
+                    CreditNote.credit_note_id.in_(credit_ids),
+                )
+            )
+        )
+        if any(
+            expected_invoice_versions.get(item.invoice_id) != item.version or item.conflicted
+            for item in invoices
+        ) or len(invoices) != len(invoice_ids):
+            raise ServiceError("stale_balance", "invoice balance changed during interpretation")
+        if any(
+            expected_credit_versions.get(item.credit_note_id) != item.version or item.conflicted
+            for item in credit_rows
+        ) or len(credit_rows) != len(credit_ids):
+            raise ServiceError("stale_balance", "credit balance changed during interpretation")
+
+        evidence = tuple(
+            Evidence(
+                str(item["source_id"]),
+                int(item["start"]),
+                int(item["end"]),
+                str(item["quote"]),
+            )
+            for item in citations
+        )
+        if candidate is None:
+            result = ProposalResult(
+                ProposalStatus.NEEDS_REVIEW,
+                evidence=evidence,
+                reason=f"bounded interpretation: {reason_code}",
+            )
+        else:
+            try:
+                validate_allocation(
+                    payment.amount,
+                    {item.invoice_id: _invoice_fact(item) for item in invoices},
+                    {item.credit_note_id: _credit_fact(item) for item in credit_rows},
+                    cash,
+                    credits,
+                )
+            except ValueError as exc:
+                raise ServiceError("invalid_interpretation", str(exc), 422) from exc
+            result = ProposalResult(
+                ProposalStatus.PROPOSED,
+                tuple(cash),
+                tuple(credits),
+                evidence=evidence,
+                reason=f"bounded interpretation: {reason_code}",
+            )
+        proposal.current_revision += 1
+        proposal.status = result.status.value
+        proposal.review_required = True
+        self.session.add(
+            _revision_from_result(
+                proposal.id,
+                proposal.current_revision,
+                result,
+                _token(payment, invoices, credit_rows, result),
+                provenance=f"llm-{mode}-v1",
+                model_trace={"interpretation": {"source": source, "mode": mode, **trace}},
+            )
+        )
+        self.session.add(
+            AuditEvent(
+                workspace_id=workspace_id,
+                action="proposal.interpret",
+                actor=f"interpreter:{source}",
+                entity_id=proposal.id,
+                payload={
+                    "revision": proposal.current_revision,
+                    "mode": mode,
+                    "source": source,
+                    "reason_code": reason_code,
+                },
+            )
+        )
         self.session.commit()
         return proposal
 

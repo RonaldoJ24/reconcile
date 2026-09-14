@@ -8,9 +8,12 @@ def test_peak_rate_card_rounds_up_worst_case_reservation() -> None:
 
     assert rate.verified_on == "2026-09-14"
     assert rate.estimated_microdollars(input_tokens=6_000, output_tokens=2_048) == 4_258
-    assert rate.estimated_microdollars(
-        input_tokens=6_000, output_tokens=2_048, cached_input_tokens=6_000
-    ) == 2_494
+    assert (
+        rate.estimated_microdollars(
+            input_tokens=6_000, output_tokens=2_048, cached_input_tokens=6_000
+        )
+        == 2_494
+    )
 
 
 def test_budget_policy_has_bounded_attempt_and_token_totals() -> None:
@@ -19,5 +22,6 @@ def test_budget_policy_has_bounded_attempt_and_token_totals() -> None:
     assert policy.execution_microdollars == 50_000
     assert policy.session_attempts == 5
     assert policy.global_day_attempts == 25
+    assert policy.execution_attempts == 25
     assert policy.session_tokens == 40_240
     assert policy.day_tokens == 201_200

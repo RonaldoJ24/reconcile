@@ -83,6 +83,12 @@ evaluate-release:
 	@echo "sealed evaluation is intentionally not implemented or run in Phase 3" >&2
 	@exit 2
 
-smoke-live perf:
-	@echo "$@ belongs to a later authorized phase and is intentionally unavailable in Phase 3." >&2
+smoke-live:
+	@test "$${RECONCILE_LLM_ENABLED:-0}" = 1 || { echo "set RECONCILE_LLM_ENABLED=1 for an explicitly authorized live smoke" >&2; exit 2; }
+	@test -n "$${RECONCILE_LLM_EXECUTION_ID:-}" || { echo "set a unique RECONCILE_LLM_EXECUTION_ID" >&2; exit 2; }
+	@test -n "$${RECONCILE_LLM_EXECUTION_BUDGET_USD:-}" || { echo "set the authorized execution budget (maximum 0.05)" >&2; exit 2; }
+	@uv run python -m reconcile.interpretation.smoke
+
+perf:
+	@echo "$@ belongs to Phase 5 and is intentionally unavailable in Phase 4." >&2
 	@exit 2

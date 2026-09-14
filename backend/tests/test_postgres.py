@@ -20,6 +20,7 @@ from reconcile.interpretation.budget import (
     RateCard,
     Usage,
     finalize_attempt,
+    reconcile_unknown_attempt,
     reserve_attempt,
 )
 from reconcile.jobs.queue import claim_one
@@ -265,11 +266,24 @@ def test_interpretation_timeout_retains_possible_billing_reservation(session) ->
 
     assert finalized.status == "UNKNOWN_BILLING"
     assert finalized.reservation_retained is True
-    execution = session.get(
-        InterpretationBudgetCounter, f"execution:{finalized.execution_id}"
-    )
+    execution = session.get(InterpretationBudgetCounter, f"execution:{finalized.execution_id}")
     assert execution is not None
     assert execution.reserved_microdollars == 4_258
+
+    reconciled = reconcile_unknown_attempt(
+        session,
+        call_id=call_id,
+        policy=policy,
+        rate_card=rate,
+        usage=Usage(input_tokens=100, output_tokens=20),
+    )
+
+    assert reconciled.status == "FAILED_BILLED"
+    assert reconciled.reservation_retained is False
+    assert reconciled.estimated_microdollars == 54
+    session.refresh(execution)
+    assert execution.reserved_microdollars == 0
+    assert execution.committed_microdollars == 54
 
 
 def test_two_payments_cannot_consume_one_invoice(session) -> None:

@@ -52,7 +52,7 @@ class BudgetPolicy:
     execution_microdollars: int = 50_000
     session_attempts: int = 5
     global_day_attempts: int = 25
-    execution_attempts: int = 5
+    execution_attempts: int = 25
     max_input_tokens: int = 6_000
     max_output_tokens: int = 2_048
 
@@ -134,9 +134,7 @@ def reserve_attempt(
         input_tokens=policy.max_input_tokens,
         output_tokens=policy.max_output_tokens,
     )
-    limits = _scope_limits(
-        policy, session_id=session_id, execution_id=execution_id, at=when
-    )
+    limits = _scope_limits(policy, session_id=session_id, execution_id=execution_id, at=when)
     keys = sorted(limits)
     try:
         session.execute(
@@ -172,16 +170,12 @@ def reserve_attempt(
             if attempt_limit is not None and counter.attempts + 1 > attempt_limit:
                 raise BudgetExceeded(counter.key, "attempts")
             if (
-                counter.reserved_microdollars
-                + counter.committed_microdollars
-                + reserved_cost
+                counter.reserved_microdollars + counter.committed_microdollars + reserved_cost
                 > money_limit
             ):
                 raise BudgetExceeded(counter.key, "money")
             if (
-                counter.reserved_tokens
-                + counter.committed_tokens
-                + policy.attempt_tokens
+                counter.reserved_tokens + counter.committed_tokens + policy.attempt_tokens
                 > token_limit
             ):
                 raise BudgetExceeded(counter.key, "tokens")
@@ -231,9 +225,7 @@ def finalize_attempt(
     when = at or datetime.now(UTC)
     try:
         call = session.scalar(
-            select(InterpretationCall)
-            .where(InterpretationCall.id == call_id)
-            .with_for_update()
+            select(InterpretationCall).where(InterpretationCall.id == call_id).with_for_update()
         )
         if call is None:
             raise LookupError("interpretation call not found")
@@ -268,7 +260,7 @@ def finalize_attempt(
             counter.reserved_tokens -= policy.attempt_tokens
             counter.updated_at = when
         call.reservation_retained = False
-        if status == "SUCCEEDED" and usage is not None:
+        if usage is not None:
             estimated = rate_card.estimated_microdollars(
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
@@ -284,9 +276,73 @@ def finalize_attempt(
             call.cached_input_tokens = usage.cached_input_tokens
             call.reasoning_tokens = usage.reasoning_tokens
             call.provider_cache_hit = usage.cached_input_tokens > 0
-            call.status = "SUCCEEDED"
+            call.status = "SUCCEEDED" if status == "SUCCEEDED" else "FAILED_BILLED"
         else:
             call.status = "FAILED"
+        session.commit()
+        return call
+    except Exception:
+        session.rollback()
+        raise
+
+
+def reconcile_unknown_attempt(
+    session: Session,
+    *,
+    call_id: uuid.UUID,
+    policy: BudgetPolicy,
+    rate_card: RateCard,
+    usage: Usage,
+    at: datetime | None = None,
+) -> InterpretationCall:
+    """Replace a retained unknown-billing reservation with observed usage."""
+
+    when = at or datetime.now(UTC)
+    try:
+        call = session.scalar(
+            select(InterpretationCall).where(InterpretationCall.id == call_id).with_for_update()
+        )
+        if call is None:
+            raise LookupError("interpretation call not found")
+        if call.status != "UNKNOWN_BILLING" or not call.reservation_retained:
+            raise RuntimeError("interpretation call is not retained unknown billing")
+        limits = _scope_limits(
+            policy,
+            session_id=call.session_id,
+            execution_id=call.execution_id,
+            at=call.created_at,
+        )
+        counters = list(
+            session.scalars(
+                select(InterpretationBudgetCounter)
+                .where(InterpretationBudgetCounter.key.in_(sorted(limits)))
+                .order_by(InterpretationBudgetCounter.key)
+                .with_for_update()
+            )
+        )
+        if len(counters) != len(limits):
+            raise RuntimeError("reserved budget counters are missing")
+        estimated = rate_card.estimated_microdollars(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cached_input_tokens=usage.cached_input_tokens,
+        )
+        used_tokens = usage.input_tokens + usage.output_tokens
+        for counter in counters:
+            counter.reserved_microdollars -= call.reservation_microdollars
+            counter.reserved_tokens -= policy.attempt_tokens
+            counter.committed_microdollars += estimated
+            counter.committed_tokens += used_tokens
+            counter.updated_at = when
+        call.estimated_microdollars = estimated
+        call.input_tokens = usage.input_tokens
+        call.output_tokens = usage.output_tokens
+        call.cached_input_tokens = usage.cached_input_tokens
+        call.reasoning_tokens = usage.reasoning_tokens
+        call.provider_cache_hit = usage.cached_input_tokens > 0
+        call.reservation_retained = False
+        call.status = "FAILED_BILLED"
+        call.finished_at = when
         session.commit()
         return call
     except Exception:

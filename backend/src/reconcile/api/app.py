@@ -16,7 +16,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from reconcile.api.sample import is_exact_sample_packet, sample_zip
-from reconcile.api.schemas import ApplyRequest, CorrectionRequest, ReverseRequest, SessionRequest
+from reconcile.api.schemas import (
+    ApplyRequest,
+    CorrectionRequest,
+    InterpretationRequestBody,
+    ReverseRequest,
+    SessionRequest,
+)
 from reconcile.config import server_mode
 from reconcile.domain.types import CashLine, CreditLine
 from reconcile.ingest.parsers import (
@@ -25,6 +31,7 @@ from reconcile.ingest.parsers import (
     parse_csv_source,
     parse_message_context,
 )
+from reconcile.interpretation.workflow import compile_workflow
 from reconcile.jobs.queue import run_once
 from reconcile.persistence.db import readiness, session_scope
 from reconcile.persistence.models import (
@@ -48,6 +55,7 @@ from reconcile.persistence.service import ReconcileService, ServiceError
 
 SESSION_COOKIE = "reconcile_session"
 SESSION_TTL = timedelta(hours=8)
+INTERPRETATION_WORKFLOW = compile_workflow()
 
 
 def _sha(value: str) -> str:
@@ -495,6 +503,11 @@ def create_app() -> FastAPI:
                 "mode": revision.provenance if revision else "rules-v1",
                 **(revision.model_trace if revision else {}),
             },
+            "interpretation": (
+                revision.model_trace.get("interpretation")
+                if revision and revision.model_trace.get("interpretation")
+                else None
+            ),
             "review_required": proposal.review_required,
         }
 
@@ -522,6 +535,44 @@ def create_app() -> FastAPI:
             }
         except ServiceError as exc:
             raise _error(exc)
+
+    @app.post("/api/v1/proposals/{proposal_id}/interpret")
+    def interpret_proposal(
+        proposal_id: uuid.UUID,
+        body: InterpretationRequestBody,
+        request: Request,
+        db: Session = Depends(_db),
+    ) -> dict[str, object]:
+        record, workspace = _require_mutation(request, db)
+        try:
+            outcome = INTERPRETATION_WORKFLOW.run(
+                db,
+                workspace_id=workspace.id,
+                session_id=record.id,
+                proposal_id=proposal_id,
+                mode=body.mode,
+            )
+        except ServiceError as exc:
+            raise _error(exc)
+        except RuntimeError as exc:
+            raise HTTPException(
+                503,
+                detail={"code": "interpretation_unavailable", "message": str(exc)},
+            ) from exc
+        proposal = db.scalar(
+            select(Proposal).where(
+                Proposal.id == proposal_id,
+                Proposal.workspace_id == workspace.id,
+            )
+        )
+        if proposal is None:
+            raise HTTPException(404, "proposal not found")
+        return {
+            "proposal_id": str(proposal.id),
+            "revision": proposal.current_revision,
+            "status": proposal.status,
+            "interpretation": outcome.api_dict(),
+        }
 
     @app.post("/api/v1/proposals/{proposal_id}/apply")
     def apply_proposal(
