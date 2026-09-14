@@ -362,30 +362,36 @@ def create_app() -> FastAPI:
     @app.get("/api/v1/proposals")
     def list_proposals(request: Request, db: Session = Depends(_db)) -> list[dict[str, object]]:
         _, workspace = _session(request, db)
-        rows = []
-        for proposal in db.scalars(
-            select(Proposal)
-            .where(Proposal.workspace_id == workspace.id)
+        application_id = (
+            select(ApplicationGroup.id)
+            .where(ApplicationGroup.proposal_id == Proposal.id)
+            .order_by(ApplicationGroup.created_at.desc(), ApplicationGroup.id.desc())
+            .limit(1)
+            .correlate(Proposal)
+            .scalar_subquery()
+        )
+        rows: list[dict[str, object]] = []
+        query = (
+            select(Proposal, Payment, application_id.label("application_id"))
+            .join(Payment, Payment.id == Proposal.payment_id)
+            .where(Proposal.workspace_id == workspace.id, Payment.workspace_id == workspace.id)
             .order_by(Proposal.updated_at.desc())
-        ):
-            payment = db.get(Payment, proposal.payment_id)
-            application = db.scalar(
-                select(ApplicationGroup)
-                .where(ApplicationGroup.proposal_id == proposal.id)
-                .order_by(ApplicationGroup.created_at.desc())
-            )
+        )
+        for proposal, payment, latest_application_id in db.execute(query):
             rows.append(
                 {
                     "proposal_id": str(proposal.id),
                     "status": proposal.status,
                     "revision": proposal.current_revision,
                     "payment_id": str(proposal.payment_id),
-                    "amount": payment.amount if payment else None,
-                    "payer_name": payment.payer_name if payment else None,
-                    "source_account_id": payment.source_account_id if payment else None,
-                    "transaction_id": payment.transaction_id if payment else None,
-                    "booking_date": payment.booking_date if payment else None,
-                    "application_id": str(application.id) if application else None,
+                    "amount": payment.amount,
+                    "payer_name": payment.payer_name,
+                    "source_account_id": payment.source_account_id,
+                    "transaction_id": payment.transaction_id,
+                    "booking_date": payment.booking_date,
+                    "application_id": (
+                        str(latest_application_id) if latest_application_id else None
+                    ),
                 }
             )
         return rows

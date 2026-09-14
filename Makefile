@@ -1,6 +1,6 @@
 .PHONY: setup install lock dev check lint typecheck test test-postgres \
 	test-integration test-e2e migrate run worker cost-preflight data-dev train \
-	evaluate-dev evaluate-release smoke-live perf
+	evaluate-dev evaluate-release smoke-live perf release-scan
 
 setup:
 	uv sync --frozen
@@ -80,8 +80,7 @@ evaluate-dev:
 
 evaluate-release:
 	@test "$${ALLOW_SEALED_EVAL:-0}" = 1 || { echo "set ALLOW_SEALED_EVAL=1 only during the authorized Phase 5 release freeze" >&2; exit 2; }
-	@echo "sealed evaluation is intentionally not implemented or run in Phase 3" >&2
-	@exit 2
+	@uv run python -m reconcile.ml.release --release-commit "$$(git rev-parse HEAD)"
 
 smoke-live:
 	@test "$${RECONCILE_LLM_ENABLED:-0}" = 1 || { echo "set RECONCILE_LLM_ENABLED=1 for an explicitly authorized live smoke" >&2; exit 2; }
@@ -90,5 +89,11 @@ smoke-live:
 	@uv run python -m reconcile.interpretation.smoke
 
 perf:
-	@echo "$@ belongs to Phase 5 and is intentionally unavailable in Phase 4." >&2
-	@exit 2
+	@test "$${ALLOW_PERF_TEST:-0}" = 1 || { echo "set ALLOW_PERF_TEST=1 for the isolated Phase 5 workload" >&2; exit 2; }
+	@TEST_DATABASE_URL=$${TEST_DATABASE_URL:?set TEST_DATABASE_URL}; \
+	ALLOW_DESTRUCTIVE_TEST_DB=$${ALLOW_DESTRUCTIVE_TEST_DB:?set ALLOW_DESTRUCTIVE_TEST_DB=1}; \
+	test "$$ALLOW_DESTRUCTIVE_TEST_DB" = 1 || { echo "ALLOW_DESTRUCTIVE_TEST_DB must equal 1" >&2; exit 2; }; \
+	uv run python -m reconcile.performance
+
+release-scan:
+	uv run python -m reconcile.release_checks
