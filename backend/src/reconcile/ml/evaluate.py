@@ -276,6 +276,14 @@ def _evaluate_rows(
             if isinstance(candidates, Sequence) and not isinstance(candidates, str)
             else 0
         )
+        payment = group.get("payment")
+        try:
+            payment_value = (
+                abs(int(payment.get("amount", 0))) if isinstance(payment, Mapping) else 0
+            )
+        except (TypeError, ValueError):
+            payment_value = 0
+        value_denominator += payment_value
         required = target.get("retrieved_candidate_ids", target.get("required_candidate_ids"))
         if not isinstance(required, Sequence) or isinstance(required, str):
             required = acceptable
@@ -312,14 +320,6 @@ def _evaluate_rows(
         if not acceptable:
             underdetermined += 1
             abstained_underdetermined += int(not should_propose)
-        payment = group.get("payment")
-        try:
-            payment_value = (
-                abs(int(payment.get("amount", 0))) if isinstance(payment, Mapping) else 0
-            )
-        except (TypeError, ValueError):
-            payment_value = 0
-        value_denominator += payment_value
         if should_propose and not winner_correct:
             incorrect_value += payment_value
         expected = _expected_allocation(target)
@@ -494,8 +494,16 @@ def main() -> None:
         description="Evaluate the verified ranker on validation and development data"
     )
     parser.add_argument("--root", type=Path, default=Path("data/generated/ml-v1"))
+    parser.add_argument("--report", type=Path, default=Path("reports/ml-v1/development.json"))
     args = parser.parse_args()
-    print(json.dumps(evaluate_development(args.root), indent=2, sort_keys=True))
+    payload = {
+        "scope": "synthetic-agent-generated-not-domain-validated",
+        **evaluate_development(args.root),
+    }
+    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(rendered, encoding="utf-8")
+    print(rendered, end="")
 
 
 if __name__ == "__main__":
