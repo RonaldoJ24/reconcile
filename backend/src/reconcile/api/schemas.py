@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class SessionRequest(StrictModel):
+    mode: str = Field(default="local", pattern="^(local|preview)$")
+
+
+class SessionResponse(StrictModel):
+    mode: str
+    expires_at: datetime
+    csrf_token: str
+    workspace_id: UUID
+
+
+class AllocationLine(StrictModel):
+    invoice_id: str = Field(min_length=1, max_length=100)
+    amount: int = Field(gt=0, le=999_999_999_999)
+
+
+class CreditAllocationLine(StrictModel):
+    credit_note_id: str = Field(min_length=1, max_length=100)
+    invoice_id: str = Field(min_length=1, max_length=100)
+    amount: int = Field(gt=0, le=999_999_999_999)
+
+
+class CorrectionRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    cash: list[AllocationLine] = Field(max_length=3)
+    credits: list[CreditAllocationLine] = Field(max_length=1)
+    reviewer: str = Field(min_length=1, max_length=200)
+
+
+class ApplyRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    version_token: str = Field(min_length=64, max_length=64)
+    reviewer: str = Field(min_length=1, max_length=200)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class ReverseRequest(StrictModel):
+    reviewer: str = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=1, max_length=2000)
+    idempotency_key: str = Field(min_length=1, max_length=200)
+
+
+class ErrorResponse(StrictModel):
+    error: dict[str, Any]
