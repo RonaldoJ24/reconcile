@@ -7,6 +7,7 @@ import {
   createSession,
   exportUrl,
   getProposal,
+  interpretProposal,
   listImports,
   listProposals,
   reverseApplication,
@@ -21,6 +22,8 @@ import type {
   Evidence,
   ImportSummary,
   ImportValidation,
+  Interpretation,
+  InterpretationMode,
   JobState,
   Mode,
   ProposalDetail,
@@ -76,6 +79,22 @@ const proposalId = (proposal: ProposalSummary | ProposalDetail) =>
 function errorText(error: unknown) {
   if (error instanceof ApiError) return `${error.status}: ${error.message}`
   return error instanceof Error ? error.message : 'Unexpected request failure'
+}
+
+function readableCode(value: string | undefined) {
+  return value ? value.replace(/[_-]+/g, ' ') : undefined
+}
+
+function interpretationSource(source: Interpretation['source']) {
+  if (source === 'live') return 'Live DeepSeek'
+  if (source === 'cache') return 'Validated cache'
+  return 'Unavailable'
+}
+
+function interpretationSummary(result: Interpretation) {
+  if (result.status === 'selected') return 'An existing candidate was selected for review.'
+  if (result.status === 'needs_review') return 'The interpreter could not safely select an existing candidate.'
+  return 'Interpretation is unavailable; the current proposal is unchanged.'
 }
 
 function getList<T>(value: T[] | { items?: T[]; data?: T[] } | undefined): T[] {
@@ -344,8 +363,10 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState('')
   const [appliedId, setAppliedId] = useState('')
+  const [interpretation, setInterpretation] = useState<Interpretation>()
+  const [interpretationMessage, setInterpretationMessage] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveInterpretation = false) => {
     if (!id) { setLoading(false); return }
     setLoading(true)
     try {
@@ -355,6 +376,7 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
       if (returnedApplicationId) setAppliedId(returnedApplicationId)
       setCashDraft(result.cash ?? result.cash_lines ?? result.cashLines ?? [])
       setCreditDraft(result.credits ?? result.credit_lines ?? result.creditLines ?? [])
+      if (!preserveInterpretation && result.interpretation) setInterpretation(result.interpretation)
     } catch (cause) { onError(errorText(cause)) } finally { setLoading(false) }
   }, [id, onError])
 
@@ -368,7 +390,7 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
   const creditLines = detail.credits ?? detail.credit_lines ?? detail.creditLines ?? []
   const balances = balanceRows(detail.balances)
   const applicationId = appliedId || detail.application_id || detail.applicationId || text(detail.application, 'id', 'application_id')
-  const status = String(detail.status ?? 'NEEDS_REVIEW')
+  const status = String(detail.status ?? 'NEEDS_REVIEW').toUpperCase()
   const apply = async () => {
     if (!reviewer.trim()) { onError('Reviewer name is required to apply an allocation.'); return }
     setBusy('apply'); onError('')
@@ -394,6 +416,41 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
     try { await reverseApplication(applicationId, { reviewer: reviewer.trim(), reason: reason.trim(), idempotency_key: crypto.randomUUID() }); await load(); await onRefresh() } catch (cause) { onError(errorText(cause)) } finally { setBusy('') }
   }
 
+  const interpret = async (requestedMode: InterpretationMode) => {
+    setBusy(`interpret-${requestedMode}`)
+    setInterpretationMessage('')
+    onError('')
+    try {
+      const result = await interpretProposal(id, requestedMode)
+      setInterpretation(result.interpretation)
+      try {
+        await load(true)
+        await onRefresh()
+      } catch (refreshCause) {
+        onError(errorText(refreshCause))
+      }
+    } catch (cause) {
+      const message = cause instanceof ApiError
+        ? cause.message
+        : cause instanceof Error ? cause.message : 'Interpretation request failed.'
+      setInterpretation({
+        status: 'unavailable',
+        source: 'none',
+        mode: requestedMode,
+        failure_code: cause instanceof ApiError ? cause.code ?? 'request_failed' : 'request_failed',
+      })
+      setInterpretationMessage(message)
+      try {
+        await load(true)
+        await onRefresh()
+      } catch (refreshCause) {
+        onError(errorText(refreshCause))
+      }
+    } finally {
+      setBusy('')
+    }
+  }
+
   return <>
     <button className="back-link" onClick={onBack}>← Back to review queue</button>
     <PageHeading eyebrow="Allocation detail" title="Allocation detail" description={`${text(payment, 'payer_name', 'payerName') ?? 'Payment'} · proposal ${id} · revision ${detail.revision ?? '—'} · ${status}`} />
@@ -407,9 +464,46 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
         <AlternativesSection alternatives={detail.alternatives ?? []} />
         <details className="panel trace-panel"><summary>Show execution trace</summary><pre>{JSON.stringify(detail.trace ?? { status: 'not returned' }, null, 2)}</pre></details>
       </div>
-      <aside className="detail-side"><section className="panel action-panel"><div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div><form onSubmit={correct}><label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" /></label><div className="correction-section"><div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" onClick={() => setCashDraft([...cashDraft, { invoice_id: '', amount_cents: '' }])}>Add line</button></div>{cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" onChange={(next) => setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index))} />)}</div><div className="correction-section"><div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" onClick={() => setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_cents: '' }])}>Add line</button></div>{creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" onChange={(next) => setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index))} />)}</div><button className="button button-secondary full-width" type="submit" disabled={Boolean(busy)}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></form><div className="action-divider" /><button className="button button-primary full-width" onClick={() => void apply()} disabled={Boolean(busy) || status === 'APPLIED' || status === 'REVERSED'}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>{status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={Boolean(busy) || !applicationId}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}</section><ExportCard /></aside>
+      <aside className="detail-side">{(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={status === 'NEEDS_REVIEW'} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}<section className="panel action-panel"><div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div><form onSubmit={correct}><label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" /></label><div className="correction-section"><div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" onClick={() => setCashDraft([...cashDraft, { invoice_id: '', amount_cents: '' }])}>Add line</button></div>{cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" onChange={(next) => setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index))} />)}</div><div className="correction-section"><div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" onClick={() => setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_cents: '' }])}>Add line</button></div>{creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" onChange={(next) => setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index))} />)}</div><button className="button button-secondary full-width" type="submit" disabled={Boolean(busy)}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></form><div className="action-divider" /><button className="button button-primary full-width" onClick={() => void apply()} disabled={Boolean(busy) || status === 'APPLIED' || status === 'REVERSED'}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>{status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={Boolean(busy) || !applicationId}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}</section><ExportCard /></aside>
     </section>
   </>
+}
+
+export function InterpretationAction({
+  enabled,
+  interpretation,
+  message,
+  busy,
+  onInterpret,
+}: {
+  enabled: boolean
+  interpretation?: Interpretation
+  message: string
+  busy: string
+  onInterpret: (mode: InterpretationMode) => Promise<void>
+}) {
+  return <section className="panel interpretation-panel" aria-labelledby="interpretation-heading">
+    <div className="panel-heading">
+      <div><p className="eyebrow">Phase 4 interpretation</p><h2 id="interpretation-heading">Review with DeepSeek</h2></div>
+    </div>
+    <p className="interpretation-help" id="interpretation-help">This is a bounded interpretation of the existing evidence and candidates. DeepSeek never applies money; review and application remain separate.</p>
+    <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
+      <button className="button button-secondary" type="button" onClick={() => void onInterpret('direct')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help">
+        {busy === 'interpret-direct' ? 'Interpreting direct…' : 'Direct'}
+      </button>
+      <button className="button button-secondary" type="button" onClick={() => void onInterpret('hybrid')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help">
+        {busy === 'interpret-hybrid' ? 'Interpreting hybrid…' : 'Hybrid'}
+      </button>
+    </div>
+    {!enabled && interpretation && <p className="interpretation-detail interpretation-complete">This result is attached to the refreshed proposal. Financial application still requires a reviewer.</p>}
+    {interpretation && <div className={`interpretation-result interpretation-${interpretation.status}`} role="status" aria-live="polite">
+      <div className="interpretation-result-top"><span className={`status-pill status-${interpretation.status}`}>{interpretation.status.replace('_', ' ')}</span><span className="interpretation-source">{interpretationSource(interpretation.source)}</span></div>
+      <strong>{interpretationSummary(interpretation)}</strong>
+      {interpretation.candidate_id && <span className="interpretation-detail">Candidate <span className="mono">{interpretation.candidate_id}</span></span>}
+      <span className="interpretation-detail">Reason: {message || readableCode(interpretation.reason_code ?? interpretation.failure_code) || 'No reason supplied.'}</span>
+      {interpretation.failure_code && !message && <span className="interpretation-detail">Failure code: <span className="mono">{interpretation.failure_code}</span></span>}
+    </div>}
+  </section>
 }
 
 function toCents(value: unknown): number | string {
