@@ -1,0 +1,102 @@
+"""Local shadow-mode ranking; deterministic rules remain the financial authority."""
+
+from __future__ import annotations
+
+import math
+import os
+from collections.abc import Mapping
+from typing import Any
+
+from threadpoolctl import threadpool_limits
+
+from .artifact import ArtifactError, LoadedArtifact, load_artifact
+from .features import candidate_features
+
+
+def runtime_mode() -> str:
+    mode = os.getenv("RECONCILE_RANKER_MODE", "rules-v1").strip().lower()
+    if mode not in {"rules-v1", "shadow"}:
+        return "rules-v1"
+    return mode
+
+
+def _candidate_rows(group: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    candidates = group.get("candidates", ())
+    if not isinstance(candidates, list | tuple):
+        return []
+    return [candidate for candidate in candidates if isinstance(candidate, Mapping)]
+
+
+def _raw_scores(model: Any, rows: list[tuple[float, ...]]) -> list[float]:
+    with threadpool_limits(limits=1):
+        if hasattr(model, "decision_function"):
+            values = model.decision_function(rows)
+        else:
+            values = model.predict(rows)
+    return [float(value) for value in values]
+
+
+def rank_candidates(
+    group: Mapping[str, Any],
+    *,
+    artifact: LoadedArtifact | None = None,
+    max_candidates: int = 10,
+) -> dict[str, Any]:
+    """Return an observational shadow trace and never mutate the proposal.
+
+    The returned score is a raw classifier ranking score.  It is intentionally
+    not named or reported as a probability.
+    """
+
+    candidates = _candidate_rows(group)
+    truncated = len(candidates) > max_candidates
+    candidates = candidates[:max_candidates]
+    trace: dict[str, Any] = {
+        "mode": runtime_mode(),
+        "model_id": None,
+        "model_version": None,
+        "ranked_candidate": None,
+        "score": None,
+        "ranked_candidates": [],
+        "truncated": truncated,
+        "truncation": truncated,
+    }
+    if trace["mode"] != "shadow" or not candidates:
+        return trace
+
+    loaded = artifact or load_artifact()
+    values = _raw_scores(
+        loaded.model, [candidate_features(group, candidate) for candidate in candidates]
+    )
+    ranked = sorted(
+        zip(candidates, values),
+        key=lambda item: (
+            -item[1] if math.isfinite(item[1]) else math.inf,
+            str(item[0].get("candidate_id", "")),
+        ),
+    )
+    trace.update(
+        {
+            "model_id": loaded.model_id,
+            "model_version": loaded.model_version,
+            "ranked_candidate": ranked[0][0].get("candidate_id"),
+            "score": ranked[0][1],
+            "ranked_candidates": [
+                {"candidate_id": candidate.get("candidate_id"), "score": score}
+                for candidate, score in ranked
+            ],
+        }
+    )
+    return trace
+
+
+def shadow_rank(group: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
+    """Compatibility name for callers wiring a proposal trace."""
+
+    return rank_candidates(group, **kwargs)
+
+
+predict_shadow = rank_candidates
+
+
+__all__ = ["ArtifactError", "rank_candidates", "runtime_mode", "shadow_rank"]
