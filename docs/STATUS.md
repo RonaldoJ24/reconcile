@@ -31,12 +31,24 @@ Checks: `make check` passed (`ruff`, `mypy`, 13 unit/contract tests; 6 PostgreSQ
 tests deselected); the guarded Neon run passed 6/6 PostgreSQL tests in 36.77 s.
 Commits: `b35d12a`, `73db264`, `0c69c2b`, `f94397e`. PR: #2.
 
-## Phase 2 — in progress
+## Phase 2 — complete
 
-The three-screen React UI and real-backend Playwright journey are implemented in
-PR #1. Typecheck, 2 Vitest tests, and production build pass. Remaining gate: run
-desktop and mobile Playwright against the integrated FastAPI/PostgreSQL stack,
-then record and merge the verified result.
+Implemented the Imports, Review Queue, and Allocation Detail screens against the
+real API, including row-level validation feedback, job execution, evidence/source
+links, alternative and balance display, reviewer corrections, explicit apply and
+reverse actions, reload persistence, and application-history export. The UI shows
+`rules-v1` with the server-issued local/preview mode. Its same-origin development
+proxy preserves the backend origin check. Mobile detail grids are constrained to
+the viewport while wide data tables remain locally scrollable.
+
+Checks: integrated `make check` passed (Ruff, mypy, 13 backend tests, TypeScript,
+2 Vitest tests, and Vite production build). Playwright against live FastAPI and
+the dedicated PostgreSQL branch passed desktop and mobile: 2/2 in 59.9 s. Both
+paths asserted no page-level horizontal overflow while exercising fresh-file
+import, review/correction, application, reload, CSV export, and reversal.
+Commits: `eb386e7`, `e05ea2d`, `a4d18da`, `d30b2d3`. PR: #1.
 
 No ML training, provider benchmark/call, cloud deployment, or human validation
-has occurred. Next bounded task: finish the Phase 2 browser gate.
+has occurred. Next bounded phase: Phase 3 synthetic dataset generation, sealed
+splits, rules comparison, local candidate training, evaluation, and artifact
+verification. Do not start it without a new authorization.
