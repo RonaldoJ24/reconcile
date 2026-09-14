@@ -113,3 +113,34 @@ PRs: #9–#12 plus the Phase 4 integration PR.
 No deployment, sealed evaluation, autonomous application, paid benchmark, credit
 top-up, plan upgrade, or real-world validation occurred. Next bounded phase:
 Phase 5 reliability, security, and local performance gates.
+
+## Phase 5 — complete
+
+Frozen release contract, parser/feature/prompt/schema/model identities, routing,
+dataset hashes, and candidate commit `2325734`. Added a one-shot sealed-access
+ledger, artifact/tracked-secret scan, guarded 1,000-payment/10,000-invoice workload,
+bounded database retrieval, consolidated review queries, and deferred nonsecret
+credential-rotation checklist.
+
+Hard gates passed: `make check` ran Ruff, strict mypy, 1,046/1,046 offline backend
+tests, 6/6 frontend tests, and the production build. The isolated Reconcile Neon
+branch passed 42/42 PostgreSQL tests in 254.34 s, including 25/25 synchronized
+contested-balance races. Playwright passed desktop/mobile 2/2 in 42.1 s through
+fresh import, correction, application, reload, export, and reversal. The release
+scan checked 115 tracked text files with zero findings and verified the model digest
+and runtime boundary.
+
+The authorized one-time sealed evaluation verified and accessed exactly four frozen
+files: 500 final groups and 20 challenge groups. Rules achieved 83.3% precision at
+60% coverage on final and 90% at 50% on challenge. The shadow ranker achieved 50%
+precision at 100% coverage on both and abstained on none of the underdetermined
+cases, so it remains unpromoted. No provider call or cost occurred.
+
+Deterministic matching completed in 0.961 s on Apple M5/arm64. Against remote Neon,
+warm list p95 was 599.6 ms/20 samples and detail p95 593.7 ms/100 samples, missing
+the proposed 500 ms budgets; hosted, provider, cold-start, and local-PostgreSQL
+latency remain unmeasured. Reports: `reports/release-v1/`.
+
+No deployment, publication, human validation, autonomous application, or real-world
+accuracy claim occurred. PR: #14. Next bounded phase: Phase 6 zero-new-spend
+deployment preflight and owner-authorized Render/Neon deployment.

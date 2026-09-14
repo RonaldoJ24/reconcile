@@ -1,0 +1,49 @@
+{
+  "budgets": {
+    "matching_under_30s": true,
+    "warm_detail_p95_under_500ms": false,
+    "warm_list_p95_under_500ms": false
+  },
+  "environment": {
+    "cpu": "Apple M5",
+    "database": "isolated-reconcile-neon-free-test-branch",
+    "database_server_version": "(17, 11)",
+    "machine": "arm64",
+    "os": "macOS-27.0-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6"
+  },
+  "http": {
+    "cold_detail_ms": 581.5461250003864,
+    "cold_list_ms": 624.185583000326,
+    "failures": 0,
+    "warm_detail": {
+      "mean_ms": 581.7444579799485,
+      "p95_ms": 593.6516669999037,
+      "samples": 100
+    },
+    "warm_list": {
+      "mean_ms": 543.3469626500028,
+      "p95_ms": 599.5822920003775,
+      "samples": 20
+    }
+  },
+  "limitations": [
+    "Generated workload has known customer identity and ten invoices per customer.",
+    "An initial per-payment remote-persistence run was stopped at 238/1000 after about 249 seconds; it is not used as the local matching metric.",
+    "Transactional persistence latency is covered by PostgreSQL safety tests, not the matching budget.",
+    "Provider latency, cold deployment starts, and hosted performance are unmeasured.",
+    "Database location is operator-labeled; credentials and hostnames are not reported."
+  ],
+  "release_commit": "2325734dd55d9e6a2f028a46437823ff05ac012e",
+  "schema_version": "release-performance-v1",
+  "scope": "generated-local-application-workload",
+  "workload": {
+    "invoices": 10000,
+    "matching_scope": "two PostgreSQL reads plus deterministic rules computation; proposal persistence excluded",
+    "matching_seconds": 0.9608278340001561,
+    "payment_customer_identity": "present",
+    "payments": 1000,
+    "proposals_created": 1000,
+    "provider_calls": 0
+  }
+}
