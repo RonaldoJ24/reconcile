@@ -37,6 +37,11 @@ def db_engine():
         pytest.skip("TEST_DATABASE_URL is not set")
     if url.startswith("sqlite"):
         pytest.fail("TEST_DATABASE_URL must be PostgreSQL")
+    if os.getenv("ALLOW_DESTRUCTIVE_TEST_DB") != "1":
+        pytest.fail(
+            "PostgreSQL tests recreate their dedicated schema; "
+            "set ALLOW_DESTRUCTIVE_TEST_DB=1 to opt in"
+        )
     # Every test object lives below this explicitly dedicated schema.
     engine = create_engine(
         normalize_database_url(url),
@@ -256,7 +261,7 @@ def test_preview_rejects_non_sample_upload(session, monkeypatch) -> None:
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     api = create_app()
     api.dependency_overrides[_db] = lambda: session
-    client = TestClient(api)
+    client = TestClient(api, base_url="https://testserver")
     session_response = client.post("/api/v1/session", json={})
     csrf = session_response.json()["csrf_token"]
     files = {
