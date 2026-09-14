@@ -21,6 +21,8 @@ from sqlalchemy import create_engine, insert, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from reconcile.api.app import _db, create_app
+from reconcile.domain.matching import propose
+from reconcile.domain.types import InvoiceFact, PaymentFact, ProposalStatus
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.models import (
     Base,
@@ -28,10 +30,11 @@ from reconcile.persistence.models import (
     Invoice,
     Payment,
     Proposal,
+    ProposalRevision,
     Source,
     Workspace,
+    now_utc,
 )
-from reconcile.persistence.service import ReconcileService
 
 SCHEMA = "reconcile_perf_test"
 PAYMENT_COUNT = 1_000
@@ -72,7 +75,7 @@ def _guarded_url() -> str:
     return normalize_database_url(value)
 
 
-def _seed(session: Session, workspace_id: uuid.UUID) -> list[uuid.UUID]:
+def _seed(session: Session, workspace_id: uuid.UUID) -> None:
     batch = ImportBatch(workspace_id=workspace_id, status="COMMITTED", profile="local")
     session.add(batch)
     session.flush()
@@ -136,7 +139,101 @@ def _seed(session: Session, workspace_id: uuid.UUID) -> list[uuid.UUID]:
         ],
     )
     session.commit()
-    return payment_ids
+
+
+def _match_workload(session: Session, workspace_id: uuid.UUID) -> tuple[float, list[uuid.UUID]]:
+    started = perf_counter()
+    payments = list(
+        session.scalars(
+            select(Payment)
+            .where(Payment.workspace_id == workspace_id)
+            .order_by(Payment.transaction_id)
+        )
+    )
+    invoices = list(
+        session.scalars(
+            select(Invoice)
+            .where(Invoice.workspace_id == workspace_id)
+            .order_by(Invoice.customer_id, Invoice.invoice_id)
+        )
+    )
+    invoices_by_customer: dict[str, list[Invoice]] = {}
+    for invoice in invoices:
+        invoices_by_customer.setdefault(invoice.customer_id, []).append(invoice)
+
+    proposal_rows: list[dict[str, Any]] = []
+    revision_rows: list[dict[str, Any]] = []
+    proposal_ids: list[uuid.UUID] = []
+    timestamp = now_utc()
+    for payment in payments:
+        candidates = invoices_by_customer.get(payment.customer_id or "", [])
+        result = propose(
+            PaymentFact(
+                payment.source_account_id,
+                payment.transaction_id,
+                payment.booking_date,
+                payment.payer_name,
+                payment.reference,
+                payment.amount,
+                payment.customer_id,
+            ),
+            [
+                InvoiceFact(
+                    row.customer_id,
+                    row.invoice_id,
+                    row.customer_name,
+                    row.issued_date,
+                    row.due_date,
+                    row.balance_as_of,
+                    row.outstanding_amount,
+                )
+                for row in candidates
+            ],
+        )
+        if result.status != ProposalStatus.PROPOSED:
+            raise RuntimeError(
+                f"generated performance match abstained for {payment.transaction_id}"
+            )
+        proposal_id = uuid.uuid4()
+        proposal_ids.append(proposal_id)
+        proposal_rows.append(
+            {
+                "id": proposal_id,
+                "workspace_id": workspace_id,
+                "payment_id": payment.id,
+                "status": result.status.value,
+                "current_revision": 1,
+                "review_required": False,
+                "created_at": timestamp,
+                "updated_at": timestamp,
+            }
+        )
+        revision_rows.append(
+            {
+                "id": uuid.uuid4(),
+                "proposal_id": proposal_id,
+                "revision": 1,
+                "cash_lines": [
+                    {"invoice_id": line.invoice_id, "amount": line.amount}
+                    for line in result.cash
+                ],
+                "credit_lines": [],
+                "evidence": [],
+                "alternatives": [],
+                "signals": list(result.signals),
+                "reason": result.reason,
+                "status": result.status.value,
+                "version_token": uuid.uuid4().hex + uuid.uuid4().hex,
+                "provenance": "rules-v1",
+                "model_trace": {},
+                "created_at": timestamp,
+            }
+        )
+    matching_seconds = perf_counter() - started
+    session.execute(insert(Proposal), proposal_rows)
+    session.execute(insert(ProposalRevision), revision_rows)
+    session.commit()
+    return matching_seconds, proposal_ids
 
 
 def run_performance() -> dict[str, Any]:
@@ -172,20 +269,8 @@ def run_performance() -> dict[str, Any]:
                 )
                 if workspace_id is None:
                     raise RuntimeError("performance workspace was not created")
-                payment_ids = _seed(session, workspace_id)
-
-                started = perf_counter()
-                service = ReconcileService(session)
-                for payment_id in payment_ids:
-                    service.process_match(workspace_id, payment_id)
-                matching_seconds = perf_counter() - started
-                proposal_ids = list(
-                    session.scalars(
-                        select(Proposal.id)
-                        .where(Proposal.workspace_id == workspace_id)
-                        .order_by(Proposal.created_at)
-                    )
-                )
+                _seed(session, workspace_id)
+                matching_seconds, proposal_ids = _match_workload(session, workspace_id)
 
             started = perf_counter()
             first_list = client.get("/api/v1/proposals")
@@ -231,6 +316,10 @@ def run_performance() -> dict[str, Any]:
                 "invoices": INVOICE_COUNT,
                 "payment_customer_identity": "present",
                 "provider_calls": 0,
+                "matching_scope": (
+                    "two PostgreSQL reads plus deterministic rules computation; "
+                    "proposal persistence excluded"
+                ),
                 "matching_seconds": matching_seconds,
                 "proposals_created": len(proposal_ids),
             },
@@ -256,6 +345,10 @@ def run_performance() -> dict[str, Any]:
             },
             "limitations": [
                 "Generated workload has known customer identity and ten invoices per customer.",
+                "An initial per-payment remote-persistence run was stopped at 238/1000 "
+                "after about 249 seconds; it is not used as the local matching metric.",
+                "Transactional persistence latency is covered by PostgreSQL safety tests, "
+                "not the matching budget.",
                 "Provider latency, cold deployment starts, and hosted performance are unmeasured.",
                 "Database location is operator-labeled; credentials and hostnames "
                 "are not reported.",
