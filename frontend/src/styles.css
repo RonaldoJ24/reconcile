@@ -60,6 +60,12 @@ a { color: var(--blue); }
 .page-heading { margin-bottom: 27px; }
 .page-heading h1 { color: var(--navy); margin: 0; font-size: clamp(1.7rem, 3vw, 2.4rem); letter-spacing: -.04em; line-height: 1.1; }
 .page-heading > p:last-child { margin: 9px 0 0; max-width: 650px; color: var(--muted); }
+.workflow-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: -7px 0 20px; padding: 0; list-style: none; }
+.workflow-steps li { position: relative; min-width: 0; padding: 13px 13px 13px 42px; background: white; border: 1px solid var(--line); border-radius: 9px; }
+.workflow-steps li > span { position: absolute; left: 13px; top: 14px; display: grid; place-items: center; width: 20px; height: 20px; color: white; background: var(--blue); border-radius: 50%; font-size: .68rem; font-weight: 700; }
+.workflow-steps strong, .workflow-steps small { display: block; }
+.workflow-steps strong { color: var(--navy); font-size: .78rem; }
+.workflow-steps small { margin-top: 3px; color: var(--muted); font-size: .67rem; line-height: 1.35; }
 .panel, .notice-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 8px rgba(24, 48, 71, .035); }
 .panel { padding: 26px; margin-bottom: 18px; }
 .panel-heading { justify-content: space-between; gap: 20px; margin-bottom: 22px; }
@@ -202,6 +208,7 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
   .content-wrap { padding: 37px 28px 65px; }
   .detail-grid { grid-template-columns: minmax(0, 1fr); }
   .detail-side { position: static; }
+  .workflow-steps { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 650px) {
@@ -216,6 +223,7 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
   .content-wrap { padding: 28px 15px 45px; }
   .page-heading { margin-bottom: 21px; }
   .page-heading h1 { font-size: 1.75rem; }
+  .workflow-steps { grid-template-columns: 1fr; }
   .notice-card { grid-template-columns: auto 1fr; padding: 14px; }
   .notice-card .button { grid-column: 2; justify-self: start; }
   .panel { padding: 18px 15px; }

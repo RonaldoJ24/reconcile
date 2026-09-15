@@ -317,7 +317,12 @@ def create_app() -> FastAPI:
                 403,
                 detail={
                     "code": "preview_only",
-                    "message": "preview accepts only the built-in sample packet",
+                    "message": (
+                        "Public preview accepts only the unmodified demo packet. "
+                        "Download it, unzip it, upload bank.csv, invoices.csv, "
+                        "credits.csv, and message.txt, then use the context values "
+                        "from README.txt."
+                    ),
                 },
             )
         try:
