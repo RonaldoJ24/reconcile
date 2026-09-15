@@ -116,16 +116,22 @@ export async function runJobsUntilSettled(
   run: () => Promise<JobState>,
   onJob: (job: JobState) => void,
   onRefresh: () => Promise<void>,
-  delayMs = 200,
+  delayMs = 500,
+  maxAttempts = 60,
 ) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const result = await run()
     onJob(result)
     const state = String(result.state ?? result.status ?? '').toUpperCase()
-    if (!['PENDING', 'RUNNING'].includes(state) || attempt === 19) break
+    if (!['PENDING', 'RUNNING'].includes(state)) {
+      await onRefresh()
+      return
+    }
+    if (attempt === maxAttempts - 1) {
+      throw new Error('Job processing timed out while the worker was still running.')
+    }
     await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
-  await onRefresh()
 }
 
 function App() {
