@@ -28,7 +28,7 @@ from reconcile.api.schemas import (
     SessionRequest,
 )
 from reconcile.config import provider_invite_hash, server_mode
-from reconcile.domain.types import CashLine, CreditLine
+from reconcile.domain.types import CashLine, CreditLine, JobStatus
 from reconcile.ingest.parsers import (
     parse_batch,
     parse_credit_source,
@@ -50,6 +50,7 @@ from reconcile.persistence.models import (
     CreditNote,
     ImportBatch,
     Invoice,
+    Job,
     Payment,
     Proposal,
     ProposalRevision,
@@ -422,6 +423,16 @@ def create_app() -> FastAPI:
     def run_job(request: Request, db: Session = Depends(_db)) -> dict[str, object]:
         _, workspace = _require_mutation(request, db)
         job = run_once(db, owner=f"api:{workspace.id}", workspace_id=workspace.id)
+        if job is None:
+            # A lifecycle consumer may have claimed the job between the wake and this request.
+            job = db.scalar(
+                select(Job)
+                .where(
+                    Job.workspace_id == workspace.id,
+                    Job.status.in_((JobStatus.PENDING.value, JobStatus.RUNNING.value)),
+                )
+                .order_by(Job.created_at)
+            )
         return (
             {"job_id": str(job.id), "status": job.status}
             if job

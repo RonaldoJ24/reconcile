@@ -112,6 +112,22 @@ function balanceRows(value: ProposalDetail['balances']): Record<string, unknown>
   ))
 }
 
+export async function runJobsUntilSettled(
+  run: () => Promise<JobState>,
+  onJob: (job: JobState) => void,
+  onRefresh: () => Promise<void>,
+  delayMs = 200,
+) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const result = await run()
+    onJob(result)
+    const state = String(result.state ?? result.status ?? '').toUpperCase()
+    if (!['PENDING', 'RUNNING'].includes(state) || attempt === 19) break
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  await onRefresh()
+}
+
 function App() {
   const [screen, setScreen] = useState<Screen>('imports')
   const [mode, setMode] = useState<Mode>('rules-v1')
@@ -266,13 +282,7 @@ function ImportsView({
     setBusy('jobs')
     onError('')
     try {
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        const result = await runJobOnce()
-        setJob(result)
-        const state = String(result.state ?? result.status ?? '').toUpperCase()
-        if (!['PENDING', 'RUNNING'].includes(state)) break
-      }
-      await onRefresh()
+      await runJobsUntilSettled(runJobOnce, setJob, onRefresh)
     } catch (cause) {
       onError(errorText(cause))
     } finally {
