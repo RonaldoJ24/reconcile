@@ -6,9 +6,11 @@ Rotate these credentials after the current release work is complete:
   conversation. Update only the supported local or deployment secret store, verify
   a minimal authenticated catalog request, and never copy the value into Git,
   frontend configuration, commands, reports, or logs.
-- [ ] Reset the role credential for the isolated Reconcile Neon test branch after
+- [x] Reset the role credential for the isolated Reconcile Neon test branch after
   destructive Phase 5 testing is finished. Update dependent local secret storage,
   verify a direct test connection, then invalidate the prior credential.
 
-Status: deliberately deferred at the owner's request. No secret values are recorded
-here.
+Neon rotation completed on 2026-09-15: the replacement made a direct test
+connection and the prior credential failed authentication. DeepSeek revocation is
+still pending because the signed-in browser was locked at the rotation step. No
+secret values are recorded here.
