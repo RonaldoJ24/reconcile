@@ -1,6 +1,6 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App, { InterpretationAction } from './App'
+import App, { InterpretationAction, runJobsUntilSettled } from './App'
 import { interpretProposal } from './api'
 
 afterEach(() => vi.restoreAllMocks())
@@ -55,5 +55,19 @@ describe('Phase 4 interpretation UI', () => {
       method: 'POST',
       body: JSON.stringify({ mode: 'direct' }),
     }))
+  })
+
+  it('keeps checking after a lifecycle consumer reports a running job', async () => {
+    const run = vi.fn()
+      .mockResolvedValueOnce({ job_id: 'job-1', status: 'RUNNING' })
+      .mockResolvedValueOnce({ job_id: 'job-1', status: 'SUCCEEDED' })
+    const onJob = vi.fn()
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+
+    await runJobsUntilSettled(run, onJob, onRefresh, 0)
+
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(onJob).toHaveBeenLastCalledWith({ job_id: 'job-1', status: 'SUCCEEDED' })
+    expect(onRefresh).toHaveBeenCalledOnce()
   })
 })

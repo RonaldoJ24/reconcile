@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
+import reconcile.api.app as app_module
 from reconcile.api.app import _db, create_app
 from reconcile.api.sample import SAMPLE_CONTEXT, SAMPLE_FILES
 from reconcile.ingest.parsers import parse_batch, parse_message_context
@@ -523,6 +524,32 @@ def test_api_session_uses_server_mode_and_csrf(session, monkeypatch) -> None:
     assert client.post("/api/v1/jobs/run-once").status_code == 403
     client.headers["X-CSRF-Token"] = payload["csrf_token"]
     assert client.post("/api/v1/jobs/run-once").status_code == 200
+    api.dependency_overrides.clear()
+
+
+def test_api_run_once_reports_job_claimed_by_lifecycle_consumer(session, monkeypatch) -> None:
+    monkeypatch.setenv("RECONCILE_MODE", "local")
+    api = create_app()
+    api.dependency_overrides[_db] = lambda: session
+    client = TestClient(api)
+    session_response = client.post("/api/v1/session", json={})
+    csrf = session_response.json()["csrf_token"]
+    workspace = session.scalar(select(Workspace).order_by(Workspace.created_at.desc()))
+    assert workspace is not None
+    claimed = Job(
+        workspace_id=workspace.id,
+        kind="match-payment",
+        status="RUNNING",
+    )
+    session.add(claimed)
+    session.commit()
+    monkeypatch.setattr(app_module, "run_once", lambda *args, **kwargs: None)
+    client.headers["X-CSRF-Token"] = csrf
+
+    response = client.post("/api/v1/jobs/run-once")
+
+    assert response.status_code == 200
+    assert response.json() == {"job_id": str(claimed.id), "status": "RUNNING"}
     api.dependency_overrides.clear()
 
 
