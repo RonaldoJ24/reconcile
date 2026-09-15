@@ -1,39 +1,44 @@
-# Phase 6 deployment preflight
+# Phase 6 deployment evidence
 
-The deployment is prepared but intentionally withheld. The reviewed Blueprint
-contains one Render Free Docker web service, explicit deploys only, no worker,
-disk, cron, domain, or paid resource, and only pooled runtime/direct migration
-database secrets. Live provider access remains off and the exposed DeepSeek key
-was not placed in deployment configuration.
+The owner confirmed that the Render workspace has no payment method, and the
+GitHub App installation was restricted to the private `RonaldoJ24/reconcile`
+repository. The deployment uses one Render Free Docker web service, explicit
+deploys only, no worker, disk, cron, custom domain, or paid resource. Its only
+secrets are separate pooled runtime and direct migration database connections.
+Live provider access is off; the exposed DeepSeek key was never installed.
 
-The existing Reconcile Neon Free project remains dedicated to this project. A
-guarded direct-connection migration reached `0004_preview_lifecycle` on the
-expiring test branch, and the pooled endpoint observed the same revision. The
-main database was read only and remains unmigrated. Its measured database size
-was 7,520,256 bytes, below the application's conservative 300 MiB admission
-stop.
+`reconcile-preview` (`srv-dakm0t8ae00c73btfpi0`) runs in Ohio at
+`https://reconcile-preview.onrender.com`. Automatic deploys are off. Deploy
+`dep-dakmdmjl550s73fnjbbg` built the container and reached `live` from main commit
+`3ef812aaa7eea4367956b9c49c9d788d98038aca`. Health and root returned HTTP 200.
+The dedicated Neon Free main branch reached Alembic revision
+`0004_preview_lifecycle`; after smoke its database measured 9,035,776 bytes,
+well below the conservative 300 MiB application stop.
 
-The hosted profile ran locally from the production frontend build against the
-pooled test endpoint. Desktop and mobile browser checks completed validation,
-commit, matching, correction, application, reload persistence, export, and
-reversal. This was not an external hosted smoke. Docker/Podman was unavailable,
-so no container-build result is claimed.
+Hosted Playwright passed desktop and mobile, 2/2 in 38.4 seconds. Each path used
+a fresh preview session and exercised validation, commit, deterministic matching,
+reviewer correction, explicit application, reload persistence, CSV export, and
+reversal. The desktop path took 30.9 seconds and mobile 6.8 seconds. A separate
+fresh-session API smoke retrieved all four immutable sources and their hashes,
+confirmed repeated apply returned the same application ID, exported CSV, and
+reversed the application. Rows created before and after the final deploy remained
+in Neon, demonstrating deployment-independent state.
 
-## Deployment blocker
+The public preview accepted only the bundled synthetic packet. A changed packet
+was rejected with HTTP 403 as designed, so accepted changed-source behavior was
+not exercised externally. A Direct interpretation attempt also returned HTTP 403
+at the invite gate; no provider request, token usage, or inference cost occurred.
+Hosted memory, cold-start, and latency distributions remain unmeasured, and no
+load test was sent to the shared Free service.
 
-Render CLI authentication and resource ownership are verified, but the CLI does
-not expose whether the workspace has a payment method or a hard stop for shared
-bandwidth overage. Dashboard inspection reached an interactive GitHub sign-in.
-Render's documented Free behavior can charge overage when a payment method is
-present, and the existing `incident-lens-api` service already shares the
-workspace allowance. Under the project brief, the Reconcile service must not be
-created until the owner verifies a no-charge boundary. No existing service or
-account setting was changed.
+The first deploy failed because the configured uv image tag was unpublished; PR
+#16 selected a published image. The next startup exposed an omitted runtime
+configuration module; PR #17 included it. A hosted desktop smoke then exposed a
+race between the lifecycle consumer and synchronous run-once endpoint; PR #18
+made the active workspace job observable. A 22.5-second valid job then exceeded
+the original UI polling bound; PR #19 extended the bound and made exhaustion an
+explicit error. The final deploy and hosted smoke passed after these fixes.
 
-GitHub Actions is enabled, but its allowance/no-overage state was unavailable to
-the authenticated API. No workflow was added; the candidate relies on recorded
-local and isolated-Neon checks instead of introducing unverified paid exposure.
-
-Credential rotation remains listed in `docs/ROTATION_CHECKLIST.md`. The provider
-preview must stay disabled until a replacement DeepSeek key and invite digest
-are installed through supported secret storage.
+GitHub Actions remains unused because its no-overage boundary was not exposed by
+the authenticated API. Local, isolated-Neon, and hosted checks are recorded
+instead. Deferred credential work remains in `docs/ROTATION_CHECKLIST.md`.
