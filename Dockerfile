@@ -6,7 +6,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/tsconfig.json fronte
 COPY frontend/src ./src
 RUN pnpm install --frozen-lockfile && pnpm run build
 
-FROM ghcr.io/astral-sh/uv:0.11.27-python3.11-bookworm-slim AS runtime
+FROM ghcr.io/astral-sh/uv:0.11.7-python3.11-trixie-slim AS runtime
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:${PATH}" \
