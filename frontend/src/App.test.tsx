@@ -70,4 +70,17 @@ describe('Phase 4 interpretation UI', () => {
     expect(onJob).toHaveBeenLastCalledWith({ job_id: 'job-1', status: 'SUCCEEDED' })
     expect(onRefresh).toHaveBeenCalledOnce()
   })
+
+  it('fails explicitly when a job stays transient through the polling limit', async () => {
+    const run = vi.fn().mockResolvedValue({ job_id: 'job-1', status: 'RUNNING' })
+    const onJob = vi.fn()
+    const onRefresh = vi.fn().mockResolvedValue(undefined)
+
+    await expect(runJobsUntilSettled(run, onJob, onRefresh, 0, 3)).rejects.toThrow(
+      'Job processing timed out',
+    )
+
+    expect(run).toHaveBeenCalledTimes(3)
+    expect(onRefresh).not.toHaveBeenCalled()
+  })
 })
