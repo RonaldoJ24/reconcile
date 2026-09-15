@@ -26,6 +26,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/src/reconcile/__init__.py ./backend/src/reconcile/__init__.py
+COPY backend/src/reconcile/config.py ./backend/src/reconcile/config.py
 COPY backend/src/reconcile/web.py ./backend/src/reconcile/web.py
 COPY backend/src/reconcile/api ./backend/src/reconcile/api
 COPY backend/src/reconcile/domain ./backend/src/reconcile/domain

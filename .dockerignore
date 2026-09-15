@@ -31,6 +31,7 @@ tmp/**
 !backend/src/
 !backend/src/reconcile/
 !backend/src/reconcile/__init__.py
+!backend/src/reconcile/config.py
 !backend/src/reconcile/web.py
 !backend/src/reconcile/api/
 !backend/src/reconcile/api/**
