@@ -1,5 +1,28 @@
 # Status
 
+## Quality/demo correction — Phase 0 baseline
+
+Reference and clean correction branch are fixed at
+`c19034dd9e3644c4151805cfa257a3085f37cd97`. The original worktree's generated
+`reports/release-v1/scan.json` change is preserved outside this branch. The
+requested correction prompt was supplied externally because it is not present in
+`docs/` at the reference commit.
+
+Baseline `make check` passed: Ruff, strict mypy, 1,047 non-PostgreSQL tests, eight
+frontend tests, TypeScript, and the production build. Inspection confirms the
+reported gaps remain: editable strings are reinterpreted as centavos, apply ignores
+unsaved drafts, validation lacks input-generation ownership, mentions are merged
+without negation/provenance, correction/application lock whole-workspace rows, the
+preview has no one-click real demo, API types are permissive, and no root README or
+evaluation view exists.
+
+Frozen order: (1) money/review/import-snapshot integrity; (2) conservative
+`rules-v2-conservative`, canonical API contracts, and targeted PostgreSQL locks;
+(3) backend-owned sample workspaces plus decision-oriented routed UI and
+capabilities; (4) sanitized evaluation view, root README, real-backend Playwright,
+captures, full checks, and PR. DeepSeek stays disabled; no deployment, paid test,
+credential change, model promotion, retraining, or reserved-evaluation access.
+
 ## Phase 0 — complete
 
 - Verified the package path and Git state; authenticated `gh` 2.96.0 as
