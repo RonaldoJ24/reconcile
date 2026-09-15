@@ -9,8 +9,8 @@ Live provider access is off; the exposed DeepSeek key was never installed.
 
 `reconcile-preview` (`srv-dakm0t8ae00c73btfpi0`) runs in Ohio at
 `https://reconcile-preview.onrender.com`. Automatic deploys are off. Deploy
-`dep-dakmdmjl550s73fnjbbg` built the container and reached `live` from main commit
-`3ef812aaa7eea4367956b9c49c9d788d98038aca`. Health and root returned HTTP 200.
+`dep-dakmrjvqj5pc73d45d50` built the container and reached `live` from main commit
+`7d371a66eb68219191a7c5910201191d28535e90`. Health and root returned HTTP 200.
 The dedicated Neon Free main branch reached Alembic revision
 `0004_preview_lifecycle`; after smoke its database measured 9,035,776 bytes,
 well below the conservative 300 MiB application stop.
@@ -38,6 +38,11 @@ race between the lifecycle consumer and synchronous run-once endpoint; PR #18
 made the active workspace job observable. A 22.5-second valid job then exceeded
 the original UI polling bound; PR #19 extended the bound and made exhaustion an
 explicit error. The final deploy and hosted smoke passed after these fixes.
+
+A follow-up clarity pass made the product purpose and reviewer workflow explicit,
+prefilled the demo context, and replaced the generic incomplete-packet error with
+actionable four-file guidance. Hosted Playwright passed desktop and mobile 2/2 in
+36.8 seconds after this deploy.
 
 GitHub Actions remains unused because its no-overage boundary was not exposed by
 the authenticated API. Local, isolated-Neon, and hosted checks are recorded

@@ -171,7 +171,7 @@ GitHub App installation is limited to `RonaldoJ24/reconcile`. The resulting
 `reconcile-preview` service (`srv-dakm0t8ae00c73btfpi0`) is one Free Docker web
 service in Ohio with automatic deploys off. It serves the same-origin UI and API
 at `https://reconcile-preview.onrender.com`. The live deploy
-`dep-dakmdmjl550s73fnjbbg` is pinned to main commit `3ef812a`. The Neon main
+`dep-dakmrjvqj5pc73d45d50` is pinned to main commit `7d371a6`. The Neon main
 database is at revision `0004_preview_lifecycle`; its measured size after smoke
 was 9,035,776 bytes, below the 300 MiB admission stop.
 
@@ -199,6 +199,7 @@ private inputs, prefills the synthetic context, and explains incomplete demo
 packets before upload. The same actionable guidance is returned by the API.
 Frontend unit/type/build checks passed, the targeted PostgreSQL rejection test
 passed, and local same-origin desktop/mobile Playwright passed 2/2 in 1.1 minutes.
+Hosted desktop/mobile Playwright then passed 2/2 in 36.8 seconds.
 
 Next bounded phase: operate the rules-only preview under Free-tier constraints,
 rotate the deferred credentials, and authorize a separate invite-gated provider
