@@ -13,12 +13,17 @@ const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page)
 test.describe('fresh import through reviewed application', () => {
   test('validates, commits, corrects, applies, reloads, exports, and reverses', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'Imports', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Match incoming payments to the right invoices' })).toBeVisible()
+    await expect(page.getByText('Nothing is applied automatically')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Download demo packet' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
 
     await page.getByLabel('Bank CSV').setInputFiles(fixture('bank.csv'))
     await page.getByLabel('Invoice CSV').setInputFiles(fixture('invoices.csv'))
     await page.getByLabel('Credit CSV').setInputFiles(fixture('credits.csv'))
+    await page.getByRole('button', { name: 'Validate files' }).click()
+    await expect(page.getByRole('alert')).toContainText('Public demo requires all four unmodified files')
+    await page.getByRole('button', { name: 'Dismiss error' }).click()
     await page.getByLabel('Payment message TXT').setInputFiles(fixture('message.txt'))
     await page.getByLabel('Message time').fill('2026-01-15T12:00:00+00:00')
     await page.getByLabel('Payment source account ID').fill('acct-1')

@@ -193,6 +193,13 @@ local/PostgreSQL tests rather than the public smoke. Hosted memory, cold-start,
 and latency distributions were not measured, and no load test was run against the
 shared Free service. Evidence: `reports/deployment-v1/`.
 
+A post-deployment clarity pass now states the payment-allocation purpose above
+the fold, shows the four-step reviewer workflow, distinguishes public-demo from
+private inputs, prefills the synthetic context, and explains incomplete demo
+packets before upload. The same actionable guidance is returned by the API.
+Frontend unit/type/build checks passed, the targeted PostgreSQL rejection test
+passed, and local same-origin desktop/mobile Playwright passed 2/2 in 1.1 minutes.
+
 Next bounded phase: operate the rules-only preview under Free-tier constraints,
 rotate the deferred credentials, and authorize a separate invite-gated provider
 preview only if a new key and explicit nonzero inference budget are supplied.

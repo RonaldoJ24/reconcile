@@ -184,7 +184,7 @@ function App() {
       <header className="topbar">
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true">R</span>
-          <div><span className="brand">Reconcile</span><span className="brand-subtitle">Payment review</span></div>
+          <div><span className="brand">Reconcile</span><span className="brand-subtitle">Payment-to-invoice review</span></div>
         </div>
         <div className="session-meta" aria-label="Runtime mode">
           <span className="mode-dot" aria-hidden="true" />
@@ -206,16 +206,16 @@ function App() {
             </button>
           </nav>
           <div className="sidebar-foot">
-            <p className="eyebrow">Data boundary</p>
-            <p>rules-v1 is deterministic and evidence-backed. Money is never applied without an explicit reviewer action.</p>
-            <p className="muted">Use synthetic files in a public preview. Local/private mode is shown exactly as reported by the server.</p>
+            <p className="eyebrow">What it does</p>
+            <p>Reconcile proposes which invoices an incoming payment belongs to and shows the evidence behind the match.</p>
+            <p className="muted">A reviewer must approve every allocation before balances change.</p>
           </div>
         </aside>
 
         <main id="main-content" className="main-content">
           <div className="content-wrap">
             {error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
-            {screen === 'imports' && <ImportsView imports={imports} onError={setError} onRefresh={refresh} />}
+            {screen === 'imports' && <ImportsView mode={mode} imports={imports} onError={setError} onRefresh={refresh} />}
             {screen === 'queue' && <QueueView proposals={proposals} onOpen={openDetail} onRefresh={refresh} onError={setError} />}
             {screen === 'detail' && (
               <DetailView
@@ -237,10 +237,12 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
 }
 
 function ImportsView({
+  mode,
   imports,
   onError,
   onRefresh,
 }: {
+  mode: Mode
   imports: ImportSummary[]
   onError: (message: string) => void
   onRefresh: () => Promise<void>
@@ -249,9 +251,10 @@ function ImportsView({
   const [invoice, setInvoice] = useState<File>()
   const [credit, setCredit] = useState<File>()
   const [message, setMessage] = useState<File>()
-  const [messageTime, setMessageTime] = useState('')
-  const [paymentAccount, setPaymentAccount] = useState('')
-  const [paymentTransaction, setPaymentTransaction] = useState('')
+  const isPreview = mode === 'preview'
+  const [messageTime, setMessageTime] = useState(isPreview ? '2026-01-15T12:00:00+00:00' : '')
+  const [paymentAccount, setPaymentAccount] = useState(isPreview ? 'acct-1' : '')
+  const [paymentTransaction, setPaymentTransaction] = useState(isPreview ? 'pay-54k' : '')
   const [validation, setValidation] = useState<ImportValidation>()
   const [busy, setBusy] = useState('')
   const [job, setJob] = useState<JobState>()
@@ -262,6 +265,10 @@ function ImportsView({
     event.preventDefault()
     if (!bank || !invoice) {
       onError('Select both the bank CSV and invoice CSV before validating.')
+      return
+    }
+    if (isPreview && (!credit || !message)) {
+      onError('Public demo requires all four unmodified files from the downloaded packet: bank.csv, invoices.csv, credits.csv, and message.txt.')
       return
     }
     setBusy('validate')
@@ -313,15 +320,23 @@ function ImportsView({
 
   return (
     <>
-      <PageHeading eyebrow="Input" title="Imports" description="Bring in a bank snapshot, open invoices, and optional credit evidence." />
-      <section className="notice-card" aria-label="Rules mode notice">
+      <PageHeading eyebrow="Payment allocation workspace" title="Match incoming payments to the right invoices" description="Reconcile compares a bank payment with open invoices, credits, and the customer's payment message. It proposes an evidence-backed allocation for a reviewer to correct or approve." />
+      <ol className="workflow-steps" aria-label="Reconciliation workflow">
+        <li><span>1</span><strong>Upload evidence</strong><small>Payment, invoices, credit, and message</small></li>
+        <li><span>2</span><strong>Review the match</strong><small>Inspect amounts and source evidence</small></li>
+        <li><span>3</span><strong>Approve allocation</strong><small>Nothing is applied automatically</small></li>
+        <li><span>4</span><strong>Export or reverse</strong><small>Keep an auditable record</small></li>
+      </ol>
+      <section className="notice-card" aria-label="Import guidance">
         <div className="notice-icon" aria-hidden="true">i</div>
-        <div><strong>rules-v1 · evidence first</strong><p>The server will validate schema and retain source evidence. Validation does not commit business rows; commit and application are separate actions.</p></div>
-        <a href={sampleUrl()} className="button button-secondary" download>Download synthetic sample</a>
+        {isPreview
+          ? <div><strong>Public demo: use the included sample</strong><p>Download and unzip the packet, then upload all four unmodified files. The sample context is filled in below. Private business files are not accepted here.</p></div>
+          : <div><strong>Evidence first</strong><p>Files are validated and retained as source evidence. Validation, committing rows, and applying an allocation are separate actions.</p></div>}
+        <a href={sampleUrl()} className="button button-secondary" download>{isPreview ? 'Download demo packet' : 'Download sample packet'}</a>
       </section>
 
       <section className="panel import-panel">
-        <div className="panel-heading"><div><h2>New import</h2><p className="muted">Files are checked before anything is committed.</p></div><span className="step-label">01 / 02</span></div>
+        <div className="panel-heading"><div><h2>Upload payment evidence</h2><p className="muted">{isPreview ? 'Start with all four files from the demo packet.' : 'Choose a bank payment file and open-invoice file; credit and message evidence are optional.'} Validation checks them without changing balances.</p></div><span className="step-label">STEP 1</span></div>
         <form onSubmit={validate} className="import-form">
           <FileField id="bank-file" label="Bank CSV" required file={bank} onChange={select(setBank)} hint="source_account_id · transaction_id · amount" />
           <FileField id="invoice-file" label="Invoice CSV" required file={invoice} onChange={select(setInvoice)} hint="customer_id · invoice_id · outstanding_amount" />

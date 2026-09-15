@@ -580,6 +580,9 @@ def test_preview_rejects_non_sample_upload(session, monkeypatch) -> None:
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 403
+    assert "upload bank.csv, invoices.csv, credits.csv, and message.txt" in response.json()[
+        "error"
+    ]["message"]
     api.dependency_overrides.clear()
 
 
