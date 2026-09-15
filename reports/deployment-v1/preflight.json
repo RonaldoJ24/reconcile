@@ -1,7 +1,7 @@
 {
   "schema_version": "deployment-preflight-v1",
   "checked_at": "2026-09-15",
-  "prepared_code_sha": "3ef812aaa7eea4367956b9c49c9d788d98038aca",
+  "prepared_code_sha": "7d371a66eb68219191a7c5910201191d28535e90",
   "status": "deployed_rules_preview",
   "zero_new_spend_verified": true,
   "github": {
@@ -34,8 +34,8 @@
       "runtime": "docker",
       "url": "https://reconcile-preview.onrender.com",
       "instances": 1,
-      "deploy_id": "dep-dakmdmjl550s73fnjbbg",
-      "deployed_sha": "3ef812aaa7eea4367956b9c49c9d788d98038aca",
+      "deploy_id": "dep-dakmrjvqj5pc73d45d50",
+      "deployed_sha": "7d371a66eb68219191a7c5910201191d28535e90",
       "deploy_status": "live"
     },
     "blueprint_valid": true,
@@ -82,10 +82,10 @@
     "playwright_same_origin_preview": "2 passed in 1.1m",
     "release_scan": "passed; 130 tracked text files; zero findings",
     "render_blueprint": "valid; one action",
-    "render_deploy": "live; dep-dakmdmjl550s73fnjbbg; 3ef812aaa7eea4367956b9c49c9d788d98038aca",
+    "render_deploy": "live; dep-dakmrjvqj5pc73d45d50; 7d371a66eb68219191a7c5910201191d28535e90",
     "hosted_health": "GET /api/v1/health returned 200 and status ok",
     "hosted_root": "GET / returned 200",
-    "hosted_playwright": "2 passed in 38.4s; desktop 30.9s; mobile 6.8s",
+    "hosted_playwright": "2 passed in 36.8s; desktop 29.8s; mobile 6.2s",
     "hosted_api_smoke": "four sources inspected with hashes; repeated apply idempotent; CSV export and reversal passed; changed packet and provider access rejected with 403",
     "post_deploy_database": "revision 0004_preview_lifecycle; 9035776 bytes; durable jobs observed before and after final deploy"
   },
