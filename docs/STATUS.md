@@ -145,7 +145,7 @@ No deployment, publication, human validation, autonomous application, or real-wo
 accuracy claim occurred. PR: #14. Next bounded phase: Phase 6 zero-new-spend
 deployment preflight and owner-authorized Render/Neon deployment.
 
-## Phase 6 — prepared, deployment blocked
+## Phase 6 — deployed, rules preview verified
 
 Added a single-process hosted profile: same-origin FastAPI/React serving, a
 concurrency-one lifecycle consumer that sleeps without database polling, guarded
@@ -166,16 +166,33 @@ The release scan inspected 130 tracked text files with zero findings, and Render
 validated the one-action Blueprint. Docker/Podman was unavailable, so the image
 itself was not built locally.
 
-Deployment is withheld by the brief's zero-new-spend gate. The authenticated
-Render CLI confirms workspace ownership and an existing unrelated Free service,
-but does not expose payment-method or bandwidth-overage hard-stop state; the
-dashboard requires interactive sign-in. GitHub Actions similarly did not expose
-an allowance/no-overage boundary, so no workflow was added. No Reconcile Render
-service exists, the Neon main database was not migrated, and no hosted/provider
-smoke or hosted memory/latency measurement occurred. Evidence:
-`reports/deployment-v1/`.
+The owner verified that the Render workspace has no payment method. The private
+GitHub App installation is limited to `RonaldoJ24/reconcile`. The resulting
+`reconcile-preview` service (`srv-dakm0t8ae00c73btfpi0`) is one Free Docker web
+service in Ohio with automatic deploys off. It serves the same-origin UI and API
+at `https://reconcile-preview.onrender.com`. The live deploy
+`dep-dakmdmjl550s73fnjbbg` is pinned to main commit `3ef812a`. The Neon main
+database is at revision `0004_preview_lifecycle`; its measured size after smoke
+was 9,035,776 bytes, below the 300 MiB admission stop.
 
-Next bounded action: the owner verifies the Render workspace has no billable
-overage path (or signs in for read-only inspection). Then deploy this reviewed
-commit, install only the two database secrets, run the bounded external smoke,
-record service URL/ID/SHA, and rotate the deferred credentials.
+External health and root checks returned HTTP 200. Hosted Playwright passed
+desktop/mobile 2/2 in 38.4 s through fresh import, matching, correction,
+application, reload persistence, export, and reversal. A separate isolated API
+smoke retrieved all four immutable sources and hashes, confirmed repeated apply
+returns the same application ID, exported CSV, reversed the application, and
+confirmed both changed-input rejection and provider invite enforcement. Durable
+job rows created before and after the final deploy remained in Neon.
+
+The first hosted desktop run exposed a lifecycle-consumer race and the next run
+showed that a valid free-tier job could outlast the UI's original polling bound.
+Both were fixed and regression-tested in PRs #18 and #19. Image publication fixes
+were reviewed in PRs #16 and #17. Provider inference remains disabled, so no
+hosted provider call or cost occurred. The public preview deliberately rejects
+noncanonical source updates; accepted changed-source behavior remains covered by
+local/PostgreSQL tests rather than the public smoke. Hosted memory, cold-start,
+and latency distributions were not measured, and no load test was run against the
+shared Free service. Evidence: `reports/deployment-v1/`.
+
+Next bounded phase: operate the rules-only preview under Free-tier constraints,
+rotate the deferred credentials, and authorize a separate invite-gated provider
+preview only if a new key and explicit nonzero inference budget are supplied.

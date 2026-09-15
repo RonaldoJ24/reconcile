@@ -1,15 +1,18 @@
 {
   "schema_version": "deployment-preflight-v1",
-  "checked_at": "2026-09-14",
-  "prepared_code_sha": "6a6c119a04e78a0b722efa819422a7e5be0a2507",
-  "status": "deployment_withheld",
-  "zero_new_spend_verified": false,
+  "checked_at": "2026-09-15",
+  "prepared_code_sha": "3ef812aaa7eea4367956b9c49c9d788d98038aca",
+  "status": "deployed_rules_preview",
+  "zero_new_spend_verified": true,
   "github": {
     "repository": "RonaldoJ24/reconcile",
     "visibility": "private",
     "actions_enabled": true,
     "allowance_visible_to_cli": false,
-    "workflow_added": false
+    "workflow_added": false,
+    "app_repository_scope": [
+      "RonaldoJ24/reconcile"
+    ]
   },
   "render": {
     "workspace_id": "tea-dak152142hec73bjsic0",
@@ -22,13 +25,25 @@
         "changed": false
       }
     ],
-    "reconcile_service_created": false,
+    "reconcile_service_created": true,
+    "reconcile_service": {
+      "id": "srv-dakm0t8ae00c73btfpi0",
+      "name": "reconcile-preview",
+      "plan": "free",
+      "region": "ohio",
+      "runtime": "docker",
+      "url": "https://reconcile-preview.onrender.com",
+      "instances": 1,
+      "deploy_id": "dep-dakmdmjl550s73fnjbbg",
+      "deployed_sha": "3ef812aaa7eea4367956b9c49c9d788d98038aca",
+      "deploy_status": "live"
+    },
     "blueprint_valid": true,
     "blueprint_actions": 1,
     "requested_plan": "free",
     "auto_deploy": "off",
-    "billing_hard_stop_verified": false,
-    "blocker": "The authenticated CLI does not expose payment-method or bandwidth-overage hard-stop state, and dashboard inspection requires an interactive sign-in."
+    "billing_hard_stop_verified": true,
+    "billing_evidence": "The owner confirmed in the Render dashboard that the workspace has no payment method."
   },
   "neon": {
     "organization_id": "org-broad-boat-80792120",
@@ -38,9 +53,10 @@
     "main_branch_id": "br-dark-brook-ae354u3z",
     "test_branch_id": "br-broad-haze-aelm777j",
     "test_branch_expires_at": "2026-09-22T00:00:00Z",
-    "main_database_bytes": 7520256,
+    "main_database_bytes": 9035776,
     "test_database_bytes_before_smoke": 10305536,
-    "production_migrated": false,
+    "production_migrated": true,
+    "production_revision": "0004_preview_lifecycle",
     "test_revision": "0004_preview_lifecycle",
     "direct_migration_verified": true,
     "pooled_schema_visibility_verified": true,
@@ -48,12 +64,14 @@
   },
   "runtime": {
     "same_origin_verified_locally": true,
+    "same_origin_verified_hosted": true,
     "worker_mode": "web_lifecycle",
     "worker_concurrency": 1,
     "idle_database_polling": false,
     "provider_enabled": false,
     "ranker_mode": "shadow",
-    "container_build_run": false
+    "container_build_run": true,
+    "provider_call_made": false
   },
   "checks": {
     "offline_backend": "1047 passed",
@@ -63,15 +81,19 @@
     "frontend_build": "passed",
     "playwright_same_origin_preview": "2 passed in 1.1m",
     "release_scan": "passed; 130 tracked text files; zero findings",
-    "render_blueprint": "valid; one action"
+    "render_blueprint": "valid; one action",
+    "render_deploy": "live; dep-dakmdmjl550s73fnjbbg; 3ef812aaa7eea4367956b9c49c9d788d98038aca",
+    "hosted_health": "GET /api/v1/health returned 200 and status ok",
+    "hosted_root": "GET / returned 200",
+    "hosted_playwright": "2 passed in 38.4s; desktop 30.9s; mobile 6.8s",
+    "hosted_api_smoke": "four sources inspected with hashes; repeated apply idempotent; CSV export and reversal passed; changed packet and provider access rejected with 403",
+    "post_deploy_database": "revision 0004_preview_lifecycle; 9035776 bytes; durable jobs observed before and after final deploy"
   },
   "not_run": [
-    "Render service creation",
-    "production Neon migration",
-    "container build because Docker and Podman are unavailable",
-    "external hosted smoke",
     "hosted memory measurement",
     "hosted cold-start or latency measurement",
-    "provider-backed preview smoke"
+    "provider-backed preview smoke",
+    "accepted changed-source public smoke because preview admission permits only the canonical synthetic packet",
+    "load testing against the shared Free service"
   ]
 }
