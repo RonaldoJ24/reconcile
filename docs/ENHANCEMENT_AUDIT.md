@@ -7,14 +7,14 @@ in `phase1-frontend`; a copy is being completed in `feat/reconcile-case-study`.
 | Requirement | Observed baseline | Action |
 | --- | --- | --- |
 | File → proposal → correction → apply/export/reverse | Implemented in API and PostgreSQL service; historical E2E evidence exists | Preserve and verify in this run |
-| Exact editable MXN, unsaved guard, stale validation | Partial uncommitted frontend changes; not accepted yet | Finish interaction and regression coverage first |
+| Exact editable MXN, unsaved guard, stale validation | Accepted financial patch `56b6fb1`, real persisted centavo checks plus interaction mocks | Preserve through case-first UI changes |
 | Conservative references | `domain/matching.py` concatenates bank/message mentions, without polarity | Version rules, preserve source context, defer unresolved semantics |
 | Financial transactions | Existing revision, ownership, idempotency and balance checks; broad locks | Preserve; narrow locks only after real PostgreSQL evidence |
 | One-click cases, capability agreement, readable trace | Missing; import is default and trace is raw JSON | Add bounded cases through existing import/jobs; additive contracts |
 | Provider | Explicit Direct/Hybrid workflow, cache, quotas, failure states | No calls; show genuine provenance and unavailable when unmatched |
 | Same-input comparison / replay | No portable exact-input recorded-run mechanism | Reuse candidate/validator contracts, freeze fingerprints, reject mismatch |
 | Evaluation presentation and v2 | v1 artifacts exist; no reviewer-facing evaluation surface | Sanitize aggregates, freeze v2 before evaluation |
-| Independent domain validation | No evidence it occurred | Prepare blinded packet and adjudication process; leave review pending |
+| Independent domain validation | No evidence it occurred | 24-case blinded packet prepared in `docs/domain-review/`; review pending |
 
 ## Evaluation implementation findings
 
@@ -30,10 +30,19 @@ in `phase1-frontend`; a copy is being completed in `feat/reconcile-case-study`.
 - Candidate recall checks supplied candidate IDs. It does not measure file-to-
   candidate retrieval. Exact allocation can count a top choice even when a
   threshold defers it; v2 must separate ranking from proposed decisions.
+- Missing targets silently look underdetermined in v1 and duplicate target IDs
+  overwrite each other. v2 must reject incomplete/duplicate joins. v1's incorrect
+  value sums the whole payment for a wrong proposal; it is not measured financial
+  loss. Its optional allocation-key helper omits credit-note identity, another
+  reason to compare complete cash/credit tuples in a new harness.
 - v1 reports record 500 final and 20 sealed challenge groups, agent-generated
   labels and one original sealed access. This run reads aggregate reports/code,
   not sealed labels, and does not rerun that benchmark. Historical tuning exposure
   beyond the recorded ledger cannot be independently ruled out.
+- `ml/data.py:SPLIT_TEMPLATES` assigns disjoint template subsets to the four main
+  splits, but both development and sealed challenge use all template families.
+  The challenge is therefore not a held-out-template experiment. Randomized IDs
+  alone do not establish independent real-world distributions.
 - The negative ranker result remains: final precision 50% at 100% coverage versus
   historical rules 83.3% at 60%. Neither is a measurement of new rules behavior.
 - `interpretation/schemas.py:validate_result` checks source-slice existence and
