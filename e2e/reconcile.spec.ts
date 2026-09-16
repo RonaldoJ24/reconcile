@@ -42,7 +42,27 @@ test.describe('fresh import through reviewed application', () => {
 
     await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
+    await page.getByRole('button', { name: 'Edit allocation' }).click()
     await page.getByLabel('Reviewer name').fill('E2E reviewer')
+    const cashSection = page.locator('.correction-section').first()
+    const creditSection = page.locator('.correction-section').nth(1)
+    if (await cashSection.locator('.line-editor').count() === 0) {
+      await cashSection.getByRole('button', { name: 'Add line' }).click()
+      await cashSection.getByRole('button', { name: 'Add line' }).click()
+      const addedCash = cashSection.locator('.line-editor')
+      await addedCash.nth(0).getByLabel('Invoice ID').fill('101')
+      await addedCash.nth(0).getByLabel('Amount (MXN)').fill('')
+      await addedCash.nth(0).getByLabel('Amount (MXN)').pressSequentially('100')
+      await addedCash.nth(1).getByLabel('Invoice ID').fill('102')
+      await addedCash.nth(1).getByLabel('Amount (MXN)').fill('24000')
+    }
+    if (await creditSection.locator('.line-editor').count() === 0) {
+      await creditSection.getByRole('button', { name: 'Add line' }).click()
+      const addedCredit = creditSection.locator('.line-editor').first()
+      await addedCredit.getByLabel('Credit note ID').fill('103')
+      await addedCredit.getByLabel('Invoice ID').fill('102')
+      await addedCredit.getByLabel('Amount (MXN)').fill('1000')
+    }
     const cashAmount = page.getByLabel('Amount (MXN)').first()
     const proposalDetail = (response: import('@playwright/test').Response) => {
       const url = new URL(response.url())

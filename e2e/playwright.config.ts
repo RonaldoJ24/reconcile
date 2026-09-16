@@ -4,7 +4,7 @@ const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:4173'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: /(?:reconcile|financial-integrity)\.spec\.ts/,
+  testMatch: /(?:reconcile|financial-integrity|case-experience)\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),

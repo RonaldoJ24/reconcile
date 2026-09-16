@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, applyProposal, createSession } from './api'
+import { ApiError, applyProposal, createSession, getSource } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -24,5 +24,14 @@ describe('API transport boundary', () => {
   it('preserves structured server errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'STALE', message: 'Proposal is stale', fields: ['revision'] } }), { status: 409 })))
     await expect(applyProposal('proposal-1', {})).rejects.toMatchObject({ status: 409, code: 'STALE', message: 'Proposal is stale' } satisfies Partial<ApiError>)
+  })
+
+  it('requests source records from the API path without reapplying the base URL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ source_id: 'source-1' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getSource('source-1')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/sources/source-1', expect.objectContaining({ credentials: 'include' }))
   })
 })

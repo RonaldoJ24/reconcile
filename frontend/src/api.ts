@@ -1,12 +1,19 @@
 import type {
   ImportSummary,
   ImportValidation,
+  ImportCommit,
   InterpretationMode,
   InterpretationResponse,
   JobState,
+  CorrectResponse,
+  ApplyResponse,
+  ReverseResponse,
+  CaseOpen,
+  CaseRegistry,
   ProposalDetail,
   ProposalSummary,
   Session,
+  SourceRecord,
 } from './types'
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
@@ -61,7 +68,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export async function createSession(): Promise<Session> {
   const session = await request<Session>('/api/v1/session', { method: 'POST', body: '{}' })
-  csrfToken = session.csrf_token ?? session.csrfToken ?? ''
+  csrfToken = session.csrf_token
   return session
 }
 
@@ -73,12 +80,27 @@ export function listImports() {
   return request<ImportSummary[]>('/api/v1/imports')
 }
 
+export function listCases() {
+  return request<CaseRegistry>('/api/v1/cases')
+}
+
+export function openCase(caseId: string) {
+  return request<CaseOpen>(`/api/v1/cases/${encodeURIComponent(caseId)}/open`, {
+    method: 'POST',
+    body: '{}',
+  })
+}
+
 export function listProposals() {
   return request<ProposalSummary[]>('/api/v1/proposals')
 }
 
 export function getProposal(id: string) {
   return request<ProposalDetail>(`/api/v1/proposals/${encodeURIComponent(id)}`)
+}
+
+export function getSource(id: string) {
+  return request<SourceRecord>(sourceUrl(id))
 }
 
 export function interpretProposal(id: string, mode: InterpretationMode) {
@@ -93,7 +115,7 @@ export function validateImport(form: FormData) {
 }
 
 export function commitImport(batchId: string) {
-  return request<ImportValidation>(`/api/v1/imports/${encodeURIComponent(batchId)}/commit`, {
+  return request<ImportCommit>(`/api/v1/imports/${encodeURIComponent(batchId)}/commit`, {
     method: 'POST',
     body: '{}',
   })
@@ -104,21 +126,21 @@ export function runJobOnce() {
 }
 
 export function correctProposal(id: string, payload: unknown) {
-  return request<ProposalDetail>(`/api/v1/proposals/${encodeURIComponent(id)}/correct`, {
+  return request<CorrectResponse>(`/api/v1/proposals/${encodeURIComponent(id)}/correct`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function applyProposal(id: string, payload: unknown) {
-  return request<ProposalDetail>(`/api/v1/proposals/${encodeURIComponent(id)}/apply`, {
+  return request<ApplyResponse>(`/api/v1/proposals/${encodeURIComponent(id)}/apply`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
 export function reverseApplication(id: string, payload: unknown) {
-  return request<ProposalDetail>(`/api/v1/applications/${encodeURIComponent(id)}/reverse`, {
+  return request<ReverseResponse>(`/api/v1/applications/${encodeURIComponent(id)}/reverse`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })
@@ -133,5 +155,5 @@ export function exportUrl() {
 }
 
 export function sourceUrl(id: string) {
-  return endpoint(`/api/v1/sources/${encodeURIComponent(id)}`)
+  return `/api/v1/sources/${encodeURIComponent(id)}`
 }
