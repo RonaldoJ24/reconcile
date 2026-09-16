@@ -35,8 +35,15 @@ Backend integrity changes remain unaccepted in the separate worktree. Acceptance
 found unsupported follow-up clauses still produce an allocation (for example,
 `Apply invoice 101. Actually wait for confirmation.`). After the two bounded Luna
 corrections, the configured Gemini fallback exited 1 twice before any completed
-agent message. No fallback changes were produced; further backend work awaits
-owner direction under the workforce policy. No provider inference was called.
+agent message. No fallback changes were produced. The owner then explicitly
+authorized one additional Luna correction. The targeted follow-up phrases now
+defer, including the ambiguous `No invoice 101` form. Primary acceptance ran
+`make lint typecheck test`: Ruff and strict mypy passed, with 1,065 offline tests
+passing and 49 PostgreSQL checks deselected. The PostgreSQL acceptance run is
+in progress using the existing test branch's direct connection. Its earlier
+pooled attempt was interrupted during connection establishment, before a test
+completed; a read-only activity check found no blocked SQL transaction.
+No application-provider inference was called.
 
 ## Quality/demo correction — Phase 0 baseline
 

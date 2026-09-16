@@ -89,6 +89,11 @@ before changing an evaluation target. A future permissioned user study would nee
 real review time, correction/error rates and representative cases; none is implied
 by passing engineering tests.
 
+The [24-case review packet](domain-review/README.md) includes decision-time evidence,
+candidate allocations, blank response fields and an insufficient-information choice.
+Provisional author labels stay separate, with a documented adjudication procedure.
+Preparing the packet does not supply external validation.
+
 The historical remote-database list/detail p95 exceeded the proposed 500 ms budget;
 matching-only timing excluded persistence. Neither is a new end-to-end latency
 claim. No public deployment, provider enablement or external domain review is part
