@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
   applyProposal,
@@ -30,8 +30,96 @@ import type {
   ProposalSummary,
   RowIssue,
 } from './types'
+import { centsToMxn, mxnToCents } from './money'
 
 type Screen = 'imports' | 'queue' | 'detail'
+
+export type CashDraft = { invoice_id: string; amount_mxn: string }
+export type CreditDraft = { credit_note_id: string; invoice_id: string; amount_mxn: string }
+
+function amountCentsFromLine(line: CashLine | CreditLine): unknown {
+  return line.amount_cents ?? line.amountCents ?? line.amount
+}
+
+export function cashLineToDraft(line: CashLine): CashDraft {
+  const amount = amountCentsFromLine(line)
+  return {
+    invoice_id: text(line as Record<string, unknown>, 'invoice_id', 'invoiceId') ?? '',
+    amount_mxn: amount === undefined ? '' : centsToMxn(amount),
+  }
+}
+
+export function creditLineToDraft(line: CreditLine): CreditDraft {
+  const amount = amountCentsFromLine(line)
+  return {
+    credit_note_id: text(line as Record<string, unknown>, 'credit_note_id', 'creditNoteId') ?? '',
+    invoice_id: text(line as Record<string, unknown>, 'invoice_id', 'invoiceId') ?? '',
+    amount_mxn: amount === undefined ? '' : centsToMxn(amount),
+  }
+}
+
+export function reviewDraftError(cash: CashDraft[], credits: CreditDraft[]): string | undefined {
+  if (cash.length > 3) return 'A correction can contain at most three cash lines.'
+  if (credits.length > 1) return 'A correction can contain at most one credit line.'
+  for (const [index, line] of cash.entries()) {
+    if (!line.invoice_id.trim()) return `Enter an invoice ID for cash line ${index + 1}.`
+    try {
+      if (mxnToCents(line.amount_mxn) <= 0) return `Cash line ${index + 1} must be greater than MXN 0.00.`
+    } catch (error) {
+      return `Cash line ${index + 1}: ${error instanceof Error ? error.message : 'enter a valid MXN amount.'}`
+    }
+  }
+  for (const [index, line] of credits.entries()) {
+    if (!line.credit_note_id.trim()) return `Enter a credit note ID for credit line ${index + 1}.`
+    if (!line.invoice_id.trim()) return `Enter an invoice ID for credit line ${index + 1}.`
+    try {
+      if (mxnToCents(line.amount_mxn) <= 0) return `Credit line ${index + 1} must be greater than MXN 0.00.`
+    } catch (error) {
+      return `Credit line ${index + 1}: ${error instanceof Error ? error.message : 'enter a valid MXN amount.'}`
+    }
+  }
+  return undefined
+}
+
+export function reviewDraftsEqual(
+  leftCash: CashDraft[],
+  leftCredits: CreditDraft[],
+  rightCash: CashDraft[],
+  rightCredits: CreditDraft[],
+) {
+  return JSON.stringify({ cash: leftCash, credits: leftCredits }) === JSON.stringify({ cash: rightCash, credits: rightCredits })
+}
+
+export function projectedBalanceRows(
+  balances: Record<string, unknown>[],
+  cash: CashDraft[],
+  credits: CreditDraft[],
+) {
+  const deductions = new Map<string, number>()
+  for (const line of cash) {
+    const amount = mxnToCents(line.amount_mxn)
+    deductions.set(line.invoice_id, (deductions.get(line.invoice_id) ?? 0) + amount)
+  }
+  for (const line of credits) {
+    const amount = mxnToCents(line.amount_mxn)
+    deductions.set(line.invoice_id, (deductions.get(line.invoice_id) ?? 0) + amount)
+  }
+  return balances.map((balance) => {
+    const invoiceId = text(balance, 'invoice_id', 'invoiceId')
+    const remaining = centsOf(balance, 'remaining_amount_cents', 'remainingAmountCents', 'remaining_amount', 'available_amount_cents')
+    if (!invoiceId || remaining === undefined || !deductions.has(invoiceId)) return balance
+    return { ...balance, projected_remaining_amount: remaining - deductions.get(invoiceId)! }
+  })
+}
+
+export function applyAttemptFingerprint(proposalId: string, revision: number | undefined, versionToken: string | undefined, reviewer: string) {
+  return JSON.stringify({ proposalId, revision: revision ?? null, versionToken: versionToken ?? null, reviewer: reviewer.trim() })
+}
+
+export function isUncertainApplyError(error: unknown) {
+  if (!(error instanceof ApiError)) return true
+  return error.status === 408 || error.status === 425 || error.status === 429 || error.status >= 500
+}
 
 const text = (record: Record<string, unknown> | undefined, ...keys: string[]) => {
   if (!record) return undefined
@@ -258,8 +346,26 @@ function ImportsView({
   const [validation, setValidation] = useState<ImportValidation>()
   const [busy, setBusy] = useState('')
   const [job, setJob] = useState<JobState>()
+  const inputGeneration = useRef(0)
+  const validationRequest = useRef(0)
 
-  const select = (setter: (file: File | undefined) => void) => (event: React.ChangeEvent<HTMLInputElement>) => setter(event.target.files?.[0])
+  const invalidateInputs = () => {
+    inputGeneration.current += 1
+    setValidation(undefined)
+    setJob(undefined)
+    setBusy('')
+    onError('')
+  }
+
+  const select = (setter: (file: File | undefined) => void) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    invalidateInputs()
+    setter(event.target.files?.[0])
+  }
+
+  const updateContext = (setter: (value: string) => void, value: string) => {
+    invalidateInputs()
+    setter(value)
+  }
 
   const validate = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -273,6 +379,9 @@ function ImportsView({
     }
     setBusy('validate')
     onError('')
+    const generation = inputGeneration.current
+    const requestId = validationRequest.current + 1
+    validationRequest.current = requestId
     const form = new FormData()
     form.append('bank', bank)
     form.append('invoices', invoice)
@@ -283,38 +392,50 @@ function ImportsView({
     if (paymentTransaction) form.append('payment_transaction_id', paymentTransaction)
     try {
       const result = await validateImport(form)
-      setValidation(result)
+      if (inputGeneration.current === generation && validationRequest.current === requestId) setValidation(result)
     } catch (cause) {
-      onError(errorText(cause))
+      if (inputGeneration.current === generation && validationRequest.current === requestId) onError(errorText(cause))
     } finally {
-      setBusy('')
+      if (validationRequest.current === requestId) setBusy('')
     }
   }
 
-  const processJobs = async () => {
+  const processJobs = async (generation: number) => {
+    if (inputGeneration.current !== generation) return
     setBusy('jobs')
     onError('')
+    const stale = () => inputGeneration.current !== generation
     try {
-      await runJobsUntilSettled(runJobOnce, setJob, onRefresh)
+      await runJobsUntilSettled(
+        async () => {
+          if (stale()) throw new Error('stale import operation')
+          return runJobOnce()
+        },
+        (nextJob) => { if (!stale()) setJob(nextJob) },
+        async () => { if (!stale()) await onRefresh() },
+      )
     } catch (cause) {
-      onError(errorText(cause))
+      if (!stale()) onError(errorText(cause))
     } finally {
-      setBusy('')
+      if (!stale()) setBusy('')
     }
   }
 
   const commit = async () => {
     const batchId = validation && (validation.batch_id ?? validation.batchId)
     if (!batchId) return
+    const generation = inputGeneration.current
     setBusy('commit')
     onError('')
     try {
       const result = await commitImport(batchId)
-      setValidation(result)
-      await processJobs()
+      if (inputGeneration.current === generation) setValidation({ ...result, status: 'COMMITTED' })
+      await processJobs(generation)
     } catch (cause) {
-      onError(errorText(cause))
-      setBusy('')
+      if (inputGeneration.current === generation) {
+        onError(errorText(cause))
+        setBusy('')
+      }
     }
   }
 
@@ -344,9 +465,9 @@ function ImportsView({
           <FileField id="message-file" label="Payment message TXT" file={message} onChange={select(setMessage)} hint="Optional · UTF-8 text with supplied context" />
           <fieldset className="context-fields">
             <legend>Message context <span className="muted">(required when a message is included)</span></legend>
-            <label>Message time<input type="text" value={messageTime} onChange={(e) => setMessageTime(e.target.value)} placeholder="2026-09-14T10:00:00-06:00" aria-describedby="context-help" /></label>
-            <label>Payment source account ID<input value={paymentAccount} onChange={(e) => setPaymentAccount(e.target.value)} /></label>
-            <label>Payment transaction ID<input value={paymentTransaction} onChange={(e) => setPaymentTransaction(e.target.value)} /></label>
+            <label>Message time<input type="text" value={messageTime} onChange={(e) => updateContext(setMessageTime, e.target.value)} placeholder="2026-09-14T10:00:00-06:00" aria-describedby="context-help" /></label>
+            <label>Payment source account ID<input value={paymentAccount} onChange={(e) => updateContext(setPaymentAccount, e.target.value)} /></label>
+            <label>Payment transaction ID<input value={paymentTransaction} onChange={(e) => updateContext(setPaymentTransaction, e.target.value)} /></label>
             <p id="context-help" className="field-help">The server records these associations as supplied context.</p>
           </fieldset>
           <div className="form-actions"><button className="button button-primary" type="submit" disabled={Boolean(busy)}>{busy === 'validate' ? 'Validating…' : 'Validate files'}</button></div>
@@ -372,7 +493,8 @@ function ValidationResult({ result, onCommit, busy, job }: { result: ImportValid
   const accepted = result.accepted_counts ?? result.acceptedCounts
   const rejected = result.rejected_counts ?? result.rejectedCounts
   const batchId = result.batch_id ?? result.batchId
-  return <section className="panel validation-panel" aria-live="polite"><div className="panel-heading"><div><p className="eyebrow">Validation result</p><h2>{batchId ? `Batch ${batchId}` : 'Preview complete'}</h2></div><span className={`status-pill ${issues.length ? 'status-review' : 'status-success'}`}>{issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'}` : 'Ready to commit'}</span></div><div className="count-grid"><Count label="Accepted rows" value={result.accepted ?? sum(accepted)} tone="good" /><Count label="Rejected rows" value={result.rejected ?? sum(rejected)} tone={sum(rejected) ? 'warn' : 'neutral'} /></div>{(accepted || rejected) && <div className="count-breakdown"><span>Accepted {counts(accepted)}</span><span>Rejected {counts(rejected)}</span></div>}{issues.length > 0 && <IssueTable issues={issues} />}{batchId && <div className="validation-actions"><button className="button button-primary" onClick={() => void onCommit()} disabled={Boolean(busy)}>{busy === 'commit' ? 'Committing…' : 'Commit accepted rows'}</button>{issues.length > 0 && <span className="muted">Rejected rows stay out of the commit; accepted rows can still be committed.</span>}</div>}{job && <div className="job-status"><span className="status-pill">Job {String(job.state ?? job.status ?? 'returned')}</span><span className="muted">The matching worker response is shown as returned; no timing is inferred.</span></div>}</section>
+  const committed = result.committed === true || String(result.status ?? '').toUpperCase() === 'COMMITTED'
+  return <section className="panel validation-panel" aria-live="polite"><div className="panel-heading"><div><p className="eyebrow">Validation result</p><h2>{batchId ? `Batch ${batchId}` : 'Preview complete'}</h2></div><span className={`status-pill ${committed ? 'status-success' : issues.length ? 'status-review' : 'status-success'}`}>{committed ? 'Committed' : issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'}` : 'Ready to commit'}</span></div><div className="count-grid"><Count label="Accepted rows" value={result.accepted ?? sum(accepted)} tone="good" /><Count label="Rejected rows" value={result.rejected ?? sum(rejected)} tone={sum(rejected) ? 'warn' : 'neutral'} /></div>{(accepted || rejected) && <div className="count-breakdown"><span>Accepted {counts(accepted)}</span><span>Rejected {counts(rejected)}</span></div>}{issues.length > 0 && <IssueTable issues={issues} />}{batchId && <div className="validation-actions">{committed ? <span className="muted">Accepted rows are committed. Matching jobs are being processed below.</span> : <><button className="button button-primary" onClick={() => void onCommit()} disabled={Boolean(busy)}>{busy === 'commit' ? 'Committing…' : 'Commit accepted rows'}</button>{issues.length > 0 && <span className="muted">Rejected rows stay out of the commit; accepted rows can still be committed.</span>}</>}</div>}{job && <div className="job-status"><span className="status-pill">Job {String(job.state ?? job.status ?? 'returned')}</span><span className="muted">The matching worker response is shown as returned; no timing is inferred.</span></div>}</section>
 }
 
 function sum(counts?: Record<string, number>) { return counts ? Object.values(counts).reduce((total, count) => total + count, 0) : undefined }
@@ -388,14 +510,19 @@ function QueueView({ proposals, onOpen, onRefresh, onError }: { proposals: Propo
 function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: () => void; onError: (message: string) => void; onRefresh: () => Promise<void> }) {
   const [detail, setDetail] = useState<ProposalDetail>()
   const [loading, setLoading] = useState(true)
-  const [cashDraft, setCashDraft] = useState<CashLine[]>([])
-  const [creditDraft, setCreditDraft] = useState<CreditLine[]>([])
+  const [cashDraft, setCashDraft] = useState<CashDraft[]>([])
+  const [creditDraft, setCreditDraft] = useState<CreditDraft[]>([])
+  const [persistedCashDraft, setPersistedCashDraft] = useState<CashDraft[]>([])
+  const [persistedCreditDraft, setPersistedCreditDraft] = useState<CreditDraft[]>([])
   const [reviewer, setReviewer] = useState('')
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState('')
   const [appliedId, setAppliedId] = useState('')
   const [interpretation, setInterpretation] = useState<Interpretation>()
   const [interpretationMessage, setInterpretationMessage] = useState('')
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
+  const applyAttemptRef = useRef<{ fingerprint: string; key: string } | undefined>(undefined)
+  const applyInFlightRef = useRef(false)
 
   const load = useCallback(async (preserveInterpretation = false) => {
     if (!id) { setLoading(false); return }
@@ -404,10 +531,15 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
       const result = await getProposal(id)
       setDetail(result)
       const returnedApplicationId = result.application_id ?? result.applicationId
-      if (returnedApplicationId) setAppliedId(returnedApplicationId)
-      setCashDraft(result.cash ?? result.cash_lines ?? result.cashLines ?? [])
-      setCreditDraft(result.credits ?? result.credit_lines ?? result.creditLines ?? [])
-      if (!preserveInterpretation && result.interpretation) setInterpretation(result.interpretation)
+      setAppliedId(returnedApplicationId ?? '')
+      const nextCashDraft = (result.cash ?? result.cash_lines ?? result.cashLines ?? []).map(cashLineToDraft)
+      const nextCreditDraft = (result.credits ?? result.credit_lines ?? result.creditLines ?? []).map(creditLineToDraft)
+      setCashDraft(nextCashDraft)
+      setCreditDraft(nextCreditDraft)
+      setPersistedCashDraft(nextCashDraft)
+      setPersistedCreditDraft(nextCreditDraft)
+      applyAttemptRef.current = undefined
+      if (!preserveInterpretation) setInterpretation(result.interpretation)
     } catch (cause) { onError(errorText(cause)) } finally { setLoading(false) }
   }, [id, onError])
 
@@ -422,26 +554,65 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
   const balances = balanceRows(detail.balances)
   const applicationId = appliedId || detail.application_id || detail.applicationId || text(detail.application, 'id', 'application_id')
   const status = String(detail.status ?? 'NEEDS_REVIEW').toUpperCase()
+  const draftError = reviewDraftError(cashDraft, creditDraft)
+  const hasUnsavedChanges = !reviewDraftsEqual(cashDraft, creditDraft, persistedCashDraft, persistedCreditDraft)
+  const capabilities = detail.capabilities
+  const versionToken = detail.version_token ?? detail.versionToken
+  const immutable = ['APPLIED', 'REVERSED'].includes(status)
+  const canCorrect = !immutable && (capabilities?.correct ?? true)
+  const canApply = !immutable && (capabilities?.apply ?? status === 'PROPOSED') && typeof versionToken === 'string' && versionToken.length === 64 && !hasUnsavedChanges && !draftError
+  const canReverse = status === 'APPLIED' && (capabilities?.reverse ?? true)
   const apply = async () => {
+    if (!canApply) {
+      onError(draftError ? `Cannot apply: ${draftError}` : hasUnsavedChanges ? 'Save or discard unsaved correction changes before applying.' : typeof versionToken !== 'string' || versionToken.length !== 64 ? 'This proposal is missing a valid version token.' : 'This proposal is not available for application.')
+      return
+    }
     if (!reviewer.trim()) { onError('Reviewer name is required to apply an allocation.'); return }
+    setConfirmationOpen(true)
+  }
+  const confirmApply = async () => {
+    if (applyInFlightRef.current) return
+    if (!canApply || !reviewer.trim()) {
+      setConfirmationOpen(false)
+      if (!reviewer.trim()) onError('Reviewer name is required to apply an allocation.')
+      return
+    }
+    applyInFlightRef.current = true
     setBusy('apply'); onError('')
+    const fingerprint = applyAttemptFingerprint(id, detail.revision, versionToken, reviewer)
+    const previousAttempt = applyAttemptRef.current
+    const idempotencyKey = previousAttempt?.fingerprint === fingerprint ? previousAttempt.key : crypto.randomUUID()
+    const nextAttempt = { fingerprint, key: idempotencyKey }
+    applyAttemptRef.current = nextAttempt
     try {
-      const applied = await applyProposal(id, { expected_revision: detail.revision, version_token: detail.version_token ?? detail.versionToken, reviewer: reviewer.trim(), idempotency_key: crypto.randomUUID() })
+      const applied = await applyProposal(id, { expected_revision: detail.revision, version_token: versionToken, reviewer: reviewer.trim(), idempotency_key: idempotencyKey })
       setAppliedId(applied.application_id ?? applied.applicationId ?? '')
+      applyAttemptRef.current = undefined
+      setConfirmationOpen(false)
       await load(); await onRefresh()
-    } catch (cause) { onError(errorText(cause)) } finally { setBusy('') }
+    } catch (cause) {
+      onError(errorText(cause))
+      if (!isUncertainApplyError(cause)) {
+        applyAttemptRef.current = undefined
+      }
+    } finally {
+      applyInFlightRef.current = false
+      setBusy('')
+    }
   }
   const correct = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!canCorrect) return
     if (!reviewer.trim()) { onError('Reviewer name is required to save a correction.'); return }
+    if (draftError) { onError(draftError); return }
     setBusy('correct'); onError('')
     try {
-      await correctProposal(id, { expected_revision: detail.revision, cash: cashDraft.map(toCashPayload), credits: creditDraft.map(toCreditPayload), reviewer: reviewer.trim() })
+      await correctProposal(id, { expected_revision: detail.revision, cash: cashDraft.map(cashDraftToPayload), credits: creditDraft.map(creditDraftToPayload), reviewer: reviewer.trim() })
       await load(); await onRefresh()
     } catch (cause) { onError(errorText(cause)) } finally { setBusy('') }
   }
   const reverse = async () => {
-    if (!applicationId) return
+    if (!applicationId || !canReverse) return
     if (!reviewer.trim() || !reason.trim()) { onError('Reviewer name and reversal reason are required.'); return }
     setBusy('reverse'); onError('')
     try { await reverseApplication(applicationId, { reviewer: reviewer.trim(), reason: reason.trim(), idempotency_key: crypto.randomUUID() }); await load(); await onRefresh() } catch (cause) { onError(errorText(cause)) } finally { setBusy('') }
@@ -495,8 +666,33 @@ function DetailView({ id, onBack, onError, onRefresh }: { id: string; onBack: ()
         <AlternativesSection alternatives={detail.alternatives ?? []} />
         <details className="panel trace-panel"><summary>Show execution trace</summary><pre>{JSON.stringify(detail.trace ?? { status: 'not returned' }, null, 2)}</pre></details>
       </div>
-      <aside className="detail-side">{(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={status === 'NEEDS_REVIEW'} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}<section className="panel action-panel"><div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div><form onSubmit={correct}><label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" /></label><div className="correction-section"><div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" onClick={() => setCashDraft([...cashDraft, { invoice_id: '', amount_cents: '' }])}>Add line</button></div>{cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" onChange={(next) => setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index))} />)}</div><div className="correction-section"><div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" onClick={() => setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_cents: '' }])}>Add line</button></div>{creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" onChange={(next) => setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index))} />)}</div><button className="button button-secondary full-width" type="submit" disabled={Boolean(busy)}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></form><div className="action-divider" /><button className="button button-primary full-width" onClick={() => void apply()} disabled={Boolean(busy) || status === 'APPLIED' || status === 'REVERSED'}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>{status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={Boolean(busy) || !applicationId}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}</section><ExportCard /></aside>
+      <aside className="detail-side">
+        {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={status === 'NEEDS_REVIEW' && !hasUnsavedChanges} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
+        <section className="panel action-panel">
+          <div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div>
+          <form onSubmit={correct}>
+            <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={Boolean(busy) || (!canCorrect && !canReverse && !canApply)} /></label>
+            <div className="correction-section">
+              <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }])}>Add line</button></div>
+              <p id="amount-format-help" className="field-help">Enter MXN as a decimal amount, such as 100 or 100.00. Values are saved as integer centavos.</p>
+              {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || Boolean(busy)} onChange={(next) => setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item))} onRemove={() => setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index))} />)}
+            </div>
+            <div className="correction-section">
+              <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }])}>Add line</button></div>
+              {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || Boolean(busy)} onChange={(next) => setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item))} onRemove={() => setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index))} />)}
+            </div>
+            {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
+            {draftError && <p className="draft-status draft-error" role="alert">{draftError}</p>}
+            <button className="button button-secondary full-width" type="submit" disabled={Boolean(busy) || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button>
+          </form>
+          <div className="action-divider" />
+          <button className="button button-primary full-width" onClick={() => void apply()} disabled={Boolean(busy) || !canApply}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>
+          {status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" disabled={Boolean(busy) || !canReverse} /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={Boolean(busy) || !applicationId || !canReverse}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}
+        </section>
+        <ExportCard />
+      </aside>
     </section>
+    {confirmationOpen && <ApplyConfirmation detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} balances={balances} busy={busy} onCancel={() => setConfirmationOpen(false)} onConfirm={() => void confirmApply()} />}
   </>
 }
 
@@ -537,23 +733,36 @@ export function InterpretationAction({
   </section>
 }
 
-function toCents(value: unknown): number | string {
-  if (typeof value === 'number') return value
-  const raw = String(value ?? '').trim()
-  if (/^\d+$/.test(raw)) return Number(raw)
-  if (/^\d+\.\d{1,2}$/.test(raw)) { const [whole, fraction = ''] = raw.split('.'); return Number(whole) * 100 + Number(fraction.padEnd(2, '0')) }
-  return raw
+export function toCents(value: string): number {
+  return mxnToCents(value)
 }
-function toCashPayload(line: CashLine) { return { invoice_id: text(line as Record<string, unknown>, 'invoice_id', 'invoiceId') ?? '', amount: toCents(line.amount_cents ?? line.amountCents ?? line.amount) } }
-function toCreditPayload(line: CreditLine) { return { credit_note_id: text(line as Record<string, unknown>, 'credit_note_id', 'creditNoteId') ?? '', invoice_id: text(line as Record<string, unknown>, 'invoice_id', 'invoiceId') ?? '', amount: toCents(line.amount_cents ?? line.amountCents ?? line.amount) } }
+export function cashDraftToPayload(line: CashDraft) {
+  return { invoice_id: line.invoice_id.trim(), amount: mxnToCents(line.amount_mxn) }
+}
+export function creditDraftToPayload(line: CreditDraft) {
+  return { credit_note_id: line.credit_note_id.trim(), invoice_id: line.invoice_id.trim(), amount: mxnToCents(line.amount_mxn) }
+}
 
-function LineEditor({ line, kind, onChange, onRemove }: { line: CashLine | CreditLine; kind: 'cash' | 'credit'; onChange: (line: any) => void; onRemove: () => void }) {
-  const record = line as Record<string, unknown>
-  const idKey = kind === 'cash' ? 'invoice_id' : 'credit_note_id'
+function LineEditor({ line, kind, disabled, onChange, onRemove }: { line: CashDraft | CreditDraft; kind: 'cash' | 'credit'; disabled?: boolean; onChange: (line: CashDraft | CreditDraft) => void; onRemove: () => void }) {
   const idLabel = kind === 'cash' ? 'Invoice ID' : 'Credit note ID'
-  return <div className="line-editor"><label>{idLabel}<input value={text(record, idKey, kind === 'credit' ? 'creditNoteId' : 'invoiceId') ?? ''} onChange={(e) => onChange({ ...line, [idKey]: e.target.value })} /></label>{kind === 'credit' && <label>Invoice ID<input value={text(record, 'invoice_id', 'invoiceId') ?? ''} onChange={(e) => onChange({ ...line, invoice_id: e.target.value })} /></label>}<label>Amount (MXN)<input inputMode="decimal" value={amountInput(line)} onChange={(e) => onChange({ ...line, amount_cents: e.target.value })} /></label><button type="button" className="remove-button" onClick={onRemove} aria-label={`Remove ${kind} line`}>Remove</button></div>
+  return <div className="line-editor"><label>{idLabel}<input value={kind === 'cash' ? (line as CashDraft).invoice_id : (line as CreditDraft).credit_note_id} disabled={disabled} onChange={(e) => onChange(kind === 'cash' ? { ...line, invoice_id: e.target.value } as CashDraft : { ...line, credit_note_id: e.target.value } as CreditDraft)} /></label>{kind === 'credit' && <label>Invoice ID<input value={(line as CreditDraft).invoice_id} disabled={disabled} onChange={(e) => onChange({ ...line, invoice_id: e.target.value })} /></label>}<label>Amount (MXN)<input inputMode="decimal" value={line.amount_mxn} disabled={disabled} placeholder="100.00" aria-describedby="amount-format-help" onChange={(e) => onChange({ ...line, amount_mxn: e.target.value })} /></label><button type="button" className="remove-button" disabled={disabled} onClick={onRemove} aria-label={`Remove ${kind} line`}>Remove</button></div>
 }
-function amountInput(line: CashLine | CreditLine) { const cents = line.amount_cents ?? line.amountCents ?? line.amount; const n = numberValue(cents); return n === undefined ? String(cents ?? '') : (n / 100).toFixed(2) }
+
+export function ApplyConfirmation({ detail, cash, credits, balances, busy, onCancel, onConfirm }: { detail: ProposalDetail; cash: CashDraft[]; credits: CreditDraft[]; balances: Record<string, unknown>[]; busy: string; onCancel: () => void; onConfirm: () => void }) {
+  const projected = projectedBalanceRows(balances, cash, credits)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    const dialog = dialogRef.current
+    if (dialog && !dialog.open) dialog.showModal()
+    dialog?.focus()
+    return () => {
+      if (dialog?.open) dialog.close()
+      previous?.focus()
+    }
+  }, [])
+  return <dialog className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="apply-confirmation-heading" aria-describedby="apply-confirmation-description" ref={dialogRef} onCancel={(event) => { event.preventDefault(); if (!busy) onCancel() }}><p className="eyebrow">Final confirmation</p><h2 id="apply-confirmation-heading">Apply persisted allocation?</h2><p id="apply-confirmation-description">Review revision <strong>{detail.revision ?? '—'}</strong> will be recorded with the following values.</p><div className="confirmation-section"><h3>Cash</h3>{cash.length === 0 ? <p className="muted">No cash lines.</p> : <ul>{cash.map((line, index) => <li key={`cash-${index}`}><span>Invoice <span className="mono">{line.invoice_id}</span></span><strong>{line.amount_mxn} MXN</strong></li>)}</ul>}</div><div className="confirmation-section"><h3>Credit</h3>{credits.length === 0 ? <p className="muted">No credit lines.</p> : <ul>{credits.map((line, index) => <li key={`credit-${index}`}><span>Credit note <span className="mono">{line.credit_note_id}</span> → invoice <span className="mono">{line.invoice_id}</span></span><strong>{line.amount_mxn} MXN</strong></li>)}</ul>}</div><div className="confirmation-section"><h3>Projected invoice balances</h3>{projected.length === 0 ? <p className="muted">No projected balances returned.</p> : <ul>{projected.map((balance, index) => <li key={index}><span className="mono">{text(balance, 'invoice_id', 'invoiceId') ?? 'Invoice'}</span><strong>{money(centsOf(balance, 'projected_remaining_amount', 'remaining_amount_cents', 'remainingAmountCents', 'remaining_amount', 'available_amount_cents'))}</strong></li>)}</ul>}</div><p className="confirmation-note">Reconcile records an allocation for audit purposes; it does not move money in a bank account.</p><div className="confirmation-actions"><button className="button button-secondary" type="button" onClick={onCancel} disabled={Boolean(busy)}>Cancel</button><button className="button button-primary" type="button" onClick={onConfirm} disabled={Boolean(busy)}>{busy === 'apply' ? 'Applying…' : 'Confirm and apply'}</button></div></dialog>
+}
 
 function AllocationLines({ title, lines, kind }: { title: string; lines: (CashLine | CreditLine)[]; kind: string }) { return <section className="panel lines-card"><div className="panel-heading"><div><h2>{title}</h2><p className="muted">{kind === 'cash' ? 'Cash is separate from credit.' : 'Credit remains explicitly linked to an invoice.'}</p></div><span className="line-total">{lines.length} line{lines.length === 1 ? '' : 's'}</span></div>{lines.length === 0 ? <p className="empty-inline">No {kind} lines returned.</p> : <div className="line-list">{lines.map((line, index) => <div className="allocation-line" key={index}><div><strong>{text(line as Record<string, unknown>, 'invoice_id', 'invoiceId', 'credit_note_id', 'creditNoteId') ?? 'Unidentified'}</strong><span>{text(line as Record<string, unknown>, 'customer_name', 'customerName') ?? (kind === 'credit' ? 'Credit note' : 'Invoice')}</span></div><strong>{money(centsOf(line as Record<string, unknown>, 'amount_cents', 'amountCents', 'amount'))}</strong></div>)}</div>}</section> }
 function EvidenceSection({ evidence }: { evidence: Evidence[] }) { return <section className="panel evidence-card"><div className="panel-heading"><div><h2>Evidence</h2><p className="muted">Citations point to immutable source records.</p></div><span className="line-total">{evidence.length}</span></div>{evidence.length === 0 ? <p className="empty-inline">No evidence spans returned.</p> : <ul className="evidence-list">{evidence.map((item, index) => { const source = text(item as Record<string, unknown>, 'source_id', 'sourceId'); return <li key={index}><div><span className="evidence-kind">{item.kind ?? 'source'}</span><q>{item.excerpt ?? item.text ?? item.quote ?? 'Span returned without excerpt.'}</q><span className="evidence-position">{item.record ? `Record ${item.record}` : `${item.start ?? item.start_offset ?? '—'}–${item.end ?? item.end_offset ?? '—'}`}</span></div>{source ? <a href={sourceUrl(source)} target="_blank" rel="noreferrer">Open source <span aria-hidden="true">↗</span></a> : <span className="muted">Source unavailable</span>}</li> })}</ul>}</section> }
