@@ -277,3 +277,12 @@ Hosted desktop/mobile Playwright then passed 2/2 in 36.8 seconds.
 Next bounded phase: operate the rules-only preview under Free-tier constraints,
 rotate the deferred credentials, and authorize a separate invite-gated provider
 preview only if a new key and explicit nonzero inference budget are supplied.
+
+## Case lifecycle acceptance — 2026-09-16
+
+Registered cases and immutable traces integrated at `b37a879`. Backend targeted
+checks: Ruff/mypy, 42 offline tests, seven PostgreSQL case/lifecycle tests plus one
+concurrent import/apply regression. Real Playwright: two case journeys and two
+financial workflows passed across desktop/mobile; four viewport widths and keyboard
+skip navigation checked. Evidence: `reports/portfolio-v2/engineering-validation.md`.
+Comparison/evaluation and controlled variants/reliability remain in progress.

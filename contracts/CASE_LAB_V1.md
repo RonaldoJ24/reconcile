@@ -13,6 +13,9 @@ Return `revision`, `input_fingerprint` and `methods`. Each method has `method`,
 `candidate` (complete cash/credit allocation), `actionable: false`, `duration_ms`,
 nullable `usage`, nullable `cost_usd`, and `reason`. Comparison is an observation;
 only the normal persisted proposal and explicit reviewer action can apply money.
+Method identifiers are `rules`, `bounded_correction`, `shadow_ranker`, `direct`, and
+`hybrid`. Source `local` identifies local model execution; it must not be labeled
+as deterministic rules or live provider output.
 
 The conservative rules and bounded correction baseline may share one actual rules
 execution; label that identity rather than inventing two independent methods.
@@ -58,6 +61,15 @@ Duplicate apply is available only after an explicit reviewer application, replay
 that already approved logical operation's identical payload/key, and must return
 the same application ID with no new effects. It does not create a first application
 or reverse anything. State these conditions before the user triggers an experiment.
+
+Return `experiment`, `synthetic: true`, `validator`, `expected`, `observed`,
+`passed`, nullable `application_id`, and `effects_before` / `effects_after`.
+Each effect object contains `application_groups`, `cash_applications`,
+`credit_applications`, `cash_centavos`, and `credit_centavos`, read from persisted
+financial rows for this proposal. Audit records of the experiment itself are not
+financial effects. The server computes `passed` from the observed rejection or
+idempotent identity and the unchanged effects, rather than from the experiment
+name. The UI labels each injected input as a synthetic check.
 
 ## Historical evaluation
 

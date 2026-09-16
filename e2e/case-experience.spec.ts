@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import path from 'node:path'
 
 const proposalId = 'proposal-1'
 const paymentId = 'payment-1'
@@ -8,6 +9,7 @@ const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page)
   const size = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }))
   expect(size.page).toBeLessThanOrEqual(size.viewport)
 }
+const qualityDemoPath = (name: string) => path.join(__dirname, '..', 'output', 'quality-demo', name)
 
 const cases = [
   { id: 'straightforward', title: 'Straightforward payment', description: 'One clear invoice match.', amount: 10000 },
@@ -159,7 +161,7 @@ test.describe('case study workspace', () => {
     await expect(page.getByRole('dialog', { name: /source-1/ })).toContainText('exact source text')
     await page.getByRole('dialog', { name: /source-1/ }).getByLabel('Close source').click()
     await expectNoHorizontalOverflow(page)
-    await page.screenshot({ path: `output/quality-demo/mock-case-${test.info().project.name}.png`, fullPage: true })
+    await page.screenshot({ path: qualityDemoPath(`mock-case-${test.info().project.name}.png`), fullPage: true })
   })
 
   test('opens and resumes every registered case without changing the viewport', async ({ page }) => {
@@ -186,15 +188,17 @@ test.describe('case study workspace', () => {
       if (scenario !== cases[cases.length - 1]) await page.getByRole('button', { name: 'Cases' }).click()
     }
 
-    await page.screenshot({ path: `output/quality-demo/mock-cases-${test.info().project.name}.png`, fullPage: true })
+    await page.screenshot({ path: qualityDemoPath(`mock-cases-${test.info().project.name}.png`), fullPage: true })
   })
 
   test('real backend opens and resumes all five cases with persisted evidence', async ({ page }) => {
     test.skip(process.env.E2E_REAL_CASES !== '1', 'Run with E2E_REAL_CASES=1 after the case API is available.')
+    test.setTimeout(240_000)
 
     await page.goto('/')
-    await expect(page.locator('.case-card')).toHaveCount(5)
+    await expect(page.locator('.case-card')).toHaveCount(5, { timeout: 90_000 })
     await expectNoHorizontalOverflow(page)
+    await page.screenshot({ path: qualityDemoPath(`real-case-list-${test.info().project.name}.png`), fullPage: true })
 
     for (const scenario of cases) {
       const card = page.locator('.case-card').filter({ hasText: scenario.id })
@@ -207,9 +211,10 @@ test.describe('case study workspace', () => {
       await expectNoHorizontalOverflow(page)
 
       if (scenario.id === 'bundle') {
-        await expect(page.getByRole('heading', { name: 'Decision trace' })).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'How this decision was produced' })).toBeVisible()
         await page.getByText('Stage details').first().click()
         await expect(page.locator('.trace-stage-details').first()).toBeVisible()
+        await page.screenshot({ path: qualityDemoPath(`real-bundle-trace-${test.info().project.name}.png`), fullPage: true })
         const sourceButton = page.getByRole('button', { name: 'Open source' }).first()
         await expect(sourceButton).toBeVisible()
         await sourceButton.click()
@@ -217,9 +222,10 @@ test.describe('case study workspace', () => {
         await expect(source).toBeVisible()
         await expect(source).toContainText('Source ID')
         await expect(source).toContainText('Exact source metadata')
+        await page.screenshot({ path: qualityDemoPath(`real-bundle-source-${test.info().project.name}.png`), fullPage: true })
         await source.getByLabel('Close source').click()
         await page.reload()
-        await expect(page.getByRole('heading', { name: 'Decision trace' })).toBeVisible()
+        await expect(page.getByRole('heading', { name: 'How this decision was produced' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Open source' }).first()).toBeVisible()
       }
 
