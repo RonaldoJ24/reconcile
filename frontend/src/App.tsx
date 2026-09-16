@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
   applyProposal,
+  compareProposal,
   commitImport,
   correctProposal,
   createSession,
   exportUrl,
+  getEvaluation,
   getProposal,
   getSource,
   interpretProposal,
@@ -18,11 +20,14 @@ import {
   sampleUrl,
   validateImport,
 } from './api'
+import ComparisonPanel from './ComparisonPanel'
+import EvaluationView from './EvaluationView'
 import type {
   CashLine,
   Capabilities,
   CaseOpen,
   CaseRegistry,
+  Comparison,
   CreditLine,
   DecisionTrace,
   Evidence,
@@ -30,6 +35,7 @@ import type {
   ImportCommit,
   ImportSummary,
   ImportValidation,
+  EvaluationResponse,
   Interpretation,
   InterpretationMode,
   JobState,
@@ -42,17 +48,19 @@ import type {
 } from './types'
 import { centsToMxn, mxnToCents } from './money'
 
-type Screen = 'cases' | 'imports' | 'queue' | 'detail'
+type Screen = 'cases' | 'imports' | 'queue' | 'detail' | 'evaluation'
 export type AppRoute =
   | { screen: 'cases' }
   | { screen: 'imports' }
   | { screen: 'queue' }
   | { screen: 'detail'; id: string }
+  | { screen: 'evaluation' }
 
 export function parseAppRoute(hash: string): AppRoute {
   const value = hash.replace(/^#/, '')
   if (value === 'imports') return { screen: 'imports' }
   if (value === 'queue') return { screen: 'queue' }
+  if (value === 'evaluation') return { screen: 'evaluation' }
   if (value.startsWith('proposal/')) {
     try {
       const id = decodeURIComponent(value.slice('proposal/'.length))
@@ -149,6 +157,21 @@ export function isUncertainApplyError(error: unknown) {
   return error.status === 408 || error.status === 425 || error.status === 429 || error.status >= 500
 }
 
+export function comparisonMatchesDetail(
+  detail: Pick<ProposalDetail, 'revision' | 'decision_trace' | 'model_trace' | 'trace'>,
+  comparison: Comparison,
+) {
+  if (comparison.revision !== detail.revision) return false
+  const traceFingerprints = [
+    detail.decision_trace?.input_fingerprint,
+    typeof detail.model_trace?.input_fingerprint === 'string' ? detail.model_trace.input_fingerprint : undefined,
+    typeof detail.trace?.input_fingerprint === 'string' ? detail.trace.input_fingerprint : undefined,
+  ]
+  const expected = traceFingerprints.find((value): value is string => typeof value === 'string')
+  if (expected !== undefined) return comparison.input_fingerprint === expected
+  return comparison.input_fingerprint === null && comparison.methods.every((method) => method.status === 'unavailable')
+}
+
 const money = (cents: number | undefined) => {
   if (cents === undefined || !Number.isFinite(cents)) return '—'
   return new Intl.NumberFormat('en-MX', { style: 'currency', currency: 'MXN' }).format(cents / 100)
@@ -215,6 +238,10 @@ function App() {
   const [caseError, setCaseError] = useState('')
   const [startup, setStartup] = useState(true)
   const [error, setError] = useState('')
+  const [evaluation, setEvaluation] = useState<EvaluationResponse>()
+  const [evaluationLoading, setEvaluationLoading] = useState(false)
+  const [evaluationError, setEvaluationError] = useState('')
+  const [evaluationAttempt, setEvaluationAttempt] = useState(0)
 
   const refresh = useCallback(async () => {
     const [importResult, proposalResult] = await Promise.all([listImports(), listProposals()])
@@ -250,6 +277,30 @@ function App() {
     })()
     return () => { cancelled = true }
   }, [refresh])
+
+  useEffect(() => {
+    if (startup || route.screen !== 'evaluation') return
+    let cancelled = false
+    setEvaluationLoading(true)
+    setEvaluationError('')
+    void getEvaluation()
+      .then((result) => {
+        if (!cancelled) setEvaluation(result)
+      })
+      .catch((cause) => {
+        if (!cancelled) setEvaluationError(errorText(cause))
+      })
+      .finally(() => {
+        if (!cancelled) setEvaluationLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [evaluationAttempt, route.screen, startup])
+
+  const retryEvaluation = () => {
+    setEvaluation(undefined)
+    setEvaluationError('')
+    setEvaluationAttempt((attempt) => attempt + 1)
+  }
 
   const navigate = (next: AppRoute) => {
     if (typeof window === 'undefined') {
@@ -321,6 +372,9 @@ function App() {
               <span aria-hidden="true">☷</span> Review queue
               {proposals.length > 0 && <span className="nav-count" aria-label={`${proposals.length} proposals`}>{proposals.length}</span>}
             </button>
+            <button className={screen === 'evaluation' ? 'nav-item active' : 'nav-item'} onClick={() => navigate({ screen: 'evaluation' })}>
+              <span aria-hidden="true">▥</span> Evaluation
+            </button>
           </nav>
           <div className="sidebar-foot">
             <p className="eyebrow">What it does</p>
@@ -335,6 +389,7 @@ function App() {
             {screen === 'cases' && <CasesView registry={caseRegistry} busy={caseBusy} onOpen={openCase} />}
             {screen === 'imports' && <ImportsView mode={mode} imports={imports} onError={setError} onRefresh={refresh} />}
             {screen === 'queue' && <QueueView proposals={proposals} onOpen={openDetail} onRefresh={refresh} onError={setError} />}
+            {screen === 'evaluation' && <EvaluationView evaluation={evaluation} loading={evaluationLoading} error={evaluationError} onRetry={retryEvaluation} />}
             {screen === 'detail' && (
               <DetailView
                 id={selectedId}
@@ -376,7 +431,8 @@ function CanonicalAllocationLines({ title, lines, kind }: { title: string; lines
 }
 
 function CanonicalEvidenceSection({ evidence, onSource }: { evidence: Evidence[]; onSource: (sourceId: string) => void }) {
-  return <section className="panel evidence-card"><div className="panel-heading"><div><h2>Evidence</h2><p className="muted">Citations point to immutable source records.</p></div><span className="line-total">{evidence.length}</span></div>{evidence.length === 0 ? <p className="empty-inline">No evidence spans returned.</p> : <ul className="evidence-list">{evidence.map((item, index) => <li key={index}><div><span className="evidence-kind">Evidence</span><q>{item.quote}</q><span className="evidence-position">{item.start}–{item.end}</span><span className="evidence-source mono">Source {item.source_id}</span></div><button className="button button-quiet" type="button" onClick={() => onSource(item.source_id)}>Open source</button></li>)}</ul>}</section>
+  const uniqueEvidence = evidence.filter((item, index, all) => all.findIndex((candidate) => candidate.source_id === item.source_id && candidate.start === item.start && candidate.end === item.end && candidate.quote === item.quote) === index)
+  return <section className="panel evidence-card"><div className="panel-heading"><div><h2>Evidence</h2><p className="muted">Citations point to immutable source records.</p></div><span className="line-total">{uniqueEvidence.length}</span></div>{uniqueEvidence.length === 0 ? <p className="empty-inline">No evidence spans returned.</p> : <ul className="evidence-list">{uniqueEvidence.map((item, index) => <li key={`${item.source_id}-${item.start}-${item.end}-${index}`}><div><span className="evidence-kind">Evidence</span><q>{item.quote}</q><span className="evidence-position">{item.start}–{item.end}</span><span className="evidence-source mono">Source {item.source_id}</span></div><button className="button button-quiet" type="button" onClick={() => onSource(item.source_id)}>Open source</button></li>)}</ul>}</section>
 }
 
 function traceProvenance(source: DecisionTrace['source'] | undefined) {
@@ -384,6 +440,7 @@ function traceProvenance(source: DecisionTrace['source'] | undefined) {
   if (source === 'cache') return 'Validated cache'
   if (source === 'recorded') return 'Recorded validated run'
   if (source === 'rules') return 'Deterministic rules'
+  if (source === 'local') return 'Local model execution'
   if (source === 'unavailable') return 'Unavailable'
   return 'Not returned'
 }
@@ -624,11 +681,17 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const [sourceRecord, setSourceRecord] = useState<SourceRecord>()
   const [sourceBusy, setSourceBusy] = useState(false)
   const [sourceError, setSourceError] = useState('')
+  const [comparisonBusy, setComparisonBusy] = useState(false)
+  const [comparisonError, setComparisonError] = useState('')
   const applyAttemptRef = useRef<{ fingerprint: string; key: string } | undefined>(undefined)
   const applyInFlightRef = useRef(false)
   const sourceRequestVersion = useRef(0)
+  const comparisonGeneration = useRef(0)
 
   const load = useCallback(async (preserveInterpretation = false) => {
+    comparisonGeneration.current += 1
+    setComparisonError('')
+    setComparisonBusy(false)
     if (!id) { setLoading(false); return }
     setLoading(true)
     try {
@@ -671,6 +734,19 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const interpretationDisabledReason = status === 'NEEDS_REVIEW' && (capabilities?.interpret === false || (capabilities?.interpret === undefined && sessionCapabilities?.interpret === false))
     ? 'Live interpretation is disabled for this session.'
     : status === 'NEEDS_REVIEW' && hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.' : undefined
+  const comparisonStale = Boolean(detail.comparison && !comparisonMatchesDetail(detail, detail.comparison))
+  const comparison = hasUnsavedChanges || comparisonStale ? undefined : detail.comparison
+  const comparisonDisabledReason = hasUnsavedChanges
+    ? 'Save or discard unsaved correction changes before comparing this revision.'
+    : comparisonStale
+      ? 'This comparison belongs to an older revision. Compare again to refresh it.'
+      : undefined
+  const clearComparison = () => {
+    comparisonGeneration.current += 1
+    setComparisonBusy(false)
+    setComparisonError('')
+    setDetail((current) => current?.comparison ? { ...current, comparison: undefined } : current)
+  }
   const apply = async () => {
     if (!canApply) {
       onError(draftError ? `Cannot apply: ${draftError}` : hasUnsavedChanges ? 'Save or discard unsaved correction changes before applying.' : typeof versionToken !== 'string' || versionToken.length !== 64 ? 'This proposal is missing a valid version token.' : 'This proposal is not available for application.')
@@ -725,6 +801,33 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
     if (!reviewer.trim() || !reason.trim()) { onError('Reviewer name and reversal reason are required.'); return }
     setBusy('reverse'); onError('')
     try { await reverseApplication(applicationId, { reviewer: reviewer.trim(), reason: reason.trim(), idempotency_key: crypto.randomUUID() }); await load(); await onRefresh() } catch (cause) { onError(errorText(cause)) } finally { setBusy('') }
+  }
+
+  const compare = async () => {
+    if (comparisonBusy || Boolean(busy) || loading) return
+    if (hasUnsavedChanges) {
+      setComparisonError('Save or discard unsaved correction changes before comparing this revision.')
+      return
+    }
+    setComparisonBusy(true)
+    setComparisonError('')
+    const generation = comparisonGeneration.current
+    const requestedDetail = detail
+    try {
+      const result = await compareProposal(id, detail.revision)
+      if (comparisonGeneration.current !== generation) return
+      if (!comparisonMatchesDetail(requestedDetail, result)) {
+        setComparisonError('The comparison response does not match the current proposal revision or input snapshot.')
+        return
+      }
+      setDetail((current) => current && current.proposal_id === requestedDetail.proposal_id && current.revision === requestedDetail.revision
+        ? { ...current, comparison: result }
+        : current)
+    } catch (cause) {
+      if (comparisonGeneration.current === generation) setComparisonError(errorText(cause))
+    } finally {
+      if (comparisonGeneration.current === generation) setComparisonBusy(false)
+    }
   }
 
   const inspectSource = async (sourceId: string) => {
@@ -799,6 +902,14 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
         <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />
         <AlternativesSection alternatives={detail.alternatives} />
         <DecisionTracePanel trace={detail.decision_trace} modelTrace={detail.model_trace} onSource={inspectSource} />
+        <ComparisonPanel
+          comparison={comparison}
+          loading={comparisonBusy}
+          error={comparisonError}
+          onCompare={() => void compare()}
+          canCompare={!hasUnsavedChanges && !Boolean(busy) && !loading}
+          disabledReason={comparisonDisabledReason}
+        />
       </div>
       <aside className="detail-side">
         {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
@@ -807,17 +918,17 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
           <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={Boolean(busy) || (!canCorrect && !canReverse && !canApply)} /></label>
           {editing && canCorrect ? <form onSubmit={correct}>
             <div className="correction-section">
-              <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }])}>Add line</button></div>
+              <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => { clearComparison(); setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
               <p id="amount-format-help" className="field-help">Enter MXN as a decimal amount, such as 100 or 100.00. Values are saved as integer centavos.</p>
-              {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || Boolean(busy)} onChange={(next) => setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item))} onRemove={() => setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index))} />)}
+              {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || Boolean(busy)} onChange={(next) => { clearComparison(); setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item)) }} onRemove={() => { clearComparison(); setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
             </div>
             <div className="correction-section">
-              <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }])}>Add line</button></div>
-              {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || Boolean(busy)} onChange={(next) => setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item))} onRemove={() => setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index))} />)}
+              <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => { clearComparison(); setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
+              {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || Boolean(busy)} onChange={(next) => { clearComparison(); setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item)) }} onRemove={() => { clearComparison(); setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
             </div>
-            {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
+            {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
             {draftError && <p className="draft-status draft-error" role="alert">{draftError}</p>}
-            <div className="edit-actions"><button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft); setEditing(false) }}>Cancel edit</button><button className="button button-secondary" type="submit" disabled={Boolean(busy) || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></div>
+            <div className="edit-actions"><button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft); setEditing(false) }}>Cancel edit</button><button className="button button-secondary" type="submit" disabled={Boolean(busy) || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></div>
           </form> : canCorrect ? <div className="read-only-action"><p className="muted">The persisted allocation is shown above. Enter edit mode to change invoice, credit, or amount lines.</p><button className="button button-secondary full-width" type="button" onClick={() => setEditing(true)}>Edit allocation</button></div> : <p className="muted">This revision is locked. Reviewer details remain available for reversal when the server permits it.</p>}
           <div className="action-divider" />
           <button className="button button-primary full-width" onClick={() => void apply()} disabled={Boolean(busy) || !canApply}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>

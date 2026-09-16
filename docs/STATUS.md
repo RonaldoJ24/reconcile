@@ -286,3 +286,14 @@ concurrent import/apply regression. Real Playwright: two case journeys and two
 financial workflows passed across desktop/mobile; four viewport widths and keyboard
 skip navigation checked. Evidence: `reports/portfolio-v2/engineering-validation.md`.
 Comparison/evaluation and controlled variants/reliability remain in progress.
+
+## Comparison and evaluation acceptance — 2026-09-16
+
+The comparison API executes rules and the unchanged local ranker over the saved
+input fingerprint and persists review-only observations. Provider registries remain
+empty, so Direct/Hybrid are unavailable. The frontend discards stale comparisons
+and serves the packaged historical evaluation after session initialization.
+Focused backend, PostgreSQL, frontend and real desktop/mobile checks passed; exact
+scope and counts are in `reports/portfolio-v2/engineering-validation.md`.
+Controlled variants and reliability remain in progress. No deployment or benchmark
+was executed.

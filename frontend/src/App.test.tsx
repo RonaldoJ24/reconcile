@@ -1,9 +1,9 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App, { ApplyConfirmation, CasesView, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, toCents } from './App'
+import App, { ApplyConfirmation, CasesView, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, toCents } from './App'
 import { centsToMxn, mxnToCents } from './money'
 import { interpretProposal } from './api'
-import type { DecisionTrace, SourceRecord } from './types'
+import type { Comparison, DecisionTrace, SourceRecord } from './types'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -104,6 +104,7 @@ describe('case study surfaces', () => {
   it('maps browser hashes to stable case, queue, and detail routes', () => {
     expect(parseAppRoute('#cases')).toEqual({ screen: 'cases' })
     expect(parseAppRoute('#queue')).toEqual({ screen: 'queue' })
+    expect(parseAppRoute('#evaluation')).toEqual({ screen: 'evaluation' })
     expect(parseAppRoute('#proposal/proposal%201')).toEqual({ screen: 'detail', id: 'proposal 1' })
     expect(parseAppRoute('#proposal/%E0%A4%A')).toEqual({ screen: 'cases' })
   })
@@ -141,6 +142,17 @@ describe('case study surfaces', () => {
     expect(markup).toContain('Stage details')
     expect(markup).toContain('source-1')
     expect(markup).toContain('candidates')
+  })
+
+  it('accepts a comparison only for the detail revision and known input snapshot', () => {
+    const detail = { proposal_id: 'proposal-1', revision: 3, trace: {}, model_trace: null, decision_trace: { input_fingerprint: 'f'.repeat(64), stages: [] } }
+    const matching: Comparison = { revision: 3, input_fingerprint: 'f'.repeat(64), methods: [] }
+    expect(comparisonMatchesDetail(detail, matching)).toBe(true)
+    expect(comparisonMatchesDetail(detail, { ...matching, revision: 2 })).toBe(false)
+    expect(comparisonMatchesDetail(detail, { ...matching, input_fingerprint: 'e'.repeat(64) })).toBe(false)
+    const unavailableWithoutIdentity: Comparison = { ...matching, input_fingerprint: null, methods: [] }
+    expect(comparisonMatchesDetail({ ...detail, decision_trace: undefined }, unavailableWithoutIdentity)).toBe(true)
+    expect(comparisonMatchesDetail({ ...detail, decision_trace: undefined }, { ...unavailableWithoutIdentity, methods: [{ method: 'rules', status: 'proposed', source: 'rules', candidate: null, actionable: false, raw_score: null, duration_ms: null, usage: null, cost_usd: null, reason: null }] })).toBe(false)
   })
 
   it('renders exact source metadata in the readable source surface', () => {

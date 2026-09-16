@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, applyProposal, createSession, getSource } from './api'
+import { ApiError, applyProposal, compareProposal, createSession, getEvaluation, getSource } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -33,5 +33,37 @@ describe('API transport boundary', () => {
     await getSource('source-1')
 
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/sources/source-1', expect.objectContaining({ credentials: 'include' }))
+  })
+
+  it('compares a proposal at the requested revision and keeps the request review-only', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      revision: 7,
+      input_fingerprint: 'a'.repeat(64),
+      methods: [],
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(compareProposal('proposal/1', 7)).resolves.toMatchObject({ revision: 7 })
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/proposals/proposal%2F1/compare', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ expected_revision: 7 }),
+      credentials: 'include',
+    }))
+  })
+
+  it('loads the server packaged evaluation summary without a client side metric source', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      schema_version: 'evaluation-summary-v1',
+      active_engine: 'rules-v2-conservative',
+      provenance: { kind: 'historical_aggregate', report_path: 'reports/release-v1/evaluation.json', report_sha256: 'a'.repeat(64), evaluated_at: '2026-09-14T00:00:00Z', release_commit: 'b'.repeat(40) },
+      historical: [],
+      v2: { status: 'not_evaluated', provider_calls_this_continuation: 0, final_access_this_continuation: false, independent_domain_review: 'pending' },
+      limitations: [],
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getEvaluation()).resolves.toMatchObject({ active_engine: 'rules-v2-conservative' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/evaluation', expect.objectContaining({ credentials: 'include' }))
   })
 })

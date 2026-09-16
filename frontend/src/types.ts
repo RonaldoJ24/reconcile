@@ -179,14 +179,82 @@ export type DecisionTraceStage = {
 export type DecisionTrace = {
   schema_version?: string
   input_fingerprint?: string
-  source?: 'live' | 'cache' | 'recorded' | 'unavailable' | 'rules'
+  source?: 'live' | 'cache' | 'recorded' | 'unavailable' | 'rules' | 'local'
   stages: DecisionTraceStage[]
 }
 
+export type ComparisonStatus = 'proposed' | 'deferred' | 'unavailable' | 'failed'
+export type ComparisonSource = 'live' | 'cache' | 'recorded' | 'unavailable' | 'rules' | 'local'
+
+export type ComparisonUsage = {
+  input_tokens: number | null
+  output_tokens: number | null
+  provider_cache_tokens: number | null
+  reasoning_tokens: number | null
+}
+
+export type ComparisonAllocation = {
+  cash: CashLine[]
+  credits: CreditLine[]
+}
+
+export type ComparisonMethod = {
+  method: string
+  status: ComparisonStatus
+  source: ComparisonSource
+  candidate: ComparisonAllocation | null
+  actionable: false
+  raw_score: number | null
+  duration_ms: number | null
+  usage: ComparisonUsage | null
+  cost_usd: number | null
+  reason: string | null
+}
+
 export type Comparison = {
-  input_fingerprint: string
+  input_fingerprint: string | null
   revision: number
-  methods: Array<Record<string, unknown>>
+  methods: ComparisonMethod[]
+}
+
+export type EvaluationHistoricalRow = {
+  method: string
+  split: string
+  groups: number
+  proposals: number
+  correct_proposals_per_v1_labels: number
+  incorrect_proposals_per_v1_labels: number
+  precision: number
+  coverage: number
+  underdetermined_groups: number
+  abstained_underdetermined: number
+}
+
+export type EvaluationProvenance = {
+  kind: string
+  report_path: string
+  report_sha256: string
+  evaluated_at: string
+  release_commit: string
+}
+
+export type EvaluationV2 = {
+  status: string
+  provider_calls_this_continuation: number
+  final_access_this_continuation: boolean
+  independent_domain_review: string
+}
+
+export type EvaluationSummary = {
+  schema_version: string
+  provenance: EvaluationProvenance
+  historical: EvaluationHistoricalRow[]
+  v2: EvaluationV2
+  limitations: string[]
+}
+
+export type EvaluationResponse = EvaluationSummary & {
+  active_engine: string
 }
 
 export type ProposalDetail = {
