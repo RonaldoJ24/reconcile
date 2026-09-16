@@ -64,6 +64,15 @@ Screenshots and generated browser outputs are ignored working artifacts.
 Browser-native 200% zoom remains unverified: Chromium headless did not respond
 to the zoom shortcut; device scaling is not counted as browser zoom.
 
+## Accepted v2 harness checks
+
+`backend/tests/test_ml_evaluate_v2.py`: 15 tests passed. Ruff and mypy passed for
+the changed module. These checks cover complete joins, allocation support, grouped
+lineage, threshold selection and manifest binding, missing measurements, provider
+unavailability and the guarded one-time final-access mechanism using temporary toy
+files. No reserved project data or new benchmark was executed. The harness consumes
+observations; it does not execute or authenticate provider methods.
+
 ## Research evidence and limitations
 
 The sanitized historical aggregate retains the source report's SHA-256 and exact
@@ -80,6 +89,6 @@ citation-location checks do not establish semantic entailment.
 
 Same-input comparison and artifact rejection;
 controlled evidence variants and reliability experiments; historical evaluation UI;
-v2 harness review; final integrated backend, PostgreSQL and browser verification;
+final integrated backend, PostgreSQL and browser verification;
 final release-boundary scan and private PR. Replace this section with observed
 results as those checks complete.
