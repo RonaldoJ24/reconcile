@@ -31,19 +31,22 @@ The 24-case blinded synthetic domain-review packet is committed in `65bec35`.
 Blank responses, provisional author labels and adjudication instructions are
 separate. No independent review has occurred.
 
-Backend integrity changes remain unaccepted in the separate worktree. Acceptance
-found unsupported follow-up clauses still produce an allocation (for example,
-`Apply invoice 101. Actually wait for confirmation.`). After the two bounded Luna
-corrections, the configured Gemini fallback exited 1 twice before any completed
-agent message. No fallback changes were produced. The owner then explicitly
-authorized one additional Luna correction. The targeted follow-up phrases now
-defer, including the ambiguous `No invoice 101` form. Primary acceptance ran
-`make lint typecheck test`: Ruff and strict mypy passed, with 1,065 offline tests
-passing and 49 PostgreSQL checks deselected. The PostgreSQL acceptance run is
-in progress using the existing test branch's direct connection. Its earlier
-pooled attempt was interrupted during connection establishment, before a test
-completed; a read-only activity check found no blocked SQL transaction.
+Backend integrity was accepted in `c668a7f`: strict JSON centavo integers,
+conservative reference handling, committed-source filtering, changed-message
+invalidation and rerun scheduling, immutable applied/reversed history, and narrower
+invoice/credit locks. Unsupported follow-up clauses and ambiguous `No invoice 101`
+references defer. Primary acceptance ran `make lint typecheck test`: Ruff and strict
+mypy passed, with 1,065 offline tests passing and 49 PostgreSQL checks deselected.
+
+Targeted PostgreSQL acceptance passed 30/30 in 258.57 s on the existing test branch:
+new evidence lifecycle, changed-context rejection, 25 contested-balance races, and
+an independent allocation completing while an unrelated invoice row remained locked.
+The run used the direct endpoint with a bounded connection timeout. An earlier
+pooled attempt was interrupted during connection establishment before a test
+completed; read-only activity checks found no blocked SQL transaction.
 No application-provider inference was called.
+
+Case registry, canonical frontend DTOs and persisted decision traces are in progress.
 
 ## Quality/demo correction — Phase 0 baseline
 
