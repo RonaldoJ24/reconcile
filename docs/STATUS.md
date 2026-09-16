@@ -46,7 +46,9 @@ pooled attempt was interrupted during connection establishment before a test
 completed; read-only activity checks found no blocked SQL transaction.
 No application-provider inference was called.
 
-Case registry, canonical frontend DTOs and persisted decision traces are in progress.
+Canonical frontend DTOs and the case/trace interface are accepted locally (`b56313a`);
+real case endpoint acceptance remains in progress. Draft PRs #24–#27 form the
+verified dependency chain described in `docs/PR_SEQUENCE.md`. No PR was merged.
 
 ## Quality/demo correction — Phase 0 baseline
 
