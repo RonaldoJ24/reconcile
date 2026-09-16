@@ -27,13 +27,14 @@ from reconcile.interpretation.budget import (
     reconcile_unknown_attempt,
     reserve_attempt,
 )
-from reconcile.jobs.queue import claim_one
+from reconcile.jobs.queue import claim_one, run_once
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.maintenance import (
     cleanup_expired_preview_workspaces,
     enforce_database_admission,
 )
 from reconcile.persistence.models import (
+    ApplicationGroup,
     Base,
     CashApplication,
     ImportBatch,
@@ -177,6 +178,163 @@ def test_reimport_conflict_does_not_overwrite_opening_balance(session) -> None:
     invoice = session.query(Invoice).filter_by(workspace_id=workspace.id, invoice_id="i").one()
     assert invoice.outstanding_amount == 10000
     assert invoice.conflicted is True
+
+
+def test_committed_message_stales_pending_match_and_requeues_with_new_evidence(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,message-pending,2026-01-15,C,unidentified payment,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,i,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    first = service.validate_import(workspace.id, parse_batch(bank, invoices), "local")
+    session.commit()
+    service.commit_import(workspace.id, first.id)
+    payment = session.scalar(select(Payment).where(Payment.workspace_id == workspace.id))
+    assert payment is not None
+    proposal = service.process_match(workspace.id, payment.id)
+    assert proposal.status == "NEEDS_REVIEW"
+    assert session.scalar(select(Job).where(Job.workspace_id == workspace.id)) is not None
+
+    second = service.validate_import(
+        workspace.id,
+        parse_batch(
+            bank,
+            invoices,
+            message=b"Apply invoice i.",
+            message_context=parse_message_context(
+                "2026-01-15T12:00:00+00:00", "acct", "message-pending"
+            ),
+        ),
+        "local",
+    )
+    session.commit()
+    service.commit_import(workspace.id, second.id)
+    session.refresh(payment)
+    session.refresh(proposal)
+    assert payment.version == 2
+    assert proposal.status == "STALE"
+
+    job = run_once(session, owner="message-rematch", workspace_id=workspace.id)
+    assert job is not None and job.status == "SUCCEEDED"
+    session.refresh(proposal)
+    assert proposal.current_revision == 2
+    assert proposal.status == "NEEDS_REVIEW"
+
+
+def test_committed_message_flags_applied_evidence_without_rewriting_history(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,message-applied,2026-01-15,C,invoice i,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,i,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    first = service.validate_import(workspace.id, parse_batch(bank, invoices), "local")
+    session.commit()
+    service.commit_import(workspace.id, first.id)
+    payment = session.scalar(select(Payment).where(Payment.workspace_id == workspace.id))
+    assert payment is not None
+    proposal = service.process_match(workspace.id, payment.id)
+    revision = session.scalar(
+        select(ProposalRevision).where(
+            ProposalRevision.proposal_id == proposal.id,
+            ProposalRevision.revision == 1,
+        )
+    )
+    assert revision is not None
+    service.apply(
+        workspace.id,
+        proposal.id,
+        revision.revision,
+        revision.version_token,
+        "reviewer",
+        "applied-message",
+    )
+    running = claim_one(session, owner="old-match", workspace_id=workspace.id)
+    assert running is not None and running.status == "RUNNING"
+
+    second = service.validate_import(
+        workspace.id,
+        parse_batch(
+            bank,
+            invoices,
+            message=b"The customer also sent a note.",
+            message_context=parse_message_context(
+                "2026-01-15T12:00:00+00:00", "acct", "message-applied"
+            ),
+        ),
+        "local",
+    )
+    session.commit()
+    result = service.commit_import(workspace.id, second.id)
+    session.refresh(payment)
+    session.refresh(proposal)
+    assert payment.version == 3
+    assert proposal.status == "APPLIED"
+    assert proposal.review_required is True
+    assert proposal.current_revision == 1
+    assert result["jobs"]
+    assert session.query(ProposalRevision).filter_by(proposal_id=proposal.id).count() == 1
+
+    rematch = run_once(session, owner="new-match", workspace_id=workspace.id)
+    assert rematch is not None and rematch.status == "SUCCEEDED"
+    session.refresh(proposal)
+    assert proposal.status == "APPLIED"
+    assert proposal.current_revision == 1
+    assert session.query(ApplicationGroup).filter_by(proposal_id=proposal.id).count() == 1
+
+
+def test_duplicate_message_bytes_with_changed_context_are_rejected(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,context-one,2026-01-15,C,invoice i,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,i,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    message = b"The payment reference is i."
+    first = service.validate_import(
+        workspace.id,
+        parse_batch(
+            bank,
+            invoices,
+            message=message,
+            message_context=parse_message_context(
+                "2026-01-15T12:00:00+00:00", "acct", "context-one"
+            ),
+        ),
+        "local",
+    )
+    session.commit()
+    service.commit_import(workspace.id, first.id)
+
+    with pytest.raises(ServiceError, match="different payment"):
+        service.validate_import(
+            workspace.id,
+            parse_batch(
+                bank,
+                invoices,
+                message=message,
+                message_context=parse_message_context(
+                    "2026-01-15T12:00:00+00:00", "acct", "context-two"
+                ),
+            ),
+            "local",
+        )
 
 
 def test_expired_job_lease_is_reclaimed(session) -> None:
@@ -504,7 +662,7 @@ def test_shadow_prediction_trace_persists_without_changing_rules(
     proposal = service.process_match(workspace.id, payment.id)
     revision = session.query(ProposalRevision).filter_by(proposal_id=proposal.id).one()
     assert proposal.status == "PROPOSED"
-    assert revision.provenance == "rules-v1"
+    assert revision.provenance == "rules-v2-conservative"
     assert revision.cash_lines == [{"invoice_id": "shadow-invoice", "amount": 10_000}]
     assert revision.model_trace["ranker"]["status"] == "observed"
     assert revision.model_trace["ranker"]["model_id"] == "ranker-ml-v1-logistic"
@@ -706,6 +864,92 @@ def test_cross_workspace_application_and_reversal_are_denied(session) -> None:
     with pytest.raises(ServiceError, match="application not found"):
         service.reverse(outsider.id, applied.id, "outsider", "no access", "outsider-reversal")
     assert session.query(CashApplication).filter_by(application_group_id=applied.id).count() == 1
+
+
+def test_unrelated_invoice_lock_does_not_block_application(db_engine) -> None:
+    session_factory = sessionmaker(bind=db_engine, expire_on_commit=False)
+    with session_factory() as setup:
+        service = ReconcileService(setup)
+        workspace = service.create_workspace()
+        batch = ImportBatch(workspace_id=workspace.id, status="COMMITTED")
+        setup.add(batch)
+        setup.flush()
+        source = Source(
+            workspace_id=workspace.id,
+            batch_id=batch.id,
+            kind="bank",
+            sha256=uuid.uuid4().hex,
+            raw_bytes=b"",
+            status="COMMITTED",
+        )
+        setup.add(source)
+        setup.flush()
+        invoices = [
+            Invoice(
+                workspace_id=workspace.id,
+                source_id=source.id,
+                customer_id="c",
+                customer_name="C",
+                invoice_id=identifier,
+                issued_date=date(2026, 1, 1),
+                due_date=date(2026, 1, 15),
+                balance_as_of=date(2026, 1, 15),
+                outstanding_amount=10_000,
+                currency="MXN",
+            )
+            for identifier in ("unrelated-lock", "independent-apply")
+        ]
+        payment = Payment(
+            workspace_id=workspace.id,
+            source_id=source.id,
+            source_account_id="acct",
+            transaction_id="independent-payment",
+            booking_date=date(2026, 1, 15),
+            payer_name="C",
+            reference="invoice independent-apply",
+            amount=10_000,
+            currency="MXN",
+        )
+        setup.add_all([*invoices, payment])
+        setup.commit()
+        proposal = service.process_match(workspace.id, payment.id)
+        revision = setup.scalar(
+            select(ProposalRevision).where(
+                ProposalRevision.proposal_id == proposal.id,
+                ProposalRevision.revision == 1,
+            )
+        )
+        assert revision is not None
+
+    holder = session_factory()
+    holder.execute(
+        select(Invoice)
+        .where(Invoice.workspace_id == workspace.id, Invoice.invoice_id == "unrelated-lock")
+        .with_for_update()
+    ).scalar_one()
+    worker = session_factory()
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(
+        ReconcileService(worker).apply,
+        workspace.id,
+        proposal.id,
+        revision.revision,
+        revision.version_token,
+        "reviewer",
+        "independent-apply",
+    )
+    try:
+        # The holder keeps an unrelated invoice locked while the worker must
+        # complete; a broad workspace lock would make this timeout.
+        group = future.result(timeout=60)
+    finally:
+        holder.rollback()
+        holder.close()
+        if not future.done():
+            future.result(timeout=60)
+        executor.shutdown(wait=True)
+        worker.close()
+    assert group.id is not None
 
 
 @pytest.mark.parametrize("race_number", range(25))

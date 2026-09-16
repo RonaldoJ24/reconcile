@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
-import re
 import uuid
 from collections import defaultdict
 from typing import Any
@@ -11,7 +10,7 @@ from typing import Any
 from sqlalchemy import func, literal, select
 from sqlalchemy.orm import Session
 
-from reconcile.domain.matching import propose, validate_allocation
+from reconcile.domain.matching import _mentions, propose, validate_allocation
 from reconcile.domain.types import (
     CashLine,
     CreditFact,
@@ -139,7 +138,7 @@ def _revision_from_result(
     result: ProposalResult,
     token: str,
     *,
-    provenance: str = "rules-v1",
+    provenance: str = "rules-v2-conservative",
     model_trace: dict[str, object] | None = None,
     reviewer: str | None = None,
 ) -> ProposalRevision:
@@ -171,13 +170,7 @@ def _revision_from_result(
 
 
 def _identifier_mentioned(identifier: str, text: str) -> bool:
-    return bool(
-        re.search(
-            rf"(?<![A-Za-z0-9._:/-]){re.escape(identifier)}(?![A-Za-z0-9._:/-])",
-            text,
-            flags=re.IGNORECASE,
-        )
-    )
+    return _mentions(identifier, text)
 
 
 def _shadow_group(
@@ -376,6 +369,26 @@ class ReconcileService:
         self.session.flush()
         return workspace
 
+    def _enqueue_match_job(self, workspace_id: uuid.UUID, payment_id: uuid.UUID) -> str | None:
+        payment_key = str(payment_id)
+        for existing in self.session.scalars(
+            select(Job).where(
+                Job.workspace_id == workspace_id,
+                Job.kind == "match-payment",
+                Job.status == "PENDING",
+            )
+        ):
+            if existing.payload.get("payment_id") == payment_key:
+                return None
+        job = Job(
+            workspace_id=workspace_id,
+            kind="match-payment",
+            payload={"payment_id": payment_key},
+        )
+        self.session.add(job)
+        self.session.flush()
+        return str(job.id)
+
     def validate_import(
         self, workspace_id: uuid.UUID, batch: ParsedBatch, profile: str
     ) -> ImportBatch:
@@ -395,6 +408,28 @@ class ReconcileService:
         if entity_count > limits["entities"]:
             raise ServiceError("quota", "batch exceeds entity limit", 413)
         sources = (batch.bank, batch.invoices, batch.credits, batch.message)
+        if batch.message is not None and batch.message_context is not None:
+            existing_message = self.session.scalar(
+                select(Source).where(
+                    Source.workspace_id == workspace_id,
+                    Source.kind == batch.message.kind,
+                    Source.sha256 == batch.message.sha256,
+                )
+            )
+            expected_metadata = {
+                "message_time": batch.message_context.message_time.isoformat(),
+                "payment_source_account_id": batch.message_context.payment_source_account_id,
+                "payment_transaction_id": batch.message_context.payment_transaction_id,
+            }
+            if existing_message is not None and any(
+                existing_message.source_metadata.get(key) != value
+                for key, value in expected_metadata.items()
+            ):
+                raise ServiceError(
+                    "source_conflict",
+                    "message bytes are already associated with a different payment",
+                    409,
+                )
         current_workspace_bytes = int(
             self.session.scalar(
                 select(func.coalesce(func.sum(func.length(Source.raw_bytes)), 0)).where(
@@ -505,6 +540,7 @@ class ReconcileService:
         by_kind = {s.kind: s for s in sources}
         counts: dict[str, Any] = {"payments": 0, "invoices": 0, "credits": 0, "conflicts": []}
         jobs: list[str] = []
+        created_payment_ids: set[uuid.UUID] = set()
         # Sources remain immutable; only accepted rows become business records.
         payment_source = by_kind.get("bank")
         if payment_source:
@@ -536,14 +572,10 @@ class ReconcileService:
                 self.session.add(payment)
                 self.session.flush()
                 counts["payments"] += 1
-                job = Job(
-                    workspace_id=workspace_id,
-                    kind="match-payment",
-                    payload={"payment_id": str(payment.id)},
-                )
-                self.session.add(job)
-                self.session.flush()
-                jobs.append(str(job.id))
+                created_payment_ids.add(payment.id)
+                job_id = self._enqueue_match_job(workspace_id, payment.id)
+                if job_id is not None:
+                    jobs.append(job_id)
         invoice_source = by_kind.get("invoice")
         if invoice_source:
             parsed = parse_csv_source("invoice", invoice_source.raw_bytes, profile=batch.profile)
@@ -608,6 +640,7 @@ class ReconcileService:
         # A message association is context, never an inferred filename relationship.
         message_source = by_kind.get("message")
         if message_source:
+            message_source.status = "COMMITTED"
             metadata = message_source.source_metadata
             associated_payment = self.session.scalar(
                 select(Payment).where(
@@ -616,8 +649,34 @@ class ReconcileService:
                     Payment.transaction_id == metadata.get("payment_transaction_id"),
                 )
             )
+            payment_proposals = (
+                self._lock_payment_proposals(workspace_id, associated_payment.id)
+                if associated_payment
+                else []
+            )
             if associated_payment:
-                associated_payment.customer_id = associated_payment.customer_id
+                associated_payment = self.session.scalar(
+                    select(Payment)
+                    .where(
+                        Payment.id == associated_payment.id,
+                        Payment.workspace_id == workspace_id,
+                    )
+                    .with_for_update()
+                )
+            if associated_payment and associated_payment.id not in created_payment_ids:
+                # New evidence changes the payment snapshot. Pending decisions are
+                # stale and an applied decision remains immutable but needs review.
+                associated_payment.version += 1
+                self._stale_for_payment(
+                    workspace_id, associated_payment.id, proposals=payment_proposals
+                )
+            if associated_payment:
+                job_id = self._enqueue_match_job(workspace_id, associated_payment.id)
+                if job_id is not None:
+                    jobs.append(job_id)
+        for source in sources:
+            if source.status == "VALIDATED":
+                source.status = "COMMITTED"
         batch.status = "COMMITTED"
         self.session.commit()
         return {"batch_id": str(batch.id), **counts, "jobs": jobs}
@@ -628,9 +687,29 @@ class ReconcileService:
         )
         if payment is None:
             raise ServiceError("not_found", "payment not found", 404)
+        existing_proposal = self.session.scalar(
+            select(Proposal)
+            .where(Proposal.workspace_id == workspace_id, Proposal.payment_id == payment.id)
+            .order_by(Proposal.created_at.desc())
+            .with_for_update()
+        )
+        if existing_proposal and existing_proposal.status in (
+            ProposalStatus.APPLIED.value,
+            ProposalStatus.REVERSED.value,
+        ):
+            # Source changes flag applied evidence for review; they never rewrite
+            # the applied or reversed revision when a queued rematch runs.
+            return existing_proposal
         evidence: dict[str, str] = {}
         for source in self.session.scalars(
-            select(Source).where(Source.workspace_id == workspace_id, Source.kind == "message")
+            select(Source)
+            .join(ImportBatch, Source.batch_id == ImportBatch.id)
+            .where(
+                Source.workspace_id == workspace_id,
+                Source.kind == "message",
+                ImportBatch.status == "COMMITTED",
+                Source.status != "REJECTED_CONFLICT",
+            )
         ):
             if (
                 source.source_metadata.get("payment_source_account_id") == payment.source_account_id
@@ -714,11 +793,7 @@ class ReconcileService:
             [_credit_fact(c) for c in credits],
             evidence,
         )
-        proposal = self.session.scalar(
-            select(Proposal)
-            .where(Proposal.workspace_id == workspace_id, Proposal.payment_id == payment.id)
-            .order_by(Proposal.created_at.desc())
-        )
+        proposal = existing_proposal
         if proposal is None:
             proposal = Proposal(
                 workspace_id=workspace_id,
@@ -942,7 +1017,13 @@ class ReconcileService:
         invoices = list(
             self.session.scalars(
                 select(Invoice)
-                .where(Invoice.workspace_id == workspace_id)
+                .where(
+                    Invoice.workspace_id == workspace_id,
+                    Invoice.invoice_id.in_(
+                        {line.invoice_id for line in cash}
+                        | {line.invoice_id for line in credits}
+                    ),
+                )
                 .order_by(Invoice.id)
                 .with_for_update()
             )
@@ -950,7 +1031,10 @@ class ReconcileService:
         credits_db = list(
             self.session.scalars(
                 select(CreditNote)
-                .where(CreditNote.workspace_id == workspace_id)
+                .where(
+                    CreditNote.workspace_id == workspace_id,
+                    CreditNote.credit_note_id.in_({line.credit_note_id for line in credits}),
+                )
                 .order_by(CreditNote.id)
                 .with_for_update()
             )
@@ -1068,7 +1152,10 @@ class ReconcileService:
         all_invoices = list(
             self.session.scalars(
                 select(Invoice)
-                .where(Invoice.workspace_id == workspace_id)
+                .where(
+                    Invoice.workspace_id == workspace_id,
+                    Invoice.invoice_id.in_(invoice_ids),
+                )
                 .order_by(Invoice.id)
                 .with_for_update()
             )
@@ -1078,7 +1165,10 @@ class ReconcileService:
             list(
                 self.session.scalars(
                     select(CreditNote)
-                    .where(CreditNote.workspace_id == workspace_id)
+                    .where(
+                        CreditNote.workspace_id == workspace_id,
+                        CreditNote.credit_note_id.in_(credit_ids),
+                    )
                     .order_by(CreditNote.id)
                     .with_for_update()
                 )
@@ -1369,19 +1459,36 @@ class ReconcileService:
                 else:
                     proposal.status = ProposalStatus.STALE.value
 
-    def _stale_for_payment(self, workspace_id: uuid.UUID, payment_id: uuid.UUID) -> None:
-        proposals = self.session.scalars(
-            select(Proposal).where(
-                Proposal.workspace_id == workspace_id,
-                Proposal.payment_id == payment_id,
-                Proposal.status.in_(
-                    [
-                        ProposalStatus.PROPOSED.value,
-                        ProposalStatus.NEEDS_REVIEW.value,
-                        ProposalStatus.APPLIED.value,
-                    ]
-                ),
+    def _lock_payment_proposals(
+        self, workspace_id: uuid.UUID, payment_id: uuid.UUID
+    ) -> list[Proposal]:
+        return list(
+            self.session.scalars(
+                select(Proposal)
+                .where(
+                    Proposal.workspace_id == workspace_id,
+                    Proposal.payment_id == payment_id,
+                    Proposal.status.in_(
+                        [
+                            ProposalStatus.PROPOSED.value,
+                            ProposalStatus.NEEDS_REVIEW.value,
+                            ProposalStatus.APPLIED.value,
+                        ]
+                    ),
+                )
+                .with_for_update()
             )
+        )
+
+    def _stale_for_payment(
+        self,
+        workspace_id: uuid.UUID,
+        payment_id: uuid.UUID,
+        *,
+        proposals: list[Proposal] | None = None,
+    ) -> None:
+        proposals = proposals if proposals is not None else self._lock_payment_proposals(
+            workspace_id, payment_id
         )
         for proposal in proposals:
             if proposal.status == ProposalStatus.APPLIED.value:

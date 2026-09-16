@@ -11,6 +11,8 @@ from typing import Any
 from .artifact import ArtifactError, LoadedArtifact, load_artifact
 from .features import candidate_features, score_classifier
 
+ACTIVE_RULES_IDENTITY = "rules-v2-conservative"
+
 
 def runtime_mode() -> str:
     mode = os.getenv("RECONCILE_RANKER_MODE", "rules-v1").strip().lower()
@@ -48,6 +50,7 @@ def rank_candidates(
     candidates = candidates[:max_candidates]
     trace: dict[str, Any] = {
         "mode": runtime_mode(),
+        "rules_identity": ACTIVE_RULES_IDENTITY,
         "model_id": None,
         "model_version": None,
         "ranked_candidate": None,
@@ -97,4 +100,10 @@ def shadow_rank(group: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
 predict_shadow = rank_candidates
 
 
-__all__ = ["ArtifactError", "rank_candidates", "runtime_mode", "shadow_rank"]
+__all__ = [
+    "ACTIVE_RULES_IDENTITY",
+    "ArtifactError",
+    "rank_candidates",
+    "runtime_mode",
+    "shadow_rank",
+]
