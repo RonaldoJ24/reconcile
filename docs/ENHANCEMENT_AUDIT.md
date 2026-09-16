@@ -51,8 +51,11 @@ evidence. No inferred authorization to deploy, enable inference, access credenti
 publish, change licensing or create infrastructure. The existing workflow is plain
 Python, not LangGraph. No authentic matching provider recording is assumed.
 
-## Current environment limitation
+## Test environment
 
 No PostgreSQL executable/service configuration or `TEST_DATABASE_URL` was available
-at intake. No credentials were read. Integration/E2E remain pending a dedicated
-test connection; offline implementation and tests can proceed independently.
+at intake. The owner directed this task to the historical setup. Neon's existing
+`test-phases-0-2` branch (`br-broad-haze-aelm777j`) was verified ready, separate from
+main and expiring 2026-09-22. Tests use that previously authorized dedicated branch;
+no new infrastructure or credential changes are needed. Connection values are
+captured directly into process environments and never displayed or committed.
