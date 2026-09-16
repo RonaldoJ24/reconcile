@@ -56,5 +56,9 @@ class InterpretationRequestBody(StrictModel):
     mode: Literal["direct", "hybrid"]
 
 
+class ComparisonRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+
+
 class ErrorResponse(StrictModel):
     error: dict[str, Any]
