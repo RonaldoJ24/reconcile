@@ -4,6 +4,10 @@ const proposalId = 'proposal-1'
 const paymentId = 'payment-1'
 const sourceId = 'source-1'
 const token = 'a'.repeat(64)
+const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page) => {
+  const size = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }))
+  expect(size.page).toBeLessThanOrEqual(size.viewport)
+}
 
 const cases = [
   { id: 'straightforward', title: 'Straightforward payment', description: 'One clear invoice match.', amount: 10000 },
@@ -14,8 +18,13 @@ const cases = [
 ]
 
 async function mockCaseApi(page: import('@playwright/test').Page) {
-  let opened = false
+  let openedCase: string | undefined
+  const openCounts = new Map<string, number>()
   let jobRuns = 0
+
+  const proposalForCase = (caseId: string) => caseId === 'bundle' ? proposalId : `${caseId}-proposal`
+  const paymentForCase = (caseId: string) => caseId === 'bundle' ? paymentId : `payment-${caseId}`
+  const activeCase = () => openedCase ? cases.find((item) => item.id === openedCase) ?? cases[0] : undefined
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
@@ -29,10 +38,14 @@ async function mockCaseApi(page: import('@playwright/test').Page) {
       await route.fulfill({ json: { version: 'case-fixtures-v1', cases } })
       return
     }
-    if (url.pathname === '/api/v1/cases/bundle/open' && method === 'POST') {
-      opened = true
+    const openMatch = url.pathname.match(/^\/api\/v1\/cases\/([^/]+)\/open$/)
+    if (openMatch && method === 'POST') {
+      const caseId = decodeURIComponent(openMatch[1])
+      const resumed = openCounts.has(caseId)
+      openCounts.set(caseId, (openCounts.get(caseId) ?? 0) + 1)
+      openedCase = caseId
       jobRuns = 0
-      await route.fulfill({ json: { case_id: 'bundle', scenario_version: 'v1', payment_id: paymentId, proposal_id: null, jobs: ['job-1'], resumed: false } })
+      await route.fulfill({ json: { case_id: caseId, scenario_version: 'v1', payment_id: paymentForCase(caseId), proposal_id: null, jobs: ['job-1'], resumed } })
       return
     }
     if (url.pathname === '/api/v1/jobs/run-once' && method === 'POST') {
@@ -45,17 +58,20 @@ async function mockCaseApi(page: import('@playwright/test').Page) {
       return
     }
     if (url.pathname === '/api/v1/proposals' && method === 'GET') {
-      await route.fulfill({ json: opened ? [{ proposal_id: proposalId, payment_id: paymentId, status: 'NEEDS_REVIEW', revision: 1, amount: 5400000, payer_name: 'Case payer', source_account_id: 'acct-case', transaction_id: paymentId, booking_date: '2026-01-15', application_id: null }] : [] })
+      const currentCase = activeCase()
+      await route.fulfill({ json: currentCase ? [{ proposal_id: proposalForCase(currentCase.id), payment_id: paymentForCase(currentCase.id), status: 'NEEDS_REVIEW', revision: 1, amount: currentCase.amount, payer_name: 'Case payer', source_account_id: 'acct-case', transaction_id: paymentForCase(currentCase.id), booking_date: '2026-01-15', application_id: null }] : [] })
       return
     }
-    if (url.pathname === `/api/v1/proposals/${proposalId}` && method === 'GET') {
+    const currentCase = activeCase()
+    const currentProposalId = currentCase ? proposalForCase(currentCase.id) : undefined
+    if (currentProposalId && url.pathname === `/api/v1/proposals/${currentProposalId}` && method === 'GET') {
       await route.fulfill({ json: {
-        proposal_id: proposalId,
-        payment_id: paymentId,
+        proposal_id: currentProposalId,
+        payment_id: paymentForCase(currentCase.id),
         status: 'NEEDS_REVIEW',
         revision: 1,
         reason: 'Needs evidence review',
-        payment: { id: paymentId, amount: 5400000, reference: 'Bundle payment', payer_name: 'Case payer', source_account_id: 'acct-case', transaction_id: paymentId, booking_date: '2026-01-15' },
+        payment: { id: paymentForCase(currentCase.id), amount: currentCase.amount, reference: `${currentCase.title} payment`, payer_name: 'Case payer', source_account_id: 'acct-case', transaction_id: paymentForCase(currentCase.id), booking_date: '2026-01-15' },
         cash: [{ invoice_id: '101', amount: 10000 }],
         credits: [{ credit_note_id: '103', invoice_id: '102', amount: 100000 }],
         balances: {
@@ -65,7 +81,7 @@ async function mockCaseApi(page: import('@playwright/test').Page) {
         unapplied_cash: 5290000,
         version_token: token,
         application_id: null,
-        case: { id: 'bundle', version: 'v1' },
+        case: { id: currentCase.id, version: 'v1' },
         alternatives: [],
         signals: [],
         trace: {},
@@ -137,6 +153,85 @@ test.describe('case study workspace', () => {
     await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+    await page.getByText('Stage details').click()
+    await expect(page.getByText('rules-v1')).toBeVisible()
+    await page.getByRole('button', { name: 'Open source' }).first().click()
+    await expect(page.getByRole('dialog', { name: /source-1/ })).toContainText('exact source text')
+    await page.getByRole('dialog', { name: /source-1/ }).getByLabel('Close source').click()
+    await expectNoHorizontalOverflow(page)
     await page.screenshot({ path: `output/quality-demo/mock-case-${test.info().project.name}.png`, fullPage: true })
+  })
+
+  test('opens and resumes every registered case without changing the viewport', async ({ page }) => {
+    await mockCaseApi(page)
+    await page.goto('/')
+    await expect(page.locator('.case-card')).toHaveCount(5)
+
+    for (const scenario of cases) {
+      const card = page.locator('.case-card').filter({ hasText: scenario.id })
+      const firstOpen = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes(`/api/v1/cases/${scenario.id}/open`))
+      await card.click()
+      await expect((await firstOpen).json()).resolves.toMatchObject({ case_id: scenario.id, resumed: false })
+      await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+      await expect(page.getByText(scenario.id, { exact: true })).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+
+      await page.getByRole('button', { name: 'Cases' }).click()
+      const resumedOpen = page.waitForResponse((response) => response.request().method() === 'POST' && response.url().includes(`/api/v1/cases/${scenario.id}/open`))
+      await page.locator('.case-card').filter({ hasText: scenario.id }).click()
+      await expect((await resumedOpen).json()).resolves.toMatchObject({ case_id: scenario.id, resumed: true })
+      await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+
+      if (scenario !== cases[cases.length - 1]) await page.getByRole('button', { name: 'Cases' }).click()
+    }
+
+    await page.screenshot({ path: `output/quality-demo/mock-cases-${test.info().project.name}.png`, fullPage: true })
+  })
+
+  test('real backend opens and resumes all five cases with persisted evidence', async ({ page }) => {
+    test.skip(process.env.E2E_REAL_CASES !== '1', 'Run with E2E_REAL_CASES=1 after the case API is available.')
+
+    await page.goto('/')
+    await expect(page.locator('.case-card')).toHaveCount(5)
+    await expectNoHorizontalOverflow(page)
+
+    for (const scenario of cases) {
+      const card = page.locator('.case-card').filter({ hasText: scenario.id })
+      const firstOpen = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/v1/cases/${scenario.id}/open`)
+      await card.click()
+      const firstBody = await (await firstOpen).json() as { case_id?: string; resumed?: boolean }
+      expect(firstBody).toMatchObject({ case_id: scenario.id, resumed: false })
+      await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+      await expect(page.getByText(scenario.id, { exact: true })).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+
+      if (scenario.id === 'bundle') {
+        await expect(page.getByRole('heading', { name: 'Decision trace' })).toBeVisible()
+        await page.getByText('Stage details').first().click()
+        await expect(page.locator('.trace-stage-details').first()).toBeVisible()
+        const sourceButton = page.getByRole('button', { name: 'Open source' }).first()
+        await expect(sourceButton).toBeVisible()
+        await sourceButton.click()
+        const source = page.getByRole('dialog')
+        await expect(source).toBeVisible()
+        await expect(source).toContainText('Source ID')
+        await expect(source).toContainText('Exact source metadata')
+        await source.getByLabel('Close source').click()
+        await page.reload()
+        await expect(page.getByRole('heading', { name: 'Decision trace' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Open source' }).first()).toBeVisible()
+      }
+
+      await page.getByRole('button', { name: 'Cases' }).click()
+      await expect(page.locator('.case-card')).toHaveCount(5)
+      const resumedOpen = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/v1/cases/${scenario.id}/open`)
+      await page.locator('.case-card').filter({ hasText: scenario.id }).click()
+      const resumedBody = await (await resumedOpen).json() as { case_id?: string; resumed?: boolean }
+      expect(resumedBody).toMatchObject({ case_id: scenario.id, resumed: true })
+      await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+      if (scenario !== cases[cases.length - 1]) await page.getByRole('button', { name: 'Cases' }).click()
+    }
   })
 })

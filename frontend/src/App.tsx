@@ -400,7 +400,7 @@ export function SourceViewer({ sourceId, source, busy, error, onClose }: { sourc
     return () => { if (dialog?.open) dialog.close() }
   }, [])
   if (!sourceId) return null
-  return <dialog className="source-dialog" ref={dialogRef} aria-labelledby="source-viewer-heading" onCancel={(event) => { event.preventDefault(); onClose() }}><div className="panel-heading"><div><p className="eyebrow">Source record</p><h2 id="source-viewer-heading">{source?.kind ?? 'Source'} · {sourceId}</h2></div><button className="icon-button" type="button" aria-label="Close source" onClick={onClose}>×</button></div>{busy && <p role="status">Loading authenticated source…</p>}{error && <p className="draft-status draft-error" role="alert">{error}</p>}{source && <><dl className="source-meta"><Data label="Source ID" value={source.source_id} mono /><Data label="SHA-256" value={source.sha256} mono /><Data label="Bytes" value={String(source.bytes)} /></dl><pre className="source-content">{source.text ?? JSON.stringify(source.rows, null, 2)}</pre><details className="trace-raw"><summary>Exact source metadata</summary><pre>{JSON.stringify({ metadata: source.metadata, row_locators: source.row_locators, issues: source.issues }, null, 2)}</pre></details></>}<div className="confirmation-actions"><button className="button button-secondary" type="button" onClick={onClose}>Close source</button></div></dialog>
+  return <dialog className="source-dialog" ref={dialogRef} aria-labelledby="source-viewer-heading" onCancel={(event) => { event.preventDefault(); onClose() }}><div className="panel-heading"><div><p className="eyebrow">Source record</p><h2 id="source-viewer-heading">{source?.kind ?? 'Source'} · {sourceId}</h2></div><button className="icon-button" type="button" aria-label="Close source" onClick={onClose}>×</button></div>{busy && <p role="status">Loading authenticated source…</p>}{error && <p className="draft-status draft-error" role="alert">{error}</p>}{source && <><dl className="source-meta"><Data label="Source ID" value={source.source_id} mono /><Data label="Version" value={source.version === undefined ? 'Not returned' : String(source.version)} /><Data label="SHA-256" value={source.sha256} mono /><Data label="Bytes" value={String(source.bytes)} /></dl><pre className="source-content">{source.raw_text ?? source.text ?? JSON.stringify(source.rows, null, 2)}</pre><details className="trace-raw"><summary>Exact source metadata</summary><pre>{JSON.stringify({ version: source.version ?? null, metadata: source.metadata, row_locators: source.row_locators, issues: source.issues }, null, 2)}</pre></details></>}<div className="confirmation-actions"><button className="button button-secondary" type="button" onClick={onClose}>Close source</button></div></dialog>
 }
 
 export function CasesView({ registry, busy, onOpen }: { registry?: CaseRegistry; busy: string; onOpen: (caseId: string) => Promise<void> }) {
@@ -626,6 +626,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const [sourceError, setSourceError] = useState('')
   const applyAttemptRef = useRef<{ fingerprint: string; key: string } | undefined>(undefined)
   const applyInFlightRef = useRef(false)
+  const sourceRequestVersion = useRef(0)
 
   const load = useCallback(async (preserveInterpretation = false) => {
     if (!id) { setLoading(false); return }
@@ -665,7 +666,11 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const canCorrect = !immutable && (capabilities?.correct ?? sessionCapabilities?.correct ?? true)
   const canApply = status === 'PROPOSED' && !immutable && (capabilities?.apply ?? sessionCapabilities?.apply ?? status === 'PROPOSED') && typeof versionToken === 'string' && versionToken.length === 64 && !hasUnsavedChanges && !draftError
   const canReverse = status === 'APPLIED' && (capabilities?.reverse ?? sessionCapabilities?.reverse ?? true)
-  const canInterpret = status === 'NEEDS_REVIEW' && !hasUnsavedChanges && (capabilities?.interpret ?? sessionCapabilities?.interpret ?? false)
+  const interpretationEnabled = capabilities?.interpret ?? sessionCapabilities?.interpret ?? false
+  const canInterpret = status === 'NEEDS_REVIEW' && !hasUnsavedChanges && interpretationEnabled
+  const interpretationDisabledReason = status === 'NEEDS_REVIEW' && (capabilities?.interpret === false || (capabilities?.interpret === undefined && sessionCapabilities?.interpret === false))
+    ? 'Live interpretation is disabled for this session.'
+    : status === 'NEEDS_REVIEW' && hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.' : undefined
   const apply = async () => {
     if (!canApply) {
       onError(draftError ? `Cannot apply: ${draftError}` : hasUnsavedChanges ? 'Save or discard unsaved correction changes before applying.' : typeof versionToken !== 'string' || versionToken.length !== 64 ? 'This proposal is missing a valid version token.' : 'This proposal is not available for application.')
@@ -723,17 +728,27 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   }
 
   const inspectSource = async (sourceId: string) => {
+    const requestVersion = ++sourceRequestVersion.current
     setSourceRequest(sourceId)
     setSourceRecord(undefined)
     setSourceError('')
     setSourceBusy(true)
     try {
-      setSourceRecord(await getSource(sourceId))
+      const result = await getSource(sourceId)
+      if (sourceRequestVersion.current === requestVersion) setSourceRecord(result)
     } catch (cause) {
-      setSourceError(errorText(cause))
+      if (sourceRequestVersion.current === requestVersion) setSourceError(errorText(cause))
     } finally {
-      setSourceBusy(false)
+      if (sourceRequestVersion.current === requestVersion) setSourceBusy(false)
     }
+  }
+
+  const closeSource = () => {
+    sourceRequestVersion.current += 1
+    setSourceRequest(undefined)
+    setSourceRecord(undefined)
+    setSourceError('')
+    setSourceBusy(false)
   }
 
   const interpret = async (requestedMode: InterpretationMode) => {
@@ -786,7 +801,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
         <DecisionTracePanel trace={detail.decision_trace} modelTrace={detail.model_trace} onSource={inspectSource} />
       </div>
       <aside className="detail-side">
-        {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
+        {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
         <section className="panel action-panel">
           <div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div>
           <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={Boolean(busy) || (!canCorrect && !canReverse && !canApply)} /></label>
@@ -812,18 +827,20 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
       </aside>
     </section>
     {confirmationOpen && <ApplyConfirmation detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} balances={balances} busy={busy} onCancel={() => setConfirmationOpen(false)} onConfirm={() => void confirmApply()} />}
-    {sourceRequest && <SourceViewer sourceId={sourceRequest} source={sourceRecord} busy={sourceBusy} error={sourceError} onClose={() => { setSourceRequest(undefined); setSourceRecord(undefined); setSourceError('') }} />}
+    {sourceRequest && <SourceViewer sourceId={sourceRequest} source={sourceRecord} busy={sourceBusy} error={sourceError} onClose={closeSource} />}
   </>
 }
 
 export function InterpretationAction({
   enabled,
+  disabledReason,
   interpretation,
   message,
   busy,
   onInterpret,
 }: {
   enabled: boolean
+  disabledReason?: string
   interpretation?: Interpretation
   message: string
   busy: string
@@ -831,7 +848,7 @@ export function InterpretationAction({
 }) {
   return <section className="panel interpretation-panel" aria-labelledby="interpretation-heading">
     <div className="panel-heading">
-      <div><p className="eyebrow">Phase 4 interpretation</p><h2 id="interpretation-heading">Review with DeepSeek</h2></div>
+      <div><p className="eyebrow">Optional interpretation</p><h2 id="interpretation-heading">Review with DeepSeek</h2></div>
     </div>
     <p className="interpretation-help" id="interpretation-help">This is a bounded interpretation of the existing evidence and candidates. DeepSeek never applies money; review and application remain separate.</p>
     <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
@@ -842,6 +859,7 @@ export function InterpretationAction({
         {busy === 'interpret-hybrid' ? 'Interpreting hybrid…' : 'Hybrid'}
       </button>
     </div>
+    {!enabled && disabledReason && <p className="interpretation-detail interpretation-disabled" role="status">{disabledReason}</p>}
     {!enabled && interpretation && <p className="interpretation-detail interpretation-complete">This result is attached to the refreshed proposal. Financial application still requires a reviewer.</p>}
     {interpretation && <div className={`interpretation-result interpretation-${interpretation.status}`} role="status" aria-live="polite">
       <div className="interpretation-result-top"><span className={`status-pill status-${interpretation.status}`}>{interpretation.status.replace('_', ' ')}</span><span className="interpretation-source">{interpretationSource(interpretation.source)}</span></div>

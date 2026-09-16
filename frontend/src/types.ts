@@ -157,6 +157,8 @@ export type SourceRecord = {
   kind: string
   sha256: string
   bytes: number
+  version?: number | string
+  raw_text?: string | null
   text: string | null
   rows: Record<string, unknown>[]
   issues: RowIssue[]

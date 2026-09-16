@@ -40,6 +40,19 @@ describe('Phase 4 interpretation UI', () => {
     expect(markup).toMatch(/button[^>]+disabled/)
   })
 
+  it('states why optional interpretation is disabled', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      disabledReason="Live interpretation is disabled for this session."
+      busy=""
+      message=""
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('Optional interpretation')
+    expect(markup).toContain('Live interpretation is disabled for this session.')
+  })
+
   it('sends an explicit direct interpretation request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       proposal_id: 'proposal-1',
@@ -131,10 +144,13 @@ describe('case study surfaces', () => {
   })
 
   it('renders exact source metadata in the readable source surface', () => {
-    const source: SourceRecord = { source_id: 'source-1', kind: 'message', sha256: 'abc123', bytes: 42, text: 'source body', rows: [], issues: [], row_locators: [], metadata: { owner: 'case' } }
+    const source: SourceRecord = { source_id: 'source-1', kind: 'message', sha256: 'abc123', bytes: 42, version: 2, raw_text: 'raw source body', text: 'legacy source body', rows: [], issues: [], row_locators: [], metadata: { owner: 'case' } }
     const markup = renderToString(<SourceViewer sourceId="source-1" source={source} busy={false} error="" onClose={() => {}} />)
 
-    expect(markup).toContain('source body')
+    expect(markup).toContain('raw source body')
+    expect(markup).not.toContain('legacy source body')
+    expect(markup).toContain('Version')
+    expect(markup).toContain('2')
     expect(markup).toContain('abc123')
     expect(markup).toContain('Exact source metadata')
   })

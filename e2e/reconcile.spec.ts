@@ -13,6 +13,7 @@ const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page)
 test.describe('fresh import through reviewed application', () => {
   test('validates, commits, corrects, applies, reloads, exports, and reverses', async ({ page }) => {
     await page.goto('/')
+    await page.getByRole('button', { name: 'Imports' }).click()
     await expect(page.getByRole('heading', { name: 'Match incoming payments to the right invoices' })).toBeVisible()
     await expect(page.getByText('Nothing is applied automatically')).toBeVisible()
     await expect(page.getByRole('link', { name: 'Download demo packet' })).toBeVisible()
@@ -42,7 +43,7 @@ test.describe('fresh import through reviewed application', () => {
 
     await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
-    await page.getByRole('button', { name: 'Edit allocation' }).click()
+    await page.locator('.read-only-action').getByRole('button', { name: 'Edit allocation' }).click()
     await page.getByLabel('Reviewer name').fill('E2E reviewer')
     const cashSection = page.locator('.correction-section').first()
     const creditSection = page.locator('.correction-section').nth(1)
