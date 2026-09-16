@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from reconcile.config import InterpretationSettings, interpretation_settings
@@ -93,9 +93,14 @@ class CompiledInterpretationWorkflow:
         policy: BudgetPolicy,
     ) -> tuple[InterpretationRequest, dict[str, str]]:
         payment = db.scalar(
-            select(Payment).where(
+            select(Payment)
+            .join(Source, Payment.source_id == Source.id)
+            .join(ImportBatch, Source.batch_id == ImportBatch.id)
+            .where(
                 Payment.id == proposal.payment_id,
                 Payment.workspace_id == workspace_id,
+                Source.status != "REJECTED_CONFLICT",
+                or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
             )
         )
         if payment is None:
@@ -103,14 +108,30 @@ class CompiledInterpretationWorkflow:
         invoices = list(
             db.scalars(
                 select(Invoice)
-                .where(Invoice.workspace_id == workspace_id, Invoice.outstanding_amount > 0)
+                .join(Source, Invoice.source_id == Source.id)
+                .join(ImportBatch, Source.batch_id == ImportBatch.id)
+                .where(
+                    Invoice.workspace_id == workspace_id,
+                    Invoice.outstanding_amount > 0,
+                    Invoice.conflicted.is_(False),
+                    Source.status != "REJECTED_CONFLICT",
+                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
+                )
                 .order_by(Invoice.invoice_id)
             )
         )
         credits = list(
             db.scalars(
                 select(CreditNote)
-                .where(CreditNote.workspace_id == workspace_id, CreditNote.available_amount > 0)
+                .join(Source, CreditNote.source_id == Source.id)
+                .join(ImportBatch, Source.batch_id == ImportBatch.id)
+                .where(
+                    CreditNote.workspace_id == workspace_id,
+                    CreditNote.available_amount > 0,
+                    CreditNote.conflicted.is_(False),
+                    Source.status != "REJECTED_CONFLICT",
+                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
+                )
                 .order_by(CreditNote.credit_note_id)
             )
         )
@@ -121,7 +142,7 @@ class CompiledInterpretationWorkflow:
                 .where(
                     Source.workspace_id == workspace_id,
                     Source.kind == "message",
-                    ImportBatch.status == "COMMITTED",
+                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                     Source.status != "REJECTED_CONFLICT",
                 )
                 .order_by(Source.created_at, Source.id)

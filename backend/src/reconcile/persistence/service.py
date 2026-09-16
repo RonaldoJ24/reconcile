@@ -5,9 +5,11 @@ import itertools
 import json
 import uuid
 from collections import defaultdict
+from copy import deepcopy
+from time import perf_counter
 from typing import Any
 
-from sqlalchemy import func, literal, select
+from sqlalchemy import func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from reconcile.domain.matching import _mentions, propose, validate_allocation
@@ -27,6 +29,7 @@ from reconcile.ingest.parsers import (
     parse_credit_source,
     parse_csv_source,
 )
+from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY, runtime_mode
 
 from .models import (
     ApplicationGroup,
@@ -330,13 +333,14 @@ def _shadow_model_trace(
     credits: list[CreditNote],
     evidence: dict[str, str],
     rules_result: ProposalResult,
+    group: dict[str, Any] | None = None,
 ) -> dict[str, object]:
     from reconcile.ml.artifact import ArtifactError
     from reconcile.ml.runtime import rank_candidates, runtime_mode
 
     if runtime_mode() != "shadow":
         return {}
-    group = _shadow_group(payment, invoices, credits, evidence, rules_result)
+    group = group or _shadow_group(payment, invoices, credits, evidence, rules_result)
     try:
         ranker = rank_candidates(group)
         ranker["status"] = "observed" if ranker.get("model_id") else "no_candidates"
@@ -357,6 +361,266 @@ def _shadow_model_trace(
     ranker["retrieval_truncated"] = group["retrieval_truncated"]
     ranker["candidate_count"] = len(group["candidates"])
     return {"ranker": ranker}
+
+
+def _trace_stage(
+    stage_id: str,
+    name: str,
+    status: str,
+    summary: str,
+    duration_ms: float | None,
+    *,
+    details: dict[str, Any] | None = None,
+    evidence: list[str] | None = None,
+) -> dict[str, object]:
+    stage: dict[str, object] = {
+        "id": stage_id,
+        "name": name,
+        "status": status,
+        "summary": summary,
+        "duration_ms": round(duration_ms, 3) if duration_ms is not None else None,
+    }
+    if details:
+        stage["details"] = details
+    if evidence:
+        stage["evidence"] = evidence
+    return stage
+
+
+def _source_snapshot(source: Source) -> dict[str, object]:
+    return {
+        "source_id": str(source.id),
+        "kind": source.kind,
+        "sha256": source.sha256,
+        "bytes": len(source.raw_bytes),
+        "status": source.status,
+        "version": source.source_metadata.get("version", 1),
+        "case_id": source.source_metadata.get("case_id"),
+        "scenario_version": source.source_metadata.get("scenario_version"),
+        "parse": {
+            "accepted_count": source.accepted_count,
+            "rejected_count": source.rejected_count,
+            "issues": source.source_metadata.get("issues", [])[:20],
+        },
+        "association": {
+            key: source.source_metadata.get(key)
+            for key in (
+                "message_time",
+                "payment_source_account_id",
+                "payment_transaction_id",
+            )
+            if key in source.source_metadata
+        },
+        "batch_id": str(source.batch_id),
+    }
+
+
+def _trace_snapshot(
+    payment: Payment,
+    invoices: list[Invoice],
+    credits: list[CreditNote],
+    sources: list[Source],
+    evidence: dict[str, str],
+    group: dict[str, Any],
+) -> dict[str, object]:
+    return {
+        "rules_identity": ACTIVE_RULES_IDENTITY,
+        "payment": {
+            "id": str(payment.id),
+            "source_id": str(payment.source_id),
+            "source_account_id": payment.source_account_id,
+            "transaction_id": payment.transaction_id,
+            "booking_date": payment.booking_date.isoformat(),
+            "payer_name": payment.payer_name,
+            "reference": payment.reference,
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "customer_id": payment.customer_id,
+            "version": payment.version,
+        },
+        "invoices": [
+            {
+                "id": str(invoice.id),
+                "source_id": str(invoice.source_id),
+                "customer_id": invoice.customer_id,
+                "invoice_id": invoice.invoice_id,
+                "issued_date": invoice.issued_date.isoformat(),
+                "due_date": invoice.due_date.isoformat(),
+                "balance_as_of": invoice.balance_as_of.isoformat(),
+                "outstanding_amount": invoice.outstanding_amount,
+                "currency": invoice.currency,
+                "version": invoice.version,
+            }
+            for invoice in invoices
+        ],
+        "credits": [
+            {
+                "id": str(credit.id),
+                "source_id": str(credit.source_id),
+                "customer_id": credit.customer_id,
+                "credit_note_id": credit.credit_note_id,
+                "balance_as_of": credit.balance_as_of.isoformat(),
+                "available_amount": credit.available_amount,
+                "invoice_id": credit.invoice_id,
+                "currency": credit.currency,
+                "version": credit.version,
+            }
+            for credit in credits
+        ],
+        "sources": [_source_snapshot(source) for source in sources],
+        "evidence": dict(sorted(evidence.items())),
+        "candidate_context": group,
+    }
+
+
+def _stable_trace_identity(snapshot: dict[str, object]) -> dict[str, object]:
+    """Project a stored trace snapshot onto replayable input identity.
+
+    The stored snapshot deliberately retains workspace-owned UUIDs for source
+    and ownership checks.  Those values are excluded from the fingerprint so
+    equivalent registered inputs in separate workspaces can share a cache or
+    recording identity.
+    """
+
+    payment = snapshot.get("payment")
+    invoices = snapshot.get("invoices")
+    credits = snapshot.get("credits")
+    sources = snapshot.get("sources")
+    evidence = snapshot.get("evidence")
+    candidate_context = snapshot.get("candidate_context")
+    source_hashes: dict[str, str] = {}
+    stable_sources: list[dict[str, object]] = []
+    if isinstance(sources, list):
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            source_id = source.get("source_id")
+            source_hash = str(source.get("sha256", ""))
+            if source_id is not None:
+                source_hashes[str(source_id)] = source_hash
+            stable_sources.append(
+                {
+                    "kind": source.get("kind"),
+                    "sha256": source_hash,
+                    "version": source.get("version", 1),
+                    "case_id": source.get("case_id"),
+                    "scenario_version": source.get("scenario_version"),
+                }
+            )
+    stable_sources.sort(key=lambda item: (str(item.get("kind")), str(item.get("sha256"))))
+
+    def natural(row: object, fields: tuple[str, ...]) -> dict[str, object]:
+        if not isinstance(row, dict):
+            return {}
+        return {field: row.get(field) for field in fields}
+
+    stable_evidence: dict[str, object] = {}
+    if isinstance(evidence, dict):
+        for source_id, text in sorted(evidence.items()):
+            stable_evidence[source_hashes.get(str(source_id), str(source_id))] = text
+
+    stable_candidates = candidate_context
+    if isinstance(candidate_context, dict):
+        stable_candidates = {
+            key: value for key, value in candidate_context.items() if key != "group_id"
+        }
+        if "message" in stable_candidates:
+            stable_candidates["message"] = "\n".join(
+                str(value) for _, value in sorted(stable_evidence.items())
+            )
+
+    invoice_rows = invoices if isinstance(invoices, list) else []
+    credit_rows = credits if isinstance(credits, list) else []
+
+    return {
+        "rules_identity": snapshot.get("rules_identity"),
+        "payment": natural(
+            payment,
+            (
+                "source_account_id",
+                "transaction_id",
+                "booking_date",
+                "payer_name",
+                "reference",
+                "amount",
+                "currency",
+                "customer_id",
+                "version",
+            ),
+        ),
+        "invoices": sorted(
+            (
+                natural(
+                    invoice,
+                    (
+                        "customer_id",
+                        "invoice_id",
+                        "issued_date",
+                        "due_date",
+                        "balance_as_of",
+                        "outstanding_amount",
+                        "currency",
+                        "version",
+                    ),
+                )
+                for invoice in invoice_rows
+            ),
+            key=lambda item: str(item.get("invoice_id")),
+        ),
+        "credits": sorted(
+            (
+                natural(
+                    credit,
+                    (
+                        "customer_id",
+                        "credit_note_id",
+                        "balance_as_of",
+                        "available_amount",
+                        "invoice_id",
+                        "currency",
+                        "version",
+                    ),
+                )
+                for credit in credit_rows
+            ),
+            key=lambda item: str(item.get("credit_note_id")),
+        ),
+        "sources": stable_sources,
+        "evidence": stable_evidence,
+        "candidate_context": stable_candidates,
+    }
+
+
+def _trace_with_history(
+    model_trace: dict[str, Any], audits: list[AuditEvent]
+) -> dict[str, object]:
+    trace = deepcopy(model_trace)
+    stages = list(trace.get("stages", []))
+    for event in audits:
+        if event.action == "application.apply":
+            stages.append(
+                _trace_stage(
+                    "application-apply",
+                    "Application",
+                    "completed",
+                    "A reviewer applied the persisted proposal revision.",
+                    None,
+                    details={"audit_event_id": str(event.id), **event.payload},
+                )
+            )
+        elif event.action == "application.reverse":
+            stages.append(
+                _trace_stage(
+                    "application-reverse",
+                    "Reversal",
+                    "completed",
+                    "A reviewer reversed the persisted application.",
+                    None,
+                    details={"audit_event_id": str(event.id), **event.payload},
+                )
+            )
+    trace["stages"] = stages
+    return trace
 
 
 class ReconcileService:
@@ -466,6 +730,7 @@ class ReconcileService:
         record = ImportBatch(workspace_id=workspace_id, profile=profile, status="VALIDATED")
         self.session.add(record)
         self.session.flush()
+        bound_sources: list[Source] = []
         for parsed in (batch.bank, batch.invoices, batch.credits, batch.message):
             if parsed is None:
                 continue
@@ -498,20 +763,79 @@ class ReconcileService:
                     ]
                 if parsed.row_locators:
                     metadata["row_locators"] = list(parsed.row_locators)
-                self.session.add(
-                    Source(
-                        workspace_id=workspace_id,
-                        batch_id=record.id,
-                        kind=parsed.kind,
-                        sha256=parsed.sha256,
-                        raw_bytes=parsed.raw,
-                        accepted_count=parsed.accepted_count,
-                        rejected_count=parsed.rejected_count,
-                        source_metadata=metadata,
-                    )
+                existing = Source(
+                    workspace_id=workspace_id,
+                    batch_id=record.id,
+                    kind=parsed.kind,
+                    sha256=parsed.sha256,
+                    raw_bytes=parsed.raw,
+                    accepted_count=parsed.accepted_count,
+                    rejected_count=parsed.rejected_count,
+                    source_metadata=metadata,
                 )
+                self.session.add(existing)
+            bound_sources.append(existing)
+        self.session.flush()
+        self.session.add(
+            AuditEvent(
+                workspace_id=workspace_id,
+                action="import.validate",
+                actor="system",
+                entity_id=record.id,
+                payload={"source_ids": [str(source.id) for source in bound_sources]},
+            )
+        )
         self.session.flush()
         return record
+
+    def sources_for_batch(self, workspace_id: uuid.UUID, batch_id: uuid.UUID) -> list[Source]:
+        """Return all immutable sources bound to one validation packet.
+
+        A repeated validation may reuse a source already owned by an earlier
+        batch. The validation audit preserves that association without moving
+        the source row or rewriting its history.
+        """
+
+        sources = list(
+            self.session.scalars(
+                select(Source).where(
+                    Source.workspace_id == workspace_id, Source.batch_id == batch_id
+                )
+            )
+        )
+        audit = self.session.scalar(
+            select(AuditEvent)
+            .where(
+                AuditEvent.workspace_id == workspace_id,
+                AuditEvent.action == "import.validate",
+                AuditEvent.entity_id == batch_id,
+            )
+            .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+        )
+        if audit is None:
+            return sources
+        source_ids = [uuid.UUID(value) for value in audit.payload.get("source_ids", [])]
+        bound = {
+            source.id: source
+            for source in self.session.scalars(
+                select(Source).where(
+                    Source.workspace_id == workspace_id, Source.id.in_(source_ids)
+                )
+            )
+        }
+        return [bound[source_id] for source_id in source_ids if source_id in bound]
+
+    def _source_already_committed(self, source: Source) -> bool:
+        """Recognize committed bytes even when their owning batch is legacy."""
+
+        if source.status == "COMMITTED":
+            return True
+        return (
+            self.session.scalar(
+                select(ImportBatch.status).where(ImportBatch.id == source.batch_id)
+            )
+            == "COMMITTED"
+        )
 
     def commit_import(self, workspace_id: uuid.UUID, batch_id: uuid.UUID) -> dict[str, Any]:
         batch = self.session.scalar(
@@ -530,20 +854,38 @@ class ReconcileService:
                 "conflicts": [],
                 "jobs": [],
             }
-        sources = list(
-            self.session.scalars(
-                select(Source).where(
-                    Source.workspace_id == workspace_id, Source.batch_id == batch.id
-                )
-            )
-        )
+        sources = self.sources_for_batch(workspace_id, batch.id)
         by_kind = {s.kind: s for s in sources}
+        source_committed = {
+            source.id: self._source_already_committed(source) for source in sources
+        }
         counts: dict[str, Any] = {"payments": 0, "invoices": 0, "credits": 0, "conflicts": []}
         jobs: list[str] = []
         created_payment_ids: set[uuid.UUID] = set()
+        message_source = by_kind.get("message")
+        message_is_new = bool(
+            message_source is not None and not source_committed.get(message_source.id, False)
+        )
+        locked_message_payment: Payment | None = None
+        locked_message_proposals: list[Proposal] = []
+        if message_is_new and message_source is not None:
+            metadata = message_source.source_metadata
+            locked_message_payment = self.session.scalar(
+                select(Payment).where(
+                    Payment.workspace_id == workspace_id,
+                    Payment.source_account_id == metadata.get("payment_source_account_id"),
+                    Payment.transaction_id == metadata.get("payment_transaction_id"),
+                )
+            )
+            if locked_message_payment is not None:
+                # Apply locks Proposal -> Payment. Acquire the proposal locks before
+                # any changed packet entity locks so a new message cannot deadlock.
+                locked_message_proposals = self._lock_payment_proposals(
+                    workspace_id, locked_message_payment.id
+                )
         # Sources remain immutable; only accepted rows become business records.
         payment_source = by_kind.get("bank")
-        if payment_source:
+        if payment_source and not source_committed.get(payment_source.id, False):
             parsed = parse_csv_source("bank", payment_source.raw_bytes, profile=batch.profile)
             for row in parsed.rows:
                 existing_payment = self.session.scalar(
@@ -577,7 +919,7 @@ class ReconcileService:
                 if job_id is not None:
                     jobs.append(job_id)
         invoice_source = by_kind.get("invoice")
-        if invoice_source:
+        if invoice_source and not source_committed.get(invoice_source.id, False):
             parsed = parse_csv_source("invoice", invoice_source.raw_bytes, profile=batch.profile)
             for row in parsed.rows:
                 existing_invoice = self.session.scalar(
@@ -607,7 +949,7 @@ class ReconcileService:
                 )
                 counts["invoices"] += 1
         credit_source = by_kind.get("credit")
-        if credit_source:
+        if credit_source and not source_committed.get(credit_source.id, False):
             parsed = parse_credit_source(credit_source.raw_bytes, profile=batch.profile)
             for row in parsed.rows:
                 existing_credit = self.session.scalar(
@@ -638,8 +980,13 @@ class ReconcileService:
                 counts["credits"] += 1
         self.session.flush()
         # A message association is context, never an inferred filename relationship.
-        message_source = by_kind.get("message")
-        if message_source:
+        if message_is_new and message_source is not None:
+            owner_batch_status = self.session.scalar(
+                select(ImportBatch.status).where(ImportBatch.id == message_source.batch_id)
+            )
+            was_committed = source_committed.get(message_source.id, False) or (
+                owner_batch_status == "COMMITTED"
+            )
             message_source.status = "COMMITTED"
             metadata = message_source.source_metadata
             associated_payment = self.session.scalar(
@@ -649,28 +996,28 @@ class ReconcileService:
                     Payment.transaction_id == metadata.get("payment_transaction_id"),
                 )
             )
-            payment_proposals = (
-                self._lock_payment_proposals(workspace_id, associated_payment.id)
-                if associated_payment
-                else []
-            )
-            if associated_payment:
-                associated_payment = self.session.scalar(
-                    select(Payment)
-                    .where(
-                        Payment.id == associated_payment.id,
-                        Payment.workspace_id == workspace_id,
-                    )
-                    .with_for_update()
+            payment_proposals = locked_message_proposals
+            if associated_payment and not payment_proposals:
+                payment_proposals = self._lock_payment_proposals(
+                    workspace_id, associated_payment.id
                 )
-            if associated_payment and associated_payment.id not in created_payment_ids:
+            if associated_payment:
+                self.session.refresh(
+                    associated_payment,
+                    with_for_update=True,
+                )
+            if (
+                associated_payment
+                and associated_payment.id not in created_payment_ids
+                and not was_committed
+            ):
                 # New evidence changes the payment snapshot. Pending decisions are
                 # stale and an applied decision remains immutable but needs review.
                 associated_payment.version += 1
                 self._stale_for_payment(
                     workspace_id, associated_payment.id, proposals=payment_proposals
                 )
-            if associated_payment:
+            if associated_payment and not was_committed:
                 job_id = self._enqueue_match_job(workspace_id, associated_payment.id)
                 if job_id is not None:
                     jobs.append(job_id)
@@ -701,13 +1048,14 @@ class ReconcileService:
             # the applied or reversed revision when a queued rematch runs.
             return existing_proposal
         evidence: dict[str, str] = {}
+        message_sources: list[Source] = []
         for source in self.session.scalars(
             select(Source)
             .join(ImportBatch, Source.batch_id == ImportBatch.id)
             .where(
                 Source.workspace_id == workspace_id,
                 Source.kind == "message",
-                ImportBatch.status == "COMMITTED",
+                or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                 Source.status != "REJECTED_CONFLICT",
             )
         ):
@@ -716,6 +1064,33 @@ class ReconcileService:
                 and source.source_metadata.get("payment_transaction_id") == payment.transaction_id
             ):
                 evidence[str(source.id)] = source.raw_bytes.decode("utf-8")
+                message_sources.append(source)
+        payment_source = self.session.get(Source, payment.source_id)
+        if payment_source is None:
+            raise ServiceError("stale_source", "payment source is unavailable")
+        case_id = payment_source.source_metadata.get("case_id")
+
+        def scoped_source_ids(kind: str) -> set[uuid.UUID]:
+            rows = self.session.scalars(
+                select(Source)
+                .join(ImportBatch, Source.batch_id == ImportBatch.id)
+                .where(
+                    Source.workspace_id == workspace_id,
+                    Source.kind == kind,
+                    Source.status != "REJECTED_CONFLICT",
+                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
+                )
+            )
+            if case_id is None:
+                return {source.id for source in rows}
+            return {
+                source.id
+                for source in rows
+                if source.source_metadata.get("case_id") == case_id
+            }
+
+        invoice_source_ids = scoped_source_ids("invoice")
+        credit_source_ids = scoped_source_ids("credit")
         all_text = " ".join((payment.reference, *evidence.values())).lower()
         invoice_filters = [
             Invoice.workspace_id == workspace_id,
@@ -726,6 +1101,8 @@ class ReconcileService:
         ]
         if payment.customer_id is not None:
             invoice_filters.append(Invoice.customer_id == payment.customer_id)
+        if case_id is not None:
+            invoice_filters.append(Invoice.source_id.in_(invoice_source_ids))
 
         # PostgreSQL performs the broad containment filter; the domain boundary matcher
         # below rejects substrings before they can become evidence.
@@ -770,6 +1147,8 @@ class ReconcileService:
         ]
         if payment.customer_id is not None:
             credit_filters.append(CreditNote.customer_id == payment.customer_id)
+        if case_id is not None:
+            credit_filters.append(CreditNote.source_id.in_(credit_source_ids))
         credits = (
             [
                 row
@@ -787,18 +1166,219 @@ class ReconcileService:
             if selected_invoice_ids
             else []
         )
+        rules_started = perf_counter()
         result = propose(
             _payment_fact(payment),
             [_invoice_fact(i) for i in invoices],
             [_credit_fact(c) for c in credits],
             evidence,
         )
+        decision_result = result
+        rules_duration = (perf_counter() - rules_started) * 1000
+        candidate_started = perf_counter()
+        candidate_group = _shadow_group(payment, invoices, credits, evidence, result)
+        candidate_duration = (perf_counter() - candidate_started) * 1000
+        source_rows: dict[uuid.UUID, Source] = {}
+        for source_id in [
+            payment.source_id,
+            *(invoice.source_id for invoice in invoices),
+            *(credit.source_id for credit in credits),
+            *(source.id for source in message_sources),
+        ]:
+            source_row = self.session.get(Source, source_id)
+            if source_row is not None:
+                source_rows[source_row.id] = source_row
+        snapshot = _trace_snapshot(
+            payment,
+            invoices,
+            credits,
+            list(source_rows.values()),
+            evidence,
+            candidate_group,
+        )
+        input_fingerprint = _hash(_stable_trace_identity(snapshot))
+        stages: list[dict[str, object]] = [
+            _trace_stage(
+                "input-snapshot",
+                "Input snapshot",
+                "completed",
+                "Captured the bounded payment, source, candidate, and evidence snapshot.",
+                None,
+                details={
+                    "payment_id": str(payment.id),
+                    "invoice_count": len(invoices),
+                    "credit_count": len(credits),
+                    "source_count": len(source_rows),
+                },
+                evidence=sorted(evidence),
+            ),
+            _trace_stage(
+                "parse-observations",
+                "Parse observations",
+                "completed",
+                (
+                    "Recorded parser acceptance, rejection, and issue observations "
+                    "from persisted sources."
+                ),
+                None,
+                details={
+                    "sources": [
+                        {
+                            "source_id": str(source.id),
+                            "kind": source.kind,
+                            "accepted": source.accepted_count,
+                            "rejected": source.rejected_count,
+                            "issues": source.source_metadata.get("issues", [])[:20],
+                        }
+                        for source in sorted(source_rows.values(), key=lambda item: str(item.id))
+                    ]
+                },
+                evidence=sorted(evidence),
+            ),
+            _trace_stage(
+                "candidate-generation",
+                "Candidate generation",
+                "completed",
+                "Generated bounded candidates from the persisted snapshot.",
+                candidate_duration,
+                details={
+                    "candidate_count": len(candidate_group["candidates"]),
+                    "retrieval_truncated": candidate_group["retrieval_truncated"],
+                },
+                evidence=sorted(evidence),
+            ),
+            _trace_stage(
+                "rules-decision",
+                "Deterministic rules",
+                "completed",
+                "Evaluated the active conservative rules against the snapshot.",
+                rules_duration,
+                details={"result": _result_dict(result)},
+                evidence=sorted({item.source_id for item in result.evidence}),
+            ),
+        ]
+        ranker_trace: dict[str, object] = {}
+        if runtime_mode() == "shadow":
+            ranker_started = perf_counter()
+            ranker_trace = _shadow_model_trace(
+                payment, invoices, credits, evidence, result, candidate_group
+            )
+            ranker_duration = (perf_counter() - ranker_started) * 1000
+            ranker_value = ranker_trace.get("ranker", {})
+            ranker = ranker_value if isinstance(ranker_value, dict) else {}
+            ranker_status = str(ranker.get("status", "completed"))
+            stages.append(
+                _trace_stage(
+                    "shadow-ranker",
+                    "Shadow ranker",
+                    (
+                        "completed"
+                        if ranker_status in {"observed", "no_candidates"}
+                        else ranker_status
+                    ),
+                    "Observed the existing shadow ranker without changing financial authority.",
+                    ranker_duration,
+                    details=ranker,
+                    evidence=sorted(evidence),
+                )
+            )
+        else:
+            stages.append(
+                _trace_stage(
+                    "provider-routing",
+                    "Provider routing",
+                    "skipped",
+                    "Provider inference was skipped for the deterministic rules execution.",
+                    None,
+                    details={"reason": "active engine is deterministic rules"},
+                )
+            )
+        if result.status == ProposalStatus.PROPOSED:
+            validation_started = perf_counter()
+            try:
+                validate_allocation(
+                    payment.amount,
+                    {invoice.invoice_id: _invoice_fact(invoice) for invoice in invoices},
+                    {credit.credit_note_id: _credit_fact(credit) for credit in credits},
+                    result.cash,
+                    result.credits,
+                )
+                validation_status = "completed"
+                validation_summary = "Validated the proposed allocation with the shared validator."
+                validation_details: dict[str, object] = {
+                    "result": "valid",
+                    "checks": ["opening_snapshot", "structural_allocation"],
+                    "transactional_live_balance": "not_executed",
+                }
+            except (ValueError, KeyError) as exc:
+                validation_status = "failed"
+                validation_summary = "The shared validator rejected the proposed allocation."
+                validation_details = {
+                    "result": "invalid",
+                    "reason": str(exc),
+                    "checks": ["opening_snapshot", "structural_allocation"],
+                    "transactional_live_balance": "not_executed",
+                }
+                decision_result = ProposalResult(
+                    ProposalStatus.NEEDS_REVIEW,
+                    (),
+                    (),
+                    result.evidence,
+                    result.alternatives,
+                    (*result.signals, "financial_validation_failed"),
+                    "shared validator rejected the rules proposal",
+                )
+            stages.append(
+                _trace_stage(
+                    "financial-validation",
+                    "Financial validation",
+                    validation_status,
+                    validation_summary,
+                    (perf_counter() - validation_started) * 1000,
+                    details=validation_details,
+                )
+            )
+        else:
+            stages.append(
+                _trace_stage(
+                    "financial-validation",
+                    "Financial validation",
+                    "skipped",
+                    "No proposed allocation was available for financial validation.",
+                    None,
+                    details={"reason": "rules deferred or rejected"},
+                )
+            )
+        stages.append(
+            _trace_stage(
+                "decision-result",
+                "Decision result",
+                "completed",
+                "Recorded the deterministic rules result for review.",
+                None,
+                details={
+                    "status": decision_result.status.value,
+                    "reason": decision_result.reason,
+                },
+                evidence=sorted({item.source_id for item in decision_result.evidence}),
+            )
+        )
+        model_trace: dict[str, object] = {
+            "schema_version": "decision-trace-v1",
+            "source": "rules",
+            "rules_identity": ACTIVE_RULES_IDENTITY,
+            "input_fingerprint": input_fingerprint,
+            "final_status": decision_result.status.value,
+            "snapshot": snapshot,
+            "stages": stages,
+            **ranker_trace,
+        }
         proposal = existing_proposal
         if proposal is None:
             proposal = Proposal(
                 workspace_id=workspace_id,
                 payment_id=payment.id,
-                status=result.status.value,
+                status=decision_result.status.value,
                 current_revision=1,
             )
             self.session.add(proposal)
@@ -806,23 +1386,23 @@ class ReconcileService:
             proposal_revision = 1
         else:
             proposal.current_revision += 1
-            proposal.status = result.status.value
+            proposal.status = decision_result.status.value
             proposal_revision = proposal.current_revision
-        selected_ids = {line.invoice_id for line in result.cash} | {
-            line.invoice_id for line in result.credits
+        selected_ids = {line.invoice_id for line in decision_result.cash} | {
+            line.invoice_id for line in decision_result.credits
         }
         selected_invoices = [i for i in invoices if i.invoice_id in selected_ids]
         selected_credits = [
             c
             for c in credits
-            if c.credit_note_id in {line.credit_note_id for line in result.credits}
+            if c.credit_note_id in {line.credit_note_id for line in decision_result.credits}
         ]
         revision = _revision_from_result(
             proposal.id,
             proposal_revision,
-            result,
-            _token(payment, selected_invoices, selected_credits, result),
-            model_trace=_shadow_model_trace(payment, invoices, credits, evidence, result),
+            decision_result,
+            _token(payment, selected_invoices, selected_credits, decision_result),
+            model_trace=model_trace,
         )
         self.session.add(revision)
         self.session.commit()
@@ -1007,6 +1587,12 @@ class ReconcileService:
             raise ServiceError("validation", "reviewer is required", 422)
         if proposal.status in (ProposalStatus.APPLIED.value, ProposalStatus.REVERSED.value):
             raise ServiceError("immutable_revision", "applied revisions cannot be corrected")
+        previous_revision = self.session.scalar(
+            select(ProposalRevision).where(
+                ProposalRevision.proposal_id == proposal.id,
+                ProposalRevision.revision == proposal.current_revision,
+            )
+        )
         payment = self.session.scalar(
             select(Payment)
             .where(Payment.id == proposal.payment_id, Payment.workspace_id == workspace_id)
@@ -1059,6 +1645,23 @@ class ReconcileService:
         selected_credits = [
             c for c in credits_db if c.credit_note_id in {line.credit_note_id for line in credits}
         ]
+        correction_trace = deepcopy(previous_revision.model_trace) if previous_revision else {}
+        correction_stages = list(correction_trace.get("stages", []))
+        correction_stages.append(
+            _trace_stage(
+                f"human-correction-r{proposal.current_revision}",
+                "Reviewer correction",
+                "completed",
+                "A reviewer supplied a new allocation for this proposal.",
+                None,
+                details={"reviewer": reviewer.strip()},
+            )
+        )
+        correction_trace["stages"] = correction_stages
+        correction_trace["reviewer_provenance"] = {
+            "kind": "human-correction",
+            "reviewer": reviewer.strip(),
+        }
         self.session.add(
             _revision_from_result(
                 proposal.id,
@@ -1066,6 +1669,7 @@ class ReconcileService:
                 result,
                 _token(payment, selected, selected_credits, result),
                 provenance="human-correction",
+                model_trace=correction_trace,
                 reviewer=reviewer.strip(),
             )
         )
@@ -1476,6 +2080,7 @@ class ReconcileService:
                         ]
                     ),
                 )
+                .order_by(Proposal.id)
                 .with_for_update()
             )
         )

@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
+from reconcile.api.cases import get_case, list_cases
 from reconcile.api.sample import is_exact_sample_packet, sample_zip
 from reconcile.api.schemas import (
     ApplyRequest,
@@ -27,7 +28,7 @@ from reconcile.api.schemas import (
     ReverseRequest,
     SessionRequest,
 )
-from reconcile.config import provider_invite_hash, server_mode
+from reconcile.config import interpretation_settings, provider_invite_hash, server_mode
 from reconcile.domain.types import CashLine, CreditLine, JobStatus
 from reconcile.ingest.parsers import (
     parse_batch,
@@ -38,6 +39,7 @@ from reconcile.ingest.parsers import (
 from reconcile.interpretation.workflow import compile_workflow
 from reconcile.jobs.lifecycle import LifecycleConsumer
 from reconcile.jobs.queue import run_once
+from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY
 from reconcile.persistence.db import SessionLocal, readiness, session_scope
 from reconcile.persistence.maintenance import (
     cleanup_expired_preview_workspaces,
@@ -45,6 +47,7 @@ from reconcile.persistence.maintenance import (
 )
 from reconcile.persistence.models import (
     ApplicationGroup,
+    AuditEvent,
     CashApplication,
     CreditApplication,
     CreditNote,
@@ -61,7 +64,7 @@ from reconcile.persistence.models import (
 from reconcile.persistence.models import (
     Session as DbSession,
 )
-from reconcile.persistence.service import ReconcileService, ServiceError
+from reconcile.persistence.service import ReconcileService, ServiceError, _trace_with_history
 
 SESSION_COOKIE = "reconcile_session"
 LOCAL_SESSION_TTL = timedelta(hours=8)
@@ -144,6 +147,186 @@ def _error(exc: ServiceError) -> HTTPException:
     return HTTPException(exc.status, detail={"code": exc.code, "message": exc.message})
 
 
+def _interpretation_enabled(record: DbSession) -> bool:
+    try:
+        return record.provider_access and interpretation_settings().enabled
+    except RuntimeError:
+        return False
+
+
+def _capabilities(
+    record: DbSession,
+    proposal: Proposal | None = None,
+    application: ApplicationGroup | None = None,
+) -> dict[str, bool]:
+    status = proposal.status if proposal is not None else None
+    return {
+        "interpret": _interpretation_enabled(record)
+        and status == "NEEDS_REVIEW",
+        "correct": proposal is not None
+        and status not in {"APPLIED", "REVERSED"},
+        "apply": status == "PROPOSED",
+        "reverse": application is not None
+        and application.reversed_at is None
+        and status == "APPLIED",
+    }
+
+
+def _session_response(
+    record: DbSession, workspace: Workspace, csrf_token: str
+) -> dict[str, object]:
+    return {
+        "mode": workspace.mode,
+        "expires_at": record.expires_at.isoformat(),
+        "csrf_token": csrf_token,
+        "provider_access": record.provider_access,
+        "active_engine": ACTIVE_RULES_IDENTITY,
+        "capabilities": _capabilities(record),
+    }
+
+
+def _case_audit(
+    db: Session, workspace_id: uuid.UUID, case_id: str
+) -> AuditEvent | None:
+    for event in db.scalars(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.action == "case.open",
+        )
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    ):
+        if event.payload.get("case_id") == case_id:
+            return event
+    return None
+
+
+def _case_for_payment(
+    db: Session, workspace_id: uuid.UUID, source_id: uuid.UUID
+) -> dict[str, str] | None:
+    for event in db.scalars(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.action == "case.open",
+        )
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    ):
+        source_ids = set(event.payload.get("source_ids", []))
+        if str(source_id) in source_ids:
+            return {
+                "id": str(event.payload.get("case_id", "")),
+                "version": str(event.payload.get("scenario_version", "")),
+            }
+    return None
+
+
+def _latest_application(
+    db: Session, workspace_id: uuid.UUID, proposal_id: uuid.UUID
+) -> ApplicationGroup | None:
+    return db.scalar(
+        select(ApplicationGroup)
+        .where(
+            ApplicationGroup.workspace_id == workspace_id,
+            ApplicationGroup.proposal_id == proposal_id,
+        )
+        .order_by(ApplicationGroup.created_at.desc(), ApplicationGroup.id.desc())
+    )
+
+
+def _application_audits(
+    db: Session, workspace_id: uuid.UUID, proposal_id: uuid.UUID
+) -> list[AuditEvent]:
+    group_ids = list(
+        db.scalars(
+            select(ApplicationGroup.id).where(
+                ApplicationGroup.workspace_id == workspace_id,
+                ApplicationGroup.proposal_id == proposal_id,
+            )
+        )
+    )
+    if not group_ids:
+        return []
+    return list(
+        db.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.workspace_id == workspace_id,
+                AuditEvent.action.in_(("application.apply", "application.reverse")),
+                AuditEvent.entity_id.in_(group_ids),
+            )
+            .order_by(AuditEvent.created_at, AuditEvent.id)
+        )
+    )
+
+
+def _latest_comparison(
+    db: Session, workspace_id: uuid.UUID, proposal_id: uuid.UUID
+) -> dict[str, object] | None:
+    event = db.scalar(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.action == "proposal.compare",
+            AuditEvent.entity_id == proposal_id,
+        )
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    )
+    return event.payload if event is not None else None
+
+
+def _case_response(
+    db: Session,
+    workspace_id: uuid.UUID,
+    packet: object,
+    *,
+    resumed: bool,
+) -> dict[str, object]:
+    """Return the persisted case handles without exposing registry answers."""
+
+    case_id = getattr(packet, "case_id")
+    scenario_version = getattr(packet, "scenario_version")
+    account_id = getattr(packet, "payment_source_account_id")
+    transaction_id = getattr(packet, "payment_transaction_id")
+    payment = db.scalar(
+        select(Payment).where(
+            Payment.workspace_id == workspace_id,
+            Payment.source_account_id == account_id,
+            Payment.transaction_id == transaction_id,
+        )
+    )
+    proposal = (
+        db.scalar(
+            select(Proposal)
+            .where(Proposal.workspace_id == workspace_id, Proposal.payment_id == payment.id)
+            .order_by(Proposal.updated_at.desc(), Proposal.id.desc())
+        )
+        if payment is not None
+        else None
+    )
+    jobs = (
+        [
+            str(job.id)
+            for job in db.scalars(
+                select(Job)
+                .where(Job.workspace_id == workspace_id, Job.kind == "match-payment")
+                .order_by(Job.created_at, Job.id)
+            )
+            if job.payload.get("payment_id") == str(payment.id)
+        ]
+        if payment is not None
+        else []
+    )
+    return {
+        "case_id": case_id,
+        "scenario_version": scenario_version,
+        "payment_id": str(payment.id) if payment is not None else None,
+        "proposal_id": str(proposal.id) if proposal is not None else None,
+        "jobs": jobs,
+        "resumed": resumed,
+    }
+
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -195,6 +378,68 @@ def create_app() -> FastAPI:
             status_code=200 if available else 503,
         )
 
+    @app.get("/api/v1/cases")
+    def cases(request: Request, db: Session = Depends(_db)) -> dict[str, object]:
+        _session(request, db)
+        return {"version": "v1", "cases": list_cases()}
+
+    @app.post("/api/v1/cases/{case_id}/open")
+    def open_case(case_id: str, request: Request, db: Session = Depends(_db)) -> dict[str, object]:
+        _, workspace = _require_mutation(request, db)
+        packet = get_case(case_id)
+        if packet is None:
+            raise HTTPException(404, "case not found")
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
+        locked_workspace = db.scalar(
+            select(Workspace).where(Workspace.id == workspace.id).with_for_update()
+        )
+        if locked_workspace is None:
+            raise HTTPException(404, "workspace not found")
+        if _case_audit(db, locked_workspace.id, case_id) is not None:
+            return _case_response(db, locked_workspace.id, packet, resumed=True)
+        try:
+            parsed = packet.parse(profile=locked_workspace.mode)
+            service = ReconcileService(db)
+            batch = service.validate_import(locked_workspace.id, parsed, locked_workspace.mode)
+            bound_sources = service.sources_for_batch(locked_workspace.id, batch.id)
+            source_ids = [str(source.id) for source in bound_sources]
+            source_hashes = [source.sha256 for source in bound_sources]
+            for source in bound_sources:
+                if source.batch_id == batch.id:
+                    source.source_metadata = {
+                        **source.source_metadata,
+                        "provenance": "case-registry",
+                        "case_id": packet.case_id,
+                        "scenario_version": packet.scenario_version,
+                        "version": packet.scenario_version,
+                    }
+            db.add(
+                AuditEvent(
+                    workspace_id=locked_workspace.id,
+                    action="case.open",
+                    actor="system",
+                    entity_id=batch.id,
+                    payload={
+                        "case_id": packet.case_id,
+                        "scenario_version": packet.scenario_version,
+                        "source_ids": source_ids,
+                        "source_hashes": source_hashes,
+                        "provenance": "case-registry",
+                    },
+                )
+            )
+            db.flush()
+            service.commit_import(locked_workspace.id, batch.id)
+            _wake_consumer(request)
+            return _case_response(db, locked_workspace.id, packet, resumed=False)
+        except ServiceError as exc:
+            raise _error(exc) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                422, detail={"code": "validation", "message": str(exc)}
+            ) from exc
+
     @app.post("/api/v1/session", response_model=dict)
     def create_session(
         request: Request,
@@ -227,14 +472,7 @@ def create_app() -> FastAPI:
                     session.expires_at = now_utc() + _session_ttl(workspace.mode)
                     workspace.last_active_at = now_utc()
                     db.commit()
-                    response = JSONResponse(
-                        {
-                            "mode": workspace.mode,
-                            "expires_at": session.expires_at.isoformat(),
-                            "csrf_token": csrf_token,
-                            "provider_access": session.provider_access,
-                        }
-                    )
+                    response = JSONResponse(_session_response(session, workspace, csrf_token))
                     response.set_cookie(
                         SESSION_COOKIE,
                         raw_token,
@@ -264,14 +502,7 @@ def create_app() -> FastAPI:
         )
         db.add(session)
         db.commit()
-        response = JSONResponse(
-            {
-                "mode": workspace.mode,
-                "expires_at": session.expires_at.isoformat(),
-                "csrf_token": csrf_token,
-                "provider_access": session.provider_access,
-            }
-        )
+        response = JSONResponse(_session_response(session, workspace, csrf_token))
         response.set_cookie(
             SESSION_COOKIE,
             raw_token,
@@ -357,7 +588,7 @@ def create_app() -> FastAPI:
                 "rejected": source.rejected_count,
                 "issues": source.source_metadata.get("issues", []),
             }
-            for source in db.scalars(select(Source).where(Source.batch_id == record.id))
+            for source in ReconcileService(db).sources_for_batch(workspace.id, record.id)
         ]
         return {
             "batch_id": str(record.id),
@@ -402,24 +633,33 @@ def create_app() -> FastAPI:
         )
         if source is None:
             raise HTTPException(404, "source not found")
+        raw_text = source.raw_bytes.decode("utf-8", errors="replace")[:100_000]
         text = None
         rows: list[dict[str, object]] = []
-        if source.kind == "message":
-            text = source.raw_bytes.decode("utf-8")[:100_000]
-        elif source.kind == "bank":
-            rows = list(parse_csv_source("bank", source.raw_bytes, profile="local").rows[:2000])
-        elif source.kind == "invoice":
-            rows = list(parse_csv_source("invoice", source.raw_bytes, profile="local").rows[:2000])
-        elif source.kind == "credit":
-            rows = list(parse_credit_source(source.raw_bytes, profile="local").rows[:2000])
+        issues = source.source_metadata.get("issues", [])
+        try:
+            if source.kind == "message":
+                text = raw_text
+            elif source.kind == "bank":
+                rows = list(parse_csv_source("bank", source.raw_bytes, profile="local").rows[:2000])
+            elif source.kind == "invoice":
+                rows = list(
+                    parse_csv_source("invoice", source.raw_bytes, profile="local").rows[:2000]
+                )
+            elif source.kind == "credit":
+                rows = list(parse_credit_source(source.raw_bytes, profile="local").rows[:2000])
+        except (UnicodeDecodeError, ValueError) as exc:
+            issues = [*issues, {"code": "unreadable_source", "message": str(exc)}]
         return {
             "source_id": str(source.id),
             "kind": source.kind,
             "sha256": source.sha256,
             "bytes": len(source.raw_bytes),
             "text": text,
+            "raw_text": raw_text,
+            "version": source.source_metadata.get("version", 1),
             "rows": rows,
-            "issues": source.source_metadata.get("issues", []),
+            "issues": issues,
             "row_locators": source.source_metadata.get("row_locators", []),
             "metadata": source.source_metadata,
         }
@@ -491,7 +731,7 @@ def create_app() -> FastAPI:
     def get_proposal(
         proposal_id: uuid.UUID, request: Request, db: Session = Depends(_db)
     ) -> dict[str, object]:
-        _, workspace = _session(request, db)
+        record, workspace = _session(request, db)
         application_id = (
             select(ApplicationGroup.id)
             .where(ApplicationGroup.proposal_id == Proposal.id)
@@ -589,6 +829,19 @@ def create_app() -> FastAPI:
             }
             for invoice, invoice_cash, invoice_credit in invoice_rows
         }
+        latest_application = (
+            db.get(ApplicationGroup, latest_application_id)
+            if latest_application_id is not None
+            else None
+        )
+        decision_trace = (
+            _trace_with_history(
+                revision.model_trace,
+                _application_audits(db, workspace.id, proposal.id),
+            )
+            if revision is not None
+            else None
+        )
         return {
             "proposal_id": str(proposal.id),
             "status": proposal.status,
@@ -612,6 +865,11 @@ def create_app() -> FastAPI:
             "balances": balances,
             "unapplied_cash": payment.amount - int(payment_used_cash),
             "application_id": (str(latest_application_id) if latest_application_id else None),
+            "case": _case_for_payment(db, workspace.id, payment.source_id),
+            "capabilities": _capabilities(record, proposal, latest_application),
+            "decision_trace": decision_trace,
+            "comparison": _latest_comparison(db, workspace.id, proposal.id),
+            "model_trace": revision.model_trace if revision else {},
             "trace": {
                 "mode": revision.provenance if revision else "rules-v1",
                 **(revision.model_trace if revision else {}),
