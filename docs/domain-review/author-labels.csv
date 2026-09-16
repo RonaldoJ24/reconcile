@@ -1,0 +1,25 @@
+case_id,group_id,provisional_author_answer,author_rationale,validation_status
+DR-01,DR-G01,a,Explicit bank reference identifies A.,agent-authored; not independently validated
+DR-02,DR-G01,insufficient information,Equal balances do not establish intent.,agent-authored; not independently validated
+DR-03,DR-G02,a,Message identifies both invoices and linked credit.,agent-authored; not independently validated
+DR-04,DR-G02,insufficient information,Multiple feasible allocations without identity evidence.,agent-authored; not independently validated
+DR-05,DR-G03,b,Later customer correction explicitly overrides bank reference.,agent-authored; not independently validated
+DR-06,DR-G03,insufficient information,Equally timed conflicting instructions cannot be ordered.,agent-authored; not independently validated
+DR-07,DR-G04,a,Explicit partial-payment instruction.,agent-authored; not independently validated
+DR-08,DR-G04,insufficient information,No invoice identified.,agent-authored; not independently validated
+DR-09,DR-G05,a,Cash and linked credit expressly settle A.,agent-authored; not independently validated
+DR-10,DR-G05,insufficient information,No invoice identity or credit link established.,agent-authored; not independently validated
+DR-11,DR-G06,insufficient information,Referenced invoice belongs to another customer without authority.,agent-authored; not independently validated
+DR-12,DR-G06,a,Customer and explicit reference agree.,agent-authored; not independently validated
+DR-13,DR-G07,a,Reference and historical opening balance support A.,agent-authored; not independently validated
+DR-14,DR-G07,insufficient information,Later snapshot does not establish balance on booking date.,agent-authored; not independently validated
+DR-15,DR-G08,a,Explicit per-invoice amounts sum to payment.,agent-authored; not independently validated
+DR-16,DR-G08,insufficient information,Customer explicitly withholds confirmation.,agent-authored; not independently validated
+DR-17,DR-G09,b,Full structured identifier is INV-1010.,agent-authored; not independently validated
+DR-18,DR-G09,a,Terminal punctuation is not part of INV-101.,agent-authored; not independently validated
+DR-19,DR-G10,insufficient information,Prompt-like attachment is not authenticated allocation authority.,agent-authored; not independently validated
+DR-20,DR-G10,b,Authenticated instruction explicitly identifies B.,agent-authored; not independently validated
+DR-21,DR-G11,insufficient information,Requested over-allocation is invalid; no authority to reinterpret remainder.,agent-authored; not independently validated
+DR-22,DR-G11,c,Explicit partial allocation with remainder unapplied.,agent-authored; not independently validated
+DR-23,DR-G12,b,Spanish instruction excludes A and explicitly selects B.,agent-authored; not independently validated
+DR-24,DR-G12,insufficient information,Exclusion alone does not positively select B.,agent-authored; not independently validated
