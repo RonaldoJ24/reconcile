@@ -761,6 +761,8 @@ def create_app() -> FastAPI:
                 409,
                 detail={"code": "stale_revision", "message": "proposal revision is stale"},
             )
+        if state.get("variant", "original") == body.variant:
+            return _case_response(db, locked_workspace.id, packet, resumed=True)
         if proposal.status in {"STALE", "PROCESSING"}:
             raise HTTPException(
                 409,
@@ -769,8 +771,6 @@ def create_app() -> FastAPI:
                     "message": "wait for the current evidence job before changing variants",
                 },
             )
-        if state.get("variant", "original") == body.variant:
-            return _case_response(db, locked_workspace.id, packet, resumed=True)
         if proposal.status in {"APPLIED", "REVERSED"}:
             raise HTTPException(
                 409,

@@ -1330,6 +1330,12 @@ def test_case_variants_supersede_and_restore_immutable_evidence(session, monkeyp
         pending_detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
         assert pending_detail["status"] == "STALE"
         assert pending_detail["comparison"] is None
+        pending_resume = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": original_revision, "variant": "ambiguous"},
+        )
+        assert pending_resume.status_code == 200, pending_resume.text
+        assert pending_resume.json()["resumed"] is True
         pending_compare = client.post(
             f"/api/v1/proposals/{proposal_id}/compare",
             json={"expected_revision": original_revision},
