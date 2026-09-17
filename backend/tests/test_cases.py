@@ -64,6 +64,18 @@ def test_registered_packets_round_trip_through_the_parser() -> None:
         assert parsed.message is not None
 
 
+def test_registered_variants_are_server_owned_and_parseable() -> None:
+    packet = CASES[0]
+    assert packet.variant("original").message == packet.message
+    for name in ("ambiguous", "prompt_like"):
+        variant = packet.variant(name)
+        assert variant.message is not None
+        assert variant.message != packet.message
+        parsed = variant.parse()
+        assert parsed.message is not None
+        assert parsed.message.raw == variant.message
+
+
 def test_registered_packets_use_the_ordinary_conservative_engine() -> None:
     expected = {
         "straightforward": ProposalStatus.PROPOSED,

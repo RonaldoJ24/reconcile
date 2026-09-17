@@ -100,6 +100,7 @@ class CompiledInterpretationWorkflow:
                 Payment.id == proposal.payment_id,
                 Payment.workspace_id == workspace_id,
                 Source.status != "REJECTED_CONFLICT",
+                Source.status != "SUPERSEDED",
                 or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
             )
         )
@@ -115,6 +116,7 @@ class CompiledInterpretationWorkflow:
                     Invoice.outstanding_amount > 0,
                     Invoice.conflicted.is_(False),
                     Source.status != "REJECTED_CONFLICT",
+                    Source.status != "SUPERSEDED",
                     or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                 )
                 .order_by(Invoice.invoice_id)
@@ -130,6 +132,7 @@ class CompiledInterpretationWorkflow:
                     CreditNote.available_amount > 0,
                     CreditNote.conflicted.is_(False),
                     Source.status != "REJECTED_CONFLICT",
+                    Source.status != "SUPERSEDED",
                     or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                 )
                 .order_by(CreditNote.credit_note_id)
@@ -144,6 +147,7 @@ class CompiledInterpretationWorkflow:
                     Source.kind == "message",
                     or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                     Source.status != "REJECTED_CONFLICT",
+                    Source.status != "SUPERSEDED",
                 )
                 .order_by(Source.created_at, Source.id)
             )

@@ -28,16 +28,27 @@ from reconcile.api.schemas import (
     ComparisonRequest,
     CorrectionRequest,
     InterpretationRequestBody,
+    ReliabilityRequest,
     ReverseRequest,
     SessionRequest,
+    VariantRequest,
 )
 from reconcile.config import interpretation_settings, provider_invite_hash, server_mode
+from reconcile.domain.matching import validate_allocation
 from reconcile.domain.types import CashLine, CreditLine, JobStatus
 from reconcile.ingest.parsers import (
     parse_batch,
     parse_credit_source,
     parse_csv_source,
     parse_message_context,
+)
+from reconcile.interpretation.schemas import (
+    Citation,
+    Decision,
+    InterpretationRequest,
+    InterpretationResult,
+    ReasonCode,
+    validate_result,
 )
 from reconcile.interpretation.workflow import compile_workflow
 from reconcile.jobs.lifecycle import LifecycleConsumer
@@ -54,6 +65,7 @@ from reconcile.persistence.models import (
     CashApplication,
     CreditApplication,
     CreditNote,
+    IdempotencyKey,
     ImportBatch,
     Invoice,
     Job,
@@ -67,7 +79,12 @@ from reconcile.persistence.models import (
 from reconcile.persistence.models import (
     Session as DbSession,
 )
-from reconcile.persistence.service import ReconcileService, ServiceError, _trace_with_history
+from reconcile.persistence.service import (
+    ReconcileService,
+    ServiceError,
+    _invoice_fact,
+    _trace_with_history,
+)
 
 SESSION_COOKIE = "reconcile_session"
 LOCAL_SESSION_TTL = timedelta(hours=8)
@@ -204,9 +221,53 @@ def _case_audit(
     return None
 
 
+def _case_state(
+    db: Session, workspace_id: uuid.UUID, case_id: str
+) -> dict[str, str] | None:
+    for event in db.scalars(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.action.in_(("case.open", "case.variant")),
+        )
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    ):
+        if event.payload.get("case_id") != case_id:
+            continue
+        state = {
+            "scenario_version": str(event.payload.get("scenario_version", "v1")),
+            "variant": str(event.payload.get("variant", "original")),
+        }
+        active_source_id = event.payload.get("active_source_id")
+        if active_source_id:
+            state["active_source_id"] = str(active_source_id)
+        return state
+    return None
+
+
 def _case_for_payment(
     db: Session, workspace_id: uuid.UUID, source_id: uuid.UUID
 ) -> dict[str, str] | None:
+    payment_id = db.scalar(
+        select(Payment.id).where(
+            Payment.workspace_id == workspace_id,
+            Payment.source_id == source_id,
+        )
+    )
+    for event in db.scalars(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.action == "case.variant",
+        )
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    ):
+        if event.payload.get("payment_id") == str(payment_id):
+            return {
+                "id": str(event.payload.get("case_id", "")),
+                "version": str(event.payload.get("scenario_version", "v1")),
+                "variant": str(event.payload.get("variant", "original")),
+            }
     for event in db.scalars(
         select(AuditEvent)
         .where(
@@ -220,6 +281,7 @@ def _case_for_payment(
             return {
                 "id": str(event.payload.get("case_id", "")),
                 "version": str(event.payload.get("scenario_version", "")),
+                "variant": str(event.payload.get("variant", "original")),
             }
     return None
 
@@ -297,7 +359,11 @@ def _case_response(
     """Return the persisted case handles without exposing registry answers."""
 
     case_id = getattr(packet, "case_id")
-    scenario_version = getattr(packet, "scenario_version")
+    state = _case_state(db, workspace_id, case_id)
+    scenario_version = (
+        state["scenario_version"] if state is not None else getattr(packet, "scenario_version")
+    )
+    variant = state["variant"] if state is not None else "original"
     account_id = getattr(packet, "payment_source_account_id")
     transaction_id = getattr(packet, "payment_transaction_id")
     payment = db.scalar(
@@ -332,11 +398,167 @@ def _case_response(
     return {
         "case_id": case_id,
         "scenario_version": scenario_version,
+        "variant": variant,
         "payment_id": str(payment.id) if payment is not None else None,
         "proposal_id": str(proposal.id) if proposal is not None else None,
         "jobs": jobs,
         "resumed": resumed,
     }
+
+
+def _case_active_message(
+    db: Session, workspace_id: uuid.UUID, case_id: str
+) -> Source | None:
+    """Resolve the current message while retaining legacy committed sources."""
+
+    state = _case_state(db, workspace_id, case_id)
+    if state is not None and state.get("active_source_id"):
+        source = db.scalar(
+            select(Source)
+            .join(ImportBatch, Source.batch_id == ImportBatch.id)
+            .where(
+                Source.id == uuid.UUID(state["active_source_id"]),
+                Source.workspace_id == workspace_id,
+                Source.kind == "message",
+                Source.status != "REJECTED_CONFLICT",
+                Source.status != "SUPERSEDED",
+                (ImportBatch.status == "COMMITTED") | (Source.status == "COMMITTED"),
+            )
+        )
+        if source is not None:
+            return source
+    for event in db.scalars(
+        select(AuditEvent)
+        .where(
+            AuditEvent.workspace_id == workspace_id,
+            AuditEvent.action == "case.open",
+        )
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
+    ):
+        if event.payload.get("case_id") != case_id:
+            continue
+        source_ids = [uuid.UUID(value) for value in event.payload.get("source_ids", [])]
+        return db.scalar(
+            select(Source)
+            .join(ImportBatch, Source.batch_id == ImportBatch.id)
+            .where(
+                Source.workspace_id == workspace_id,
+                Source.id.in_(source_ids),
+                Source.kind == "message",
+                Source.status != "REJECTED_CONFLICT",
+                Source.status != "SUPERSEDED",
+                (ImportBatch.status == "COMMITTED") | (Source.status == "COMMITTED"),
+            )
+        )
+    return None
+
+
+def _financial_effects(
+    db: Session, workspace_id: uuid.UUID, proposal_id: uuid.UUID
+) -> dict[str, int]:
+    groups = list(
+        db.scalars(
+            select(ApplicationGroup).where(
+                ApplicationGroup.workspace_id == workspace_id,
+                ApplicationGroup.proposal_id == proposal_id,
+            )
+        )
+    )
+    group_ids = [group.id for group in groups]
+    cash_rows = (
+        list(
+            db.scalars(
+                select(CashApplication).where(
+                    CashApplication.workspace_id == workspace_id,
+                    CashApplication.application_group_id.in_(group_ids),
+                )
+            )
+        )
+        if group_ids
+        else []
+    )
+    credit_rows = (
+        list(
+            db.scalars(
+                select(CreditApplication).where(
+                    CreditApplication.workspace_id == workspace_id,
+                    CreditApplication.application_group_id.in_(group_ids),
+                )
+            )
+        )
+        if group_ids
+        else []
+    )
+    return {
+        "application_groups": len(groups),
+        "cash_applications": len(cash_rows),
+        "credit_applications": len(credit_rows),
+        "cash_centavos": sum(row.amount for row in cash_rows),
+        "credit_centavos": sum(row.amount for row in credit_rows),
+    }
+
+
+def _invalid_citation_check(
+    payment: Payment, invoice: Invoice
+) -> None:
+    """Run the production result validator against an intentionally foreign citation."""
+
+    amount = min(payment.amount, invoice.outstanding_amount)
+    request = InterpretationRequest.model_validate(
+        {
+            "workspace_id": str(payment.workspace_id),
+            "payment": {
+                "payment_id": str(payment.id),
+                "amount_centavos": payment.amount,
+                "currency": payment.currency,
+                "booking_date": payment.booking_date,
+                "payer_name": payment.payer_name,
+                "reference": payment.reference,
+                "source_id": str(payment.source_id),
+                "version": payment.version,
+            },
+            "invoices": [
+                {
+                    "invoice_id": invoice.invoice_id,
+                    "outstanding_amount_centavos": invoice.outstanding_amount,
+                    "currency": invoice.currency,
+                    "customer_id": invoice.customer_id,
+                    "customer_name": invoice.customer_name,
+                    "issued_date": invoice.issued_date,
+                    "due_date": invoice.due_date,
+                    "balance_as_of": invoice.balance_as_of,
+                    "source_id": str(invoice.source_id),
+                    "version": invoice.version,
+                }
+            ],
+            "credits": [],
+            "candidates": [
+                {
+                    "candidate_id": "reliability-candidate",
+                    "invoice_ids": [invoice.invoice_id],
+                    "cash": [{"invoice_id": invoice.invoice_id, "amount_centavos": amount}],
+                    "credits": [],
+                }
+            ],
+            "source_spans": [
+                {
+                    "source_id": str(payment.source_id),
+                    "start": 0,
+                    "end": 13,
+                    "content": "known evidence",
+                }
+            ],
+            "mode": "direct",
+            "decision_timestamp": now_utc(),
+        }
+    )
+    result = InterpretationResult(
+        decision=Decision.SELECT,
+        candidate_id="reliability-candidate",
+        reason_code=ReasonCode.EVIDENCE_SUPPORTED,
+        citations=(Citation(source_id="foreign-source", start=0, end=1, quote="x"),),
+    )
+    validate_result(request, result)
 
 
 def create_app() -> FastAPI:
@@ -445,6 +667,7 @@ def create_app() -> FastAPI:
                         "provenance": "case-registry",
                         "case_id": packet.case_id,
                         "scenario_version": packet.scenario_version,
+                        "variant": "original",
                         "version": packet.scenario_version,
                     }
             db.add(
@@ -456,14 +679,183 @@ def create_app() -> FastAPI:
                     payload={
                         "case_id": packet.case_id,
                         "scenario_version": packet.scenario_version,
+                        "variant": "original",
                         "source_ids": source_ids,
                         "source_hashes": source_hashes,
+                        "active_source_id": next(
+                            str(source.id) for source in bound_sources if source.kind == "message"
+                        ),
                         "provenance": "case-registry",
                     },
                 )
             )
             db.flush()
             service.commit_import(locked_workspace.id, batch.id)
+            _wake_consumer(request)
+            return _case_response(db, locked_workspace.id, packet, resumed=False)
+        except ServiceError as exc:
+            raise _error(exc) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                422, detail={"code": "validation", "message": str(exc)}
+            ) from exc
+
+    @app.post("/api/v1/cases/{case_id}/variant")
+    def case_variant(
+        case_id: str,
+        body: VariantRequest,
+        request: Request,
+        db: Session = Depends(_db),
+    ) -> dict[str, object]:
+        _, workspace = _require_mutation(request, db)
+        packet = get_case(case_id)
+        if packet is None:
+            raise HTTPException(404, "case not found")
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
+        locked_workspace = db.scalar(
+            select(Workspace).where(Workspace.id == workspace.id).with_for_update()
+        )
+        if locked_workspace is None:
+            raise HTTPException(404, "workspace not found")
+        state = _case_state(db, locked_workspace.id, case_id)
+        if state is None or _case_audit(db, locked_workspace.id, case_id) is None:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "variant_unavailable",
+                    "message": "open the registered case before changing its evidence",
+                },
+            )
+        payment = db.scalar(
+            select(Payment).where(
+                Payment.workspace_id == locked_workspace.id,
+                Payment.source_account_id == packet.payment_source_account_id,
+                Payment.transaction_id == packet.payment_transaction_id,
+            )
+        )
+        if payment is None:
+            raise HTTPException(
+                409,
+                detail={"code": "variant_unavailable", "message": "case payment is unavailable"},
+            )
+        proposal = db.scalar(
+            select(Proposal)
+            .where(
+                Proposal.workspace_id == locked_workspace.id,
+                Proposal.payment_id == payment.id,
+            )
+            .order_by(Proposal.updated_at.desc(), Proposal.id.desc())
+            .with_for_update()
+        )
+        if proposal is None or proposal.current_revision < 1:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "variant_unavailable",
+                    "message": "case proposal is not ready for an evidence variant",
+                },
+            )
+        if proposal.current_revision != body.expected_revision:
+            raise HTTPException(
+                409,
+                detail={"code": "stale_revision", "message": "proposal revision is stale"},
+            )
+        if proposal.status in {"STALE", "PROCESSING"}:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "variant_unavailable",
+                    "message": "wait for the current evidence job before changing variants",
+                },
+            )
+        if state.get("variant", "original") == body.variant:
+            return _case_response(db, locked_workspace.id, packet, resumed=True)
+        if proposal.status in {"APPLIED", "REVERSED"}:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "immutable_revision",
+                    "message": "applied or reversed case histories cannot be rewritten",
+                },
+            )
+        payment = db.scalar(
+            select(Payment)
+            .where(Payment.id == payment.id, Payment.workspace_id == locked_workspace.id)
+            .with_for_update()
+        )
+        if payment is None:
+            raise HTTPException(404, "payment not found")
+        current_source = _case_active_message(db, locked_workspace.id, case_id)
+        if current_source is None:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "variant_unavailable",
+                    "message": "active case message evidence is unavailable",
+                },
+            )
+        try:
+            variant_packet = packet.variant(body.variant)
+            scenario_version = (
+                packet.scenario_version
+                if body.variant == "original"
+                else f"{packet.scenario_version}:{body.variant}"
+            )
+            parsed = variant_packet.parse(profile=locked_workspace.mode)
+            service = ReconcileService(db)
+            batch = service.validate_import(locked_workspace.id, parsed, locked_workspace.mode)
+            bound_sources = service.sources_for_batch(locked_workspace.id, batch.id)
+            new_message = next(
+                (source for source in bound_sources if source.kind == "message"), None
+            )
+            if new_message is None:
+                raise ServiceError(
+                    "variant_unavailable", "variant message evidence is unavailable", 409
+                )
+            new_message.source_metadata = {
+                **new_message.source_metadata,
+                "provenance": "case-registry",
+                "case_id": packet.case_id,
+                "scenario_version": scenario_version,
+                "variant": body.variant,
+                "version": scenario_version,
+                "active": True,
+            }
+            current_source.status = "SUPERSEDED"
+            current_source.source_metadata = {
+                **current_source.source_metadata,
+                "active": False,
+                "superseded_by": str(new_message.id),
+            }
+            service.commit_import(locked_workspace.id, batch.id, commit=False)
+            service.reactivate_message_variant(
+                locked_workspace.id,
+                payment.id,
+                new_message.id,
+                body.variant,
+                commit=False,
+            )
+            db.add(
+                AuditEvent(
+                    workspace_id=locked_workspace.id,
+                    action="case.variant",
+                    actor="system",
+                    entity_id=payment.id,
+                    payload={
+                        "case_id": packet.case_id,
+                        "scenario_version": scenario_version,
+                        "variant": body.variant,
+                        "previous_variant": state.get("variant", "original"),
+                        "payment_id": str(payment.id),
+                        "active_source_id": str(new_message.id),
+                        "superseded_source_id": str(current_source.id),
+                        "source_hash": new_message.sha256,
+                        "provenance": "case-registry",
+                    },
+                )
+            )
+            db.commit()
             _wake_consumer(request)
             return _case_response(db, locked_workspace.id, packet, resumed=False)
         except ServiceError as exc:
@@ -901,16 +1293,20 @@ def create_app() -> FastAPI:
             "case": _case_for_payment(db, workspace.id, payment.source_id),
             "capabilities": _capabilities(record, proposal, latest_application),
             "decision_trace": decision_trace,
-            "comparison": _latest_comparison(
-                db,
-                workspace.id,
-                proposal.id,
-                proposal.current_revision,
-                (
-                    revision.model_trace.get("input_fingerprint")
-                    if revision is not None
-                    else None
-                ),
+            "comparison": (
+                None
+                if proposal.status in {"STALE", "PROCESSING"}
+                else _latest_comparison(
+                    db,
+                    workspace.id,
+                    proposal.id,
+                    proposal.current_revision,
+                    (
+                        revision.model_trace.get("input_fingerprint")
+                        if revision is not None
+                        else None
+                    ),
+                )
             ),
             "model_trace": revision.model_trace if revision else {},
             "trace": {
@@ -959,6 +1355,14 @@ def create_app() -> FastAPI:
                 409,
                 detail={"code": "stale_revision", "message": "proposal revision is stale"},
             )
+        if proposal.status in {"STALE", "PROCESSING"}:
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "comparison_unavailable",
+                    "message": "wait for the current evidence job before comparing",
+                },
+            )
         trace = revision.model_trace if revision is not None else {}
         case = _case_for_payment(db, workspace.id, payment.source_id)
         comparison = compare_snapshot(
@@ -966,7 +1370,7 @@ def create_app() -> FastAPI:
             case_id=case["id"] if case is not None else None,
             case_version=case["version"] if case is not None else None,
         )
-        payload = {
+        payload: dict[str, object] = {
             "revision": proposal.current_revision,
             "input_fingerprint": comparison.get("input_fingerprint"),
             "methods": comparison["methods"],
@@ -975,6 +1379,228 @@ def create_app() -> FastAPI:
             AuditEvent(
                 workspace_id=workspace.id,
                 action="proposal.compare",
+                actor="system",
+                entity_id=proposal.id,
+                payload=payload,
+            )
+        )
+        db.commit()
+        return payload
+
+    @app.post("/api/v1/proposals/{proposal_id}/reliability")
+    def proposal_reliability(
+        proposal_id: uuid.UUID,
+        body: ReliabilityRequest,
+        request: Request,
+        db: Session = Depends(_db),
+    ) -> dict[str, object]:
+        _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
+        proposal = db.scalar(
+            select(Proposal)
+            .where(Proposal.id == proposal_id, Proposal.workspace_id == workspace.id)
+            .with_for_update()
+        )
+        if proposal is None:
+            raise HTTPException(404, "proposal not found")
+        payment = db.scalar(
+            select(Payment)
+            .where(Payment.id == proposal.payment_id, Payment.workspace_id == workspace.id)
+            .with_for_update()
+        )
+        if payment is None:
+            raise HTTPException(404, "payment not found")
+        revision = db.scalar(
+            select(ProposalRevision).where(
+                ProposalRevision.proposal_id == proposal.id,
+                ProposalRevision.revision == proposal.current_revision,
+            )
+        )
+        if proposal.current_revision != body.expected_revision or revision is None:
+            raise HTTPException(
+                409,
+                detail={"code": "stale_revision", "message": "proposal revision is stale"},
+            )
+
+        effects_before = _financial_effects(db, workspace.id, proposal.id)
+        effects_after = effects_before.copy()
+        application_id: str | None = None
+        expected: dict[str, object]
+        observed: dict[str, object]
+        passed = False
+        validator: str
+
+        if body.experiment in {"invalid_allocation", "invalid_citation"}:
+            invoice_ids = [
+                str(item.get("invoice_id"))
+                for item in revision.cash_lines + revision.credit_lines
+                if item.get("invoice_id")
+            ]
+            invoice_query = select(Invoice).where(
+                Invoice.workspace_id == workspace.id,
+                Invoice.outstanding_amount > 0,
+            )
+            if invoice_ids:
+                invoice_query = invoice_query.where(Invoice.invoice_id.in_(invoice_ids))
+            invoice = db.scalar(invoice_query.order_by(Invoice.invoice_id))
+            if invoice is None:
+                raise HTTPException(
+                    409,
+                    detail={
+                        "code": "unavailable_condition",
+                        "message": "reliability check requires a persisted invoice",
+                    },
+                )
+            if body.experiment == "invalid_allocation":
+                validator = "validate_allocation"
+                invalid_amount = invoice.outstanding_amount + 1
+                try:
+                    validate_allocation(
+                        payment.amount,
+                        {invoice.invoice_id: _invoice_fact(invoice)},
+                        {},
+                        [CashLine(invoice.invoice_id, invalid_amount)],
+                        [],
+                    )
+                except (ValueError, KeyError) as exc:
+                    observed = {
+                        "accepted": False,
+                        "code": "invalid_allocation",
+                        "message": str(exc),
+                    }
+                else:
+                    observed = {"accepted": True}
+                effects_after = _financial_effects(db, workspace.id, proposal.id)
+                passed = observed.get("accepted") is False and effects_before == effects_after
+                expected = {"accepted": False, "effects_unchanged": True}
+            else:
+                validator = "validate_result"
+                try:
+                    _invalid_citation_check(payment, invoice)
+                except ValueError as exc:
+                    observed = {
+                        "accepted": False,
+                        "code": "invalid_citation",
+                        "message": str(exc),
+                    }
+                else:
+                    observed = {"accepted": True}
+                effects_after = _financial_effects(db, workspace.id, proposal.id)
+                passed = observed.get("accepted") is False and effects_before == effects_after
+                expected = {"accepted": False, "effects_unchanged": True}
+        elif body.experiment == "stale_apply":
+            validator = "ReconcileService.apply"
+            if proposal.status != "PROPOSED" or not revision.version_token:
+                raise HTTPException(
+                    409,
+                    detail={
+                        "code": "unavailable_condition",
+                        "message": "stale apply requires a currently proposed revision",
+                    },
+                )
+            stale_token = ("0" if revision.version_token[0] != "0" else "1") + (
+                revision.version_token[1:]
+            )
+            try:
+                ReconcileService(db).apply(
+                    workspace.id,
+                    proposal.id,
+                    revision.revision,
+                    stale_token,
+                    "reliability-lab",
+                    f"reliability-stale-{proposal.id}",
+                )
+            except ServiceError as exc:
+                db.rollback()
+                effects_after = _financial_effects(db, workspace.id, proposal.id)
+                observed = {
+                    "accepted": False,
+                    "code": exc.code,
+                    "message": exc.message,
+                }
+                passed = exc.code.startswith("stale_") and effects_before == effects_after
+            else:
+                db.rollback()
+                effects_after = _financial_effects(db, workspace.id, proposal.id)
+                observed = {"accepted": True, "code": "unexpected_success"}
+            expected = {"accepted": False, "effects_unchanged": True}
+        else:
+            validator = "ReconcileService.apply"
+            if proposal.status != "APPLIED":
+                raise HTTPException(
+                    409,
+                    detail={
+                        "code": "unavailable_condition",
+                        "message": "duplicate apply requires an explicit application",
+                    },
+                )
+            group = _latest_application(db, workspace.id, proposal.id)
+            if group is None or group.reversed_at is not None:
+                raise HTTPException(
+                    409,
+                    detail={
+                        "code": "unavailable_condition",
+                        "message": "duplicate apply requires an active application",
+                    },
+                )
+            original_revision = db.scalar(
+                select(ProposalRevision).where(
+                    ProposalRevision.proposal_id == proposal.id,
+                    ProposalRevision.revision == group.proposal_revision,
+                )
+            )
+            idempotency = db.scalar(
+                select(IdempotencyKey).where(
+                    IdempotencyKey.workspace_id == workspace.id,
+                    IdempotencyKey.action == "apply",
+                    IdempotencyKey.result_id == group.id,
+                )
+            )
+            if original_revision is None or idempotency is None:
+                raise HTTPException(
+                    409,
+                    detail={
+                        "code": "unavailable_condition",
+                        "message": "original application identity is unavailable",
+                    },
+                )
+            replayed = ReconcileService(db).apply(
+                workspace.id,
+                proposal.id,
+                group.proposal_revision,
+                original_revision.version_token,
+                group.reviewer,
+                idempotency.key,
+            )
+            effects_after = _financial_effects(db, workspace.id, proposal.id)
+            application_id = str(replayed.id)
+            observed = {
+                "accepted": True,
+                "application_id": application_id,
+                "same_application": replayed.id == group.id,
+            }
+            expected = {
+                "same_application": True,
+                "effects_unchanged": True,
+            }
+            passed = bool(observed["same_application"]) and effects_before == effects_after
+
+        payload: dict[str, object] = {
+            "experiment": body.experiment,
+            "synthetic": True,
+            "validator": validator,
+            "expected": expected,
+            "observed": observed,
+            "passed": passed,
+            "application_id": application_id,
+            "effects_before": effects_before,
+            "effects_after": effects_after,
+        }
+        db.add(
+            AuditEvent(
+                workspace_id=workspace.id,
+                action="proposal.reliability",
                 actor="system",
                 entity_id=proposal.id,
                 payload=payload,

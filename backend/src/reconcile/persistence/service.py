@@ -837,7 +837,9 @@ class ReconcileService:
             == "COMMITTED"
         )
 
-    def commit_import(self, workspace_id: uuid.UUID, batch_id: uuid.UUID) -> dict[str, Any]:
+    def commit_import(
+        self, workspace_id: uuid.UUID, batch_id: uuid.UUID, *, commit: bool = True
+    ) -> dict[str, Any]:
         batch = self.session.scalar(
             select(ImportBatch)
             .where(ImportBatch.id == batch_id, ImportBatch.workspace_id == workspace_id)
@@ -1025,8 +1027,51 @@ class ReconcileService:
             if source.status == "VALIDATED":
                 source.status = "COMMITTED"
         batch.status = "COMMITTED"
-        self.session.commit()
+        if commit:
+            self.session.commit()
         return {"batch_id": str(batch.id), **counts, "jobs": jobs}
+
+    def reactivate_message_variant(
+        self,
+        workspace_id: uuid.UUID,
+        payment_id: uuid.UUID,
+        source_id: uuid.UUID,
+        variant: str,
+        *,
+        commit: bool = True,
+    ) -> list[str]:
+        """Reactivate an immutable, previously superseded message source."""
+
+        proposals = self._lock_payment_proposals(workspace_id, payment_id)
+        payment = self.session.scalar(
+            select(Payment)
+            .where(Payment.id == payment_id, Payment.workspace_id == workspace_id)
+            .with_for_update()
+        )
+        source = self.session.scalar(
+            select(Source)
+            .where(Source.id == source_id, Source.workspace_id == workspace_id)
+            .with_for_update()
+        )
+        if payment is None or source is None:
+            raise ServiceError("not_found", "variant source or payment not found", 404)
+        if source.status != "SUPERSEDED":
+            return []
+        source.status = "COMMITTED"
+        source.source_metadata = {
+            **source.source_metadata,
+            "variant": variant,
+            "active": True,
+        }
+        payment.version += 1
+        self._stale_for_payment(workspace_id, payment.id, proposals=proposals)
+        jobs: list[str] = []
+        job_id = self._enqueue_match_job(workspace_id, payment.id)
+        if job_id is not None:
+            jobs.append(job_id)
+        if commit:
+            self.session.commit()
+        return jobs
 
     def process_match(self, workspace_id: uuid.UUID, payment_id: uuid.UUID) -> Proposal:
         payment = self.session.scalar(
@@ -1057,6 +1102,7 @@ class ReconcileService:
                 Source.kind == "message",
                 or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                 Source.status != "REJECTED_CONFLICT",
+                Source.status != "SUPERSEDED",
             )
         ):
             if (
@@ -1078,6 +1124,7 @@ class ReconcileService:
                     Source.workspace_id == workspace_id,
                     Source.kind == kind,
                     Source.status != "REJECTED_CONFLICT",
+                    Source.status != "SUPERSEDED",
                     or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
                 )
             )

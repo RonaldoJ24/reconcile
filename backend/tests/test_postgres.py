@@ -39,6 +39,7 @@ from reconcile.persistence.models import (
     AuditEvent,
     Base,
     CashApplication,
+    CreditApplication,
     CreditNote,
     ImportBatch,
     InterpretationBudgetCounter,
@@ -1010,7 +1011,7 @@ def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch
             detail = detail_response.json()
             details[case_id] = detail
             assert detail["status"] == expected_status[case_id]
-            assert detail["case"] == {"id": case_id, "version": "v1"}
+            assert detail["case"] == {"id": case_id, "version": "v1", "variant": "original"}
             assert detail["decision_trace"]["source"] == "rules"
             assert any(
                 stage["id"] == "parse-observations"
@@ -1093,6 +1094,12 @@ def test_case_api_csrf_and_workspace_isolation_cover_sources_and_details(
         denied = client_b.post("/api/v1/cases/adversarial/open")
         assert denied.status_code == 403
         client_b.headers["X-CSRF-Token"] = csrf
+        variant_denied = client_b.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": 1, "variant": "ambiguous"},
+        )
+        assert variant_denied.status_code == 409
+        assert variant_denied.json()["error"]["code"] == "variant_unavailable"
         assert client_b.get(f"/api/v1/proposals/{proposal['proposal_id']}").status_code == 404
         assert client_b.get(f"/api/v1/sources/{source_id}").status_code == 404
         assert handle["payment_id"]
@@ -1217,6 +1224,12 @@ def test_case_trace_survives_correction_apply_reverse_with_audits(session, monke
             stage["id"] == "application-apply"
             for stage in applied["decision_trace"]["stages"]
         )
+        applied_variant = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": 2, "variant": "ambiguous"},
+        )
+        assert applied_variant.status_code == 409
+        assert applied_variant.json()["error"]["code"] == "immutable_revision"
 
         reverse_response = client.post(
             f"/api/v1/applications/{application_id}/reverse",
@@ -1252,6 +1265,320 @@ def test_case_trace_survives_correction_apply_reverse_with_audits(session, monke
             "application.reverse",
         }
         assert source_id in {item["source_id"] for item in original_trace["snapshot"]["sources"]}
+        variant_response = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": 2, "variant": "ambiguous"},
+        )
+        assert variant_response.status_code == 409
+        assert variant_response.json()["error"]["code"] == "immutable_revision"
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_case_variants_supersede_and_restore_immutable_evidence(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        handle = _open_case(client, "straightforward")
+        _run_all_jobs(client)
+        proposal_id = next(
+            item
+            for item in client.get("/api/v1/proposals").json()
+            if item["payment_id"] == handle["payment_id"]
+        )["proposal_id"]
+        detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        original_revision = detail["revision"]
+        workspace_id = session.scalar(select(Workspace.id).order_by(Workspace.created_at.desc()))
+        assert workspace_id is not None
+        source_count = session.query(Source).filter_by(workspace_id=workspace_id).count()
+        payment_id = uuid.UUID(handle["payment_id"])
+        payment_before = session.get(Payment, payment_id)
+        assert payment_before is not None
+        version_before = payment_before.version
+        financial_counts_before = {
+            model.__name__: session.query(model)
+            .filter_by(workspace_id=payment_before.workspace_id)
+            .count()
+            for model in (ApplicationGroup, CashApplication, CreditApplication)
+        }
+        original_fingerprint = detail["decision_trace"]["input_fingerprint"]
+        compared = client.post(
+            f"/api/v1/proposals/{proposal_id}/compare",
+            json={"expected_revision": original_revision},
+        )
+        assert compared.status_code == 200, compared.text
+        csrf_token = client.headers.pop("X-CSRF-Token")
+        csrf_denied = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": original_revision, "variant": "ambiguous"},
+        )
+        assert csrf_denied.status_code == 403
+        client.headers["X-CSRF-Token"] = csrf_token
+        stale_variant = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": original_revision + 1, "variant": "ambiguous"},
+        )
+        assert stale_variant.status_code == 409
+        assert stale_variant.json()["error"]["code"] == "stale_revision"
+
+        changed = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": original_revision, "variant": "ambiguous"},
+        )
+        assert changed.status_code == 200, changed.text
+        assert changed.json()["variant"] == "ambiguous"
+        assert changed.json()["scenario_version"] == "v1:ambiguous"
+        pending_detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert pending_detail["status"] == "STALE"
+        assert pending_detail["comparison"] is None
+        pending_compare = client.post(
+            f"/api/v1/proposals/{proposal_id}/compare",
+            json={"expected_revision": original_revision},
+        )
+        assert pending_compare.status_code == 409
+        assert pending_compare.json()["error"]["code"] == "comparison_unavailable"
+        assert (
+            session.query(Source).filter_by(workspace_id=payment_before.workspace_id).count()
+            == source_count + 1
+        )
+        payment_after = session.get(Payment, payment_id)
+        assert payment_after is not None
+        assert payment_after.version == version_before + 1
+        _run_all_jobs(client)
+        ambiguous = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert ambiguous["status"] == "NEEDS_REVIEW"
+        assert ambiguous["decision_trace"]["input_fingerprint"] != original_fingerprint
+        assert ambiguous["comparison"] is None
+        ambiguous_revision = ambiguous["revision"]
+        ambiguous_source = next(
+            source
+            for source in session.scalars(select(Source))
+            if source.kind == "message"
+            and source.source_metadata.get("variant") == "ambiguous"
+            and source.workspace_id == payment_before.workspace_id
+        )
+        ambiguous_hash = ambiguous_source.sha256
+        ambiguous_bytes = bytes(ambiguous_source.raw_bytes)
+        counts_after_change = {
+            model.__name__: session.query(model)
+            .filter_by(workspace_id=payment_before.workspace_id)
+            .count()
+            for model in (Source, Payment, Invoice, CreditNote, Proposal, Job)
+        }
+        resumed = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": ambiguous_revision, "variant": "ambiguous"},
+        )
+        assert resumed.status_code == 200
+        assert resumed.json()["resumed"] is True
+        for model in (Source, Payment, Invoice, CreditNote, Proposal, Job):
+            assert (
+                session.query(model).filter_by(workspace_id=payment_before.workspace_id).count()
+                == counts_after_change[model.__name__]
+            )
+
+        prompt_first = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": ambiguous_revision, "variant": "prompt_like"},
+        )
+        assert prompt_first.status_code == 200, prompt_first.text
+        assert prompt_first.json()["variant"] == "prompt_like"
+        assert prompt_first.json()["scenario_version"] == "v1:prompt_like"
+        _run_all_jobs(client)
+        prompt_first_detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        prompt_first_revision = prompt_first_detail["revision"]
+        source_count_after_prompt = session.query(Source).filter_by(
+            workspace_id=payment_before.workspace_id
+        ).count()
+        assert source_count_after_prompt == source_count + 2
+
+        back_to_ambiguous = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": prompt_first_revision, "variant": "ambiguous"},
+        )
+        assert back_to_ambiguous.status_code == 200, back_to_ambiguous.text
+        assert back_to_ambiguous.json()["variant"] == "ambiguous"
+        assert (
+            session.query(Source).filter_by(workspace_id=payment_before.workspace_id).count()
+            == source_count_after_prompt
+        )
+        payment_back = session.get(Payment, payment_id)
+        assert payment_back is not None
+        assert payment_back.version == version_before + 3
+        ambiguous_again_source = session.get(Source, ambiguous_source.id)
+        assert ambiguous_again_source is not None
+        assert ambiguous_again_source.sha256 == ambiguous_hash
+        assert ambiguous_again_source.raw_bytes == ambiguous_bytes
+        for model in (ApplicationGroup, CashApplication, CreditApplication):
+            assert (
+                session.query(model).filter_by(workspace_id=payment_before.workspace_id).count()
+                == financial_counts_before[model.__name__]
+            )
+        _run_all_jobs(client)
+        ambiguous_again = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert ambiguous_again["status"] == "NEEDS_REVIEW"
+
+        restored = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": ambiguous_again["revision"], "variant": "original"},
+        )
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["variant"] == "original"
+        assert restored.json()["scenario_version"] == "v1"
+        payment_restored = session.get(Payment, payment_id)
+        assert payment_restored is not None
+        assert payment_restored.version == version_before + 4
+        _run_all_jobs(client)
+        restored_detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        restored_revision = restored_detail["revision"]
+        prompt = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": restored_revision, "variant": "prompt_like"},
+        )
+        assert prompt.status_code == 200, prompt.text
+        assert prompt.json()["variant"] == "prompt_like"
+        assert prompt.json()["scenario_version"] == "v1:prompt_like"
+        assert (
+            session.query(Source).filter_by(workspace_id=payment_before.workspace_id).count()
+            == source_count_after_prompt
+        )
+        payment_final = session.get(Payment, payment_id)
+        assert payment_final is not None
+        assert payment_final.version == version_before + 5
+        _run_all_jobs(client)
+        final_detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert final_detail["status"] == "NEEDS_REVIEW"
+        assert final_detail["revision"] > restored_revision
+        assert (
+            session.query(ProposalRevision)
+            .filter_by(proposal_id=uuid.UUID(proposal_id))
+            .count()
+            >= 4
+        )
+        messages = list(
+            session.scalars(
+                select(Source).where(
+                    Source.workspace_id == payment_before.workspace_id,
+                    Source.kind == "message",
+                )
+            )
+        )
+        assert sum(source.status == "SUPERSEDED" for source in messages) >= 1
+        assert any(source.status == "COMMITTED" for source in messages)
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_reliability_lab_uses_real_validators_and_idempotency(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        handle = _open_case(client, "straightforward")
+        _run_all_jobs(client)
+        proposal_id = next(
+            item
+            for item in client.get("/api/v1/proposals").json()
+            if item["payment_id"] == handle["payment_id"]
+        )["proposal_id"]
+        detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        before_duplicate = client.post(
+            f"/api/v1/proposals/{proposal_id}/reliability",
+            json={"expected_revision": detail["revision"], "experiment": "duplicate_apply"},
+        )
+        assert before_duplicate.status_code == 409
+        assert before_duplicate.json()["error"]["code"] == "unavailable_condition"
+        for experiment, validator in (
+            ("invalid_allocation", "validate_allocation"),
+            ("invalid_citation", "validate_result"),
+            ("stale_apply", "ReconcileService.apply"),
+        ):
+            response = client.post(
+                f"/api/v1/proposals/{proposal_id}/reliability",
+                json={"expected_revision": detail["revision"], "experiment": experiment},
+            )
+            assert response.status_code == 200, response.text
+            payload = response.json()
+            assert payload["synthetic"] is True
+            assert payload["validator"] == validator
+            assert payload["passed"] is True
+            assert payload["effects_before"] == payload["effects_after"]
+            assert payload["application_id"] is None
+
+        applied = client.post(
+            f"/api/v1/proposals/{proposal_id}/apply",
+            json={
+                "expected_revision": detail["revision"],
+                "version_token": detail["version_token"],
+                "reviewer": "lab-reviewer",
+                "idempotency_key": "lab-apply",
+            },
+        )
+        assert applied.status_code == 200, applied.text
+        application_id = applied.json()["application_id"]
+        application_count = session.query(ApplicationGroup).filter_by(
+            workspace_id=session.scalar(select(Workspace.id).order_by(Workspace.created_at.desc()))
+        ).count()
+        duplicate = client.post(
+            f"/api/v1/proposals/{proposal_id}/reliability",
+            json={"expected_revision": detail["revision"], "experiment": "duplicate_apply"},
+        )
+        assert duplicate.status_code == 200, duplicate.text
+        duplicate_payload = duplicate.json()
+        assert duplicate_payload["passed"] is True
+        assert duplicate_payload["application_id"] == application_id
+        assert duplicate_payload["effects_before"] == duplicate_payload["effects_after"]
+        assert (
+            session.query(ApplicationGroup).filter_by(
+                workspace_id=session.scalar(select(Workspace.id).order_by(Workspace.created_at.desc()))
+            ).count()
+            == application_count
+        )
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_case_variant_rolls_back_sources_and_jobs_as_one_transaction(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        handle = _open_case(client, "straightforward")
+        _run_all_jobs(client)
+        workspace_id = session.scalar(select(Workspace.id).order_by(Workspace.created_at.desc()))
+        assert workspace_id is not None
+        payment_id = uuid.UUID(handle["payment_id"])
+        payment = session.get(Payment, payment_id)
+        assert payment is not None
+        counts_before = {
+            model.__name__: session.query(model).filter_by(workspace_id=workspace_id).count()
+            for model in (Source, Payment, Invoice, CreditNote, Proposal, Job, AuditEvent)
+        }
+        version_before = payment.version
+        original_commit = ReconcileService.commit_import
+
+        def fail_commit(self, *args, **kwargs):
+            original_commit(self, *args, **kwargs)
+            raise ServiceError("injected_variant_failure", "injected failure", 409)
+
+        monkeypatch.setattr(ReconcileService, "commit_import", fail_commit)
+        failed = client.post(
+            "/api/v1/cases/straightforward/variant",
+            json={"expected_revision": 1, "variant": "ambiguous"},
+        )
+        assert failed.status_code == 409
+        assert failed.json()["error"]["code"] == "injected_variant_failure"
+        monkeypatch.setattr(ReconcileService, "commit_import", original_commit)
+        session.rollback()
+        for model in (Source, Payment, Invoice, CreditNote, Proposal, Job, AuditEvent):
+            assert (
+                session.query(model).filter_by(workspace_id=workspace_id).count()
+                == counts_before[model.__name__]
+            )
+        payment_after = session.get(Payment, payment_id)
+        assert payment_after is not None
+        assert payment_after.version == version_before
+        assert (
+            session.query(AuditEvent)
+            .filter_by(workspace_id=workspace_id, action="case.variant")
+            .count()
+            == 0
+        )
     finally:
         api.dependency_overrides.clear()
 
