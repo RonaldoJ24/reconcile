@@ -1256,6 +1256,117 @@ def test_case_trace_survives_correction_apply_reverse_with_audits(session, monke
         api.dependency_overrides.clear()
 
 
+def test_comparison_is_authenticated_non_actionable_and_revision_scoped(
+    session, monkeypatch
+) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        handle = _open_case(client, "straightforward")
+        _run_all_jobs(client)
+        proposal_row = next(
+            item
+            for item in client.get("/api/v1/proposals").json()
+            if item["payment_id"] == handle["payment_id"]
+        )
+        proposal_id = proposal_row["proposal_id"]
+        detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        fingerprint = detail["model_trace"]["input_fingerprint"]
+        payment = session.get(Payment, uuid.UUID(handle["payment_id"]))
+        assert payment is not None
+        versions_before = {
+            "payment": payment.version,
+            "invoice": session.scalar(
+                select(Invoice.version).where(
+                    Invoice.workspace_id == payment.workspace_id,
+                    Invoice.invoice_id == "case-straightforward-invoice",
+                )
+            ),
+        }
+
+        compared = client.post(
+            f"/api/v1/proposals/{proposal_id}/compare",
+            json={"expected_revision": detail["revision"]},
+        )
+        assert compared.status_code == 200, compared.text
+        payload = compared.json()
+        assert payload["revision"] == 1
+        assert payload["input_fingerprint"] == fingerprint
+        assert [item["method"] for item in payload["methods"]] == [
+            "rules",
+            "bounded_correction",
+            "shadow_ranker",
+            "direct",
+            "hybrid",
+        ]
+        assert all(item["actionable"] is False for item in payload["methods"])
+        assert payload["methods"][0]["source"] == "rules"
+        assert payload["methods"][2]["source"] == "local"
+        assert payload["methods"][3]["status"] == "unavailable"
+        assert payload["methods"][4]["status"] == "unavailable"
+        assert session.get(Payment, payment.id).version == versions_before["payment"]
+        assert (
+            session.scalar(
+                select(Invoice.version).where(
+                    Invoice.workspace_id == payment.workspace_id,
+                    Invoice.invoice_id == "case-straightforward-invoice",
+                )
+            )
+            == versions_before["invoice"]
+        )
+        assert client.get(f"/api/v1/proposals/{proposal_id}").json()["comparison"] == payload
+        assert (
+            session.query(AuditEvent)
+            .filter_by(action="proposal.compare", entity_id=uuid.UUID(proposal_id))
+            .count()
+            == 1
+        )
+        _, client_b = _api_client(session, monkeypatch)
+        denied = client_b.post(
+            f"/api/v1/proposals/{proposal_id}/compare", json={"expected_revision": 1}
+        )
+        assert denied.status_code == 404
+        csrf = client.headers.pop("X-CSRF-Token")
+        missing_csrf = client.post(
+            f"/api/v1/proposals/{proposal_id}/compare", json={"expected_revision": 1}
+        )
+        assert missing_csrf.status_code == 403
+        client.headers["X-CSRF-Token"] = csrf
+
+        corrected = client.post(
+            f"/api/v1/proposals/{proposal_id}/correct",
+            json={
+                "expected_revision": 1,
+                "cash": [{"invoice_id": "case-straightforward-invoice", "amount": 100_000}],
+                "credits": [],
+                "reviewer": "comparison-reviewer",
+            },
+        )
+        assert corrected.status_code == 200, corrected.text
+        assert client.get(f"/api/v1/proposals/{proposal_id}").json()["comparison"] is None
+        stale = client.post(
+            f"/api/v1/proposals/{proposal_id}/compare",
+            json={"expected_revision": 1},
+        )
+        assert stale.status_code == 409
+        assert stale.json()["error"]["code"] == "stale_revision"
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_evaluation_route_serves_packaged_summary_with_active_engine(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        response = client.get("/api/v1/evaluation")
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["active_engine"] == "rules-v2-conservative"
+        assert payload["schema_version"] == "evaluation-summary-v1"
+        assert payload["v2"]["status"] == "not_evaluated"
+        assert "dataset" not in payload
+    finally:
+        api.dependency_overrides.clear()
+
+
 def test_preview_rejects_non_sample_upload(session, monkeypatch) -> None:
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     invite = "phase-six-preview-invite"

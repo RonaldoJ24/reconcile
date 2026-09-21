@@ -54,8 +54,9 @@ comparisons between the active conservative and bounded correction baselines
 without allowing one method a different candidate set. The harness executes no
 method and has no authentic provider artifact loader. Direct/Hybrid observations
 therefore accept only an explicit `UNAVAILABLE` row; supplied provider
-proposals, failures, and claimed authenticity are rejected until that loader
-exists.
+proposals, failures, and claimed authenticity are rejected until an authenticated
+observation adapter is added to this harness. The runtime comparison verifier is
+a separate boundary and is not wired into this evaluator.
 
 ## Reserved final access
 

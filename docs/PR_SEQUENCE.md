@@ -15,10 +15,12 @@ own base-to-head diff rather than comparing every head directly with main.
 | 2 | [#25 Financial review UI](https://github.com/RonaldoJ24/reconcile/pull/25) | `review/reconcile-contracts` | `review/reconcile-financial-ui` | `56b6fb1` |
 | 3 | [#26 Documentation and review evidence](https://github.com/RonaldoJ24/reconcile/pull/26) | `review/reconcile-financial-ui` | `review/reconcile-evidence` | `bd94120` |
 | 4 | [#27 Backend integrity](https://github.com/RonaldoJ24/reconcile/pull/27) | `review/reconcile-evidence` | `review/reconcile-backend-integrity` | `c668a7f` |
+| 5 | [#28 Persisted cases and traces](https://github.com/RonaldoJ24/reconcile/pull/28) | `review/reconcile-backend-integrity` | `review/reconcile-case-experience` | `2df4be9` |
+| 6 | [#29 V2 observation harness](https://github.com/RonaldoJ24/reconcile/pull/29) | `review/reconcile-case-experience` | `review/reconcile-evaluation-v2` | `3616c2c` |
 
-The integration branch `feat/reconcile-case-study` continues from the fourth head.
-Case experience, comparison/reliability and v2 harness work will receive subsequent
-review boundaries after their checks pass. Worker branches are implementation
+The integration branch `feat/reconcile-case-study` continues from the sixth head.
+Comparison and controlled-variant/reliability work will receive subsequent review
+boundaries after their checks pass. Worker branches are implementation
 lanes, not extra duplicate PRs.
 
 PR descriptions name the checks actually run and separate persisted PostgreSQL

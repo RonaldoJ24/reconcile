@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import json
 import os
 import secrets
 import uuid
@@ -20,9 +21,11 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from reconcile.api.cases import get_case, list_cases
+from reconcile.api.comparison import compare_snapshot
 from reconcile.api.sample import is_exact_sample_packet, sample_zip
 from reconcile.api.schemas import (
     ApplyRequest,
+    ComparisonRequest,
     CorrectionRequest,
     InterpretationRequestBody,
     ReverseRequest,
@@ -261,9 +264,13 @@ def _application_audits(
 
 
 def _latest_comparison(
-    db: Session, workspace_id: uuid.UUID, proposal_id: uuid.UUID
+    db: Session,
+    workspace_id: uuid.UUID,
+    proposal_id: uuid.UUID,
+    revision: int,
+    input_fingerprint: str | None,
 ) -> dict[str, object] | None:
-    event = db.scalar(
+    for event in db.scalars(
         select(AuditEvent)
         .where(
             AuditEvent.workspace_id == workspace_id,
@@ -271,8 +278,13 @@ def _latest_comparison(
             AuditEvent.entity_id == proposal_id,
         )
         .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc())
-    )
-    return event.payload if event is not None else None
+    ):
+        if (
+            event.payload.get("revision") == revision
+            and event.payload.get("input_fingerprint") == input_fingerprint
+        ):
+            return event.payload
+    return None
 
 
 def _case_response(
@@ -382,6 +394,27 @@ def create_app() -> FastAPI:
     def cases(request: Request, db: Session = Depends(_db)) -> dict[str, object]:
         _session(request, db)
         return {"version": "v1", "cases": list_cases()}
+
+    @app.get("/api/v1/evaluation")
+    def evaluation(request: Request, db: Session = Depends(_db)) -> dict[str, object]:
+        _session(request, db)
+        summary_path = Path(__file__).with_name("evaluation_summary.json")
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                503,
+                detail={
+                    "code": "evaluation_unavailable",
+                    "message": "evaluation summary unavailable",
+                },
+            ) from exc
+        if not isinstance(summary, dict):
+            raise HTTPException(
+                503,
+                detail={"code": "evaluation_unavailable", "message": "evaluation summary invalid"},
+            )
+        return {"active_engine": ACTIVE_RULES_IDENTITY, **summary}
 
     @app.post("/api/v1/cases/{case_id}/open")
     def open_case(case_id: str, request: Request, db: Session = Depends(_db)) -> dict[str, object]:
@@ -868,7 +901,17 @@ def create_app() -> FastAPI:
             "case": _case_for_payment(db, workspace.id, payment.source_id),
             "capabilities": _capabilities(record, proposal, latest_application),
             "decision_trace": decision_trace,
-            "comparison": _latest_comparison(db, workspace.id, proposal.id),
+            "comparison": _latest_comparison(
+                db,
+                workspace.id,
+                proposal.id,
+                proposal.current_revision,
+                (
+                    revision.model_trace.get("input_fingerprint")
+                    if revision is not None
+                    else None
+                ),
+            ),
             "model_trace": revision.model_trace if revision else {},
             "trace": {
                 "mode": revision.provenance if revision else "rules-v1",
@@ -881,6 +924,64 @@ def create_app() -> FastAPI:
             ),
             "review_required": proposal.review_required,
         }
+
+    @app.post("/api/v1/proposals/{proposal_id}/compare")
+    def compare_proposal(
+        proposal_id: uuid.UUID,
+        body: ComparisonRequest,
+        request: Request,
+        db: Session = Depends(_db),
+    ) -> dict[str, object]:
+        _, workspace = _require_mutation(request, db)
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
+        row = db.execute(
+            select(Proposal, ProposalRevision, Payment)
+            .join(Payment, Payment.id == Proposal.payment_id)
+            .outerjoin(
+                ProposalRevision,
+                and_(
+                    ProposalRevision.proposal_id == Proposal.id,
+                    ProposalRevision.revision == Proposal.current_revision,
+                ),
+            )
+            .where(
+                Proposal.id == proposal_id,
+                Proposal.workspace_id == workspace.id,
+                Payment.workspace_id == workspace.id,
+            )
+        ).one_or_none()
+        if row is None:
+            raise HTTPException(404, "proposal not found")
+        proposal, revision, payment = row
+        if proposal.current_revision != body.expected_revision:
+            raise HTTPException(
+                409,
+                detail={"code": "stale_revision", "message": "proposal revision is stale"},
+            )
+        trace = revision.model_trace if revision is not None else {}
+        case = _case_for_payment(db, workspace.id, payment.source_id)
+        comparison = compare_snapshot(
+            trace,
+            case_id=case["id"] if case is not None else None,
+            case_version=case["version"] if case is not None else None,
+        )
+        payload = {
+            "revision": proposal.current_revision,
+            "input_fingerprint": comparison.get("input_fingerprint"),
+            "methods": comparison["methods"],
+        }
+        db.add(
+            AuditEvent(
+                workspace_id=workspace.id,
+                action="proposal.compare",
+                actor="system",
+                entity_id=proposal.id,
+                payload=payload,
+            )
+        )
+        db.commit()
+        return payload
 
     @app.post("/api/v1/proposals/{proposal_id}/correct")
     def correct_proposal(

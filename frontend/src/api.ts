@@ -10,6 +10,8 @@ import type {
   ReverseResponse,
   CaseOpen,
   CaseRegistry,
+  Comparison,
+  EvaluationResponse,
   ProposalDetail,
   ProposalSummary,
   Session,
@@ -97,6 +99,17 @@ export function listProposals() {
 
 export function getProposal(id: string) {
   return request<ProposalDetail>(`/api/v1/proposals/${encodeURIComponent(id)}`)
+}
+
+export function compareProposal(id: string, expectedRevision: number) {
+  return request<Comparison>(`/api/v1/proposals/${encodeURIComponent(id)}/compare`, {
+    method: 'POST',
+    body: JSON.stringify({ expected_revision: expectedRevision }),
+  })
+}
+
+export function getEvaluation() {
+  return request<EvaluationResponse>('/api/v1/evaluation')
 }
 
 export function getSource(id: string) {

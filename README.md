@@ -10,9 +10,24 @@ The [hosted synthetic preview](https://reconcile-preview.onrender.com) runs the
 previous deployed version and may need time to wake. This branch is a local
 enhancement under review, not a new deployment. Use synthetic data only.
 
+## Start with a case
+
+Open the bundled payment case from the local case library. It follows the real
+parser, import and job pipeline, so you can inspect source text and the saved
+decision trace. Five synthetic cases cover an explicit reference, a credit bundle
+with a misleading amount match, conflicting instructions, insufficient evidence
+and a prompt-like message. Reopening a case resumes its persisted state.
+
+Compare methods on the saved input snapshot without applying an observation. The
+local rules and unchanged ranker run; Direct and Hybrid remain unavailable without
+authenticated recordings. The Evaluation page reads the preserved aggregate report
+and distinguishes historical results from the unevaluated v2 protocol. See
+[comparison and replay boundaries](docs/COMPARISON_AND_REPLAY.md).
+
 ## The financial workflow
 
-Import bounded CSV/TXT evidence, inspect a persisted proposal, save any correction,
+Open a registered case or import bounded CSV/TXT evidence, inspect a persisted
+proposal, save any correction,
 confirm the revision and its balance effects, then apply. Export application history
 or explicitly reverse with a reason. Cash and credit stay separate throughout.
 
@@ -52,7 +67,10 @@ Missing usage, cost or execution evidence is not replaced with invented numbers.
 The [case study](docs/PORTFOLIO_CASE_STUDY.md) explains the failed model experiment,
 financial boundary, measurement limitations and the falsifiable next experiment.
 The [v2 protocol](contracts/PORTFOLIO_V2.md) is frozen before new evaluation; its
-existence does not mean a final or paid benchmark has run.
+existence does not mean a final or paid benchmark has run. The
+[observation-only evaluator](docs/EVALUATION_V2.md) checks grouped splits, complete
+allocations, outcome denominators, manifest binding and guarded final access. It
+does not authenticate or execute provider observations.
 
 ## Run and verify locally
 
@@ -69,14 +87,15 @@ ALLOW_DESTRUCTIVE_TEST_DB=1 make test-integration
 pnpm --dir frontend build
 RECONCILE_LLM_ENABLED=0 make run
 # Against the local same-origin backend serving frontend/dist:
-E2E_BASE_URL=http://127.0.0.1:8000 make test-e2e
+E2E_REAL_CASES=1 E2E_REAL_CASE_LAB=1 E2E_BASE_URL=http://127.0.0.1:8000 make test-e2e
 ```
 
 `DATABASE_URL` selects the runtime database; `TEST_DATABASE_URL` selects the isolated
 integration database. Never point destructive tests at the preview's main database.
 The real browser flow and unit tests serve different purposes; mock transport tests
 do not establish persistence or locking. Current run evidence is in
-[STATUS](docs/STATUS.md), with historical phases explicitly distinguished.
+[STATUS](docs/STATUS.md), with historical phases explicitly distinguished. The
+[PR sequence](docs/PR_SEQUENCE.md) records the dependent draft review boundaries.
 
 ## Scope and limits
 

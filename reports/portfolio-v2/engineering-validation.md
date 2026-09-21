@@ -64,6 +64,28 @@ Screenshots and generated browser outputs are ignored working artifacts.
 Browser-native 200% zoom remains unverified: Chromium headless did not respond
 to the zoom shortcut; device scaling is not counted as browser zoom.
 
+## Accepted comparison backend checks
+
+Rules and the unchanged local ranker execute over the verified saved snapshot.
+The production provider recording registry and trusted digest sets remain empty.
+Ruff and mypy passed; 40 focused offline checks passed before the final small
+empty-citation deferral correction. The five comparison module tests then passed,
+including Direct/Hybrid proposal and deferral verification with synthetic trust
+fixtures. PostgreSQL: seven focused tests passed, followed by two endpoint tests
+on the final backend implementation. No financial effects or provider calls occur
+when comparing. See `docs/COMPARISON_AND_REPLAY.md` for scope and timing boundaries.
+
+## Accepted comparison and evaluation interface
+
+Frontend unit tests: 34 passed; TypeScript and production build passed. Mocked
+Playwright checks: six passed across desktop/mobile, including a delayed comparison
+after editing and evaluation reached before session initialization. Real PostgreSQL
+API browser checks: two passed across desktop/mobile, observing five methods, saved
+comparison after reload, and four packaged historical rows with provenance.
+Primary review inspected the real desktop comparison and mobile evaluation captures.
+An observed mobile navigation overflow was corrected with a two-column layout.
+The final real browser check also asserts no page overflow (2 passed, 39.2 s).
+
 ## Accepted v2 harness checks
 
 `backend/tests/test_ml_evaluate_v2.py`: 15 tests passed. Ruff and mypy passed for
@@ -87,8 +109,7 @@ citation-location checks do not establish semantic entailment.
 
 ## Remaining acceptance
 
-Same-input comparison and artifact rejection;
-controlled evidence variants and reliability experiments; historical evaluation UI;
+Controlled evidence variants and reliability experiments;
 final integrated backend, PostgreSQL and browser verification;
 final release-boundary scan and private PR. Replace this section with observed
 results as those checks complete.
