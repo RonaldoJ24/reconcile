@@ -48,6 +48,10 @@ Store bounded input/candidate/source snapshots and stages in existing revision
 `model_trace`, at execution time. Trace schema has `schema_version`,
 `input_fingerprint`, and `stages`. A stage has `id`, `name`, `status`, `summary`,
 `duration_ms` (null if unmeasured), optional `details` and exact `evidence` references.
+Top-level `source` identifies the decision execution: `rules`, `live`, `cache`,
+`recorded`, or `unavailable`. `rules` means a deterministic execution, not a provider
+call. Keep provider routing/availability in its own stage; a disabled provider does
+not make completed rules execution unavailable. Legacy traces may omit this field.
 Do not add completed stages for operations that did not run. Routing decisions can
 explicitly record skipped/disabled inference. Financial validation is an actual
 shared-validator invocation, not a label attached to arithmetic.

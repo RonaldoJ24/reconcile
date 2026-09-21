@@ -19,8 +19,31 @@ PostgreSQL tests deselected (16.21 s). Direct reproduction confirms negated Engl
 and Spanish references incorrectly propose, while `101.` is missed. The existing
 Neon `test-phases-0-2` branch is available, so no new infrastructure is necessary;
 `make test-integration` passed 45/45 PostgreSQL tests (230.91 s), including
-contested-balance races. Frontend partial work is being
-completed and has not yet been accepted.
+contested-balance races. Financial frontend corrections were accepted in
+`56b6fb1`: typecheck/build, 16 frontend tests, and 12 desktop/mobile Playwright
+checks passed. The real PostgreSQL browser flow verifies that typed `100` and
+filled `100.00` both persist as 10,000 centavos, then confirms apply, reload,
+export, reversal and balances. Transport mocks separately exercise stale validation,
+unsaved edits, uncertain retries and save locking. Screenshots are local under
+`output/quality-demo/`; case-first UI work is still in progress.
+
+The 24-case blinded synthetic domain-review packet is committed in `65bec35`.
+Blank responses, provisional author labels and adjudication instructions are
+separate. No independent review has occurred.
+
+Backend integrity changes remain unaccepted in the separate worktree. Acceptance
+found unsupported follow-up clauses still produce an allocation (for example,
+`Apply invoice 101. Actually wait for confirmation.`). After the two bounded Luna
+corrections, the configured Gemini fallback exited 1 twice before any completed
+agent message. No fallback changes were produced. The owner then explicitly
+authorized one additional Luna correction. The targeted follow-up phrases now
+defer, including the ambiguous `No invoice 101` form. Primary acceptance ran
+`make lint typecheck test`: Ruff and strict mypy passed, with 1,065 offline tests
+passing and 49 PostgreSQL checks deselected. The PostgreSQL acceptance run is
+in progress using the existing test branch's direct connection. Its earlier
+pooled attempt was interrupted during connection establishment, before a test
+completed; a read-only activity check found no blocked SQL transaction.
+No application-provider inference was called.
 
 ## Quality/demo correction — Phase 0 baseline
 
