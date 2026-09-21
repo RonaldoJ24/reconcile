@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, applyProposal, compareProposal, createSession, getEvaluation, getSource } from './api'
+import { ApiError, applyCaseVariant, applyProposal, compareProposal, createSession, getEvaluation, getSource, runReliabilityCheck } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -65,5 +65,33 @@ describe('API transport boundary', () => {
 
     await expect(getEvaluation()).resolves.toMatchObject({ active_engine: 'rules-v2-conservative' })
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/evaluation', expect.objectContaining({ credentials: 'include' }))
+  })
+
+  it('changes a registered case variant with its expected revision', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      case_id: 'bundle', scenario_version: 'v1-ambiguous', variant: 'ambiguous', payment_id: 'payment-1', proposal_id: 'proposal-1', jobs: [], resumed: true,
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(applyCaseVariant('bundle', 3, 'ambiguous')).resolves.toMatchObject({ variant: 'ambiguous' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/cases/bundle/variant', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ expected_revision: 3, variant: 'ambiguous' }),
+    }))
+  })
+
+  it('requests a named reliability experiment at the persisted revision', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      experiment: 'invalid_citation', synthetic: true, validator: 'citation-validator-v1', expected: {}, observed: {}, passed: false, application_id: null,
+      effects_before: { application_groups: 0, cash_applications: 0, credit_applications: 0, cash_centavos: 0, credit_centavos: 0 },
+      effects_after: { application_groups: 0, cash_applications: 0, credit_applications: 0, cash_centavos: 0, credit_centavos: 0 },
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(runReliabilityCheck('proposal-1', 2, 'invalid_citation')).resolves.toMatchObject({ experiment: 'invalid_citation' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/proposals/proposal-1/reliability', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ expected_revision: 2, experiment: 'invalid_citation' }),
+    }))
   })
 })
