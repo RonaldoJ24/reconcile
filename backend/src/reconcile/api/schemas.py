@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 
 class StrictModel(BaseModel):
@@ -23,13 +23,13 @@ class SessionResponse(StrictModel):
 
 class AllocationLine(StrictModel):
     invoice_id: str = Field(min_length=1, max_length=100)
-    amount: int = Field(gt=0, le=999_999_999_999)
+    amount: StrictInt = Field(gt=0, le=999_999_999_999)
 
 
 class CreditAllocationLine(StrictModel):
     credit_note_id: str = Field(min_length=1, max_length=100)
     invoice_id: str = Field(min_length=1, max_length=100)
-    amount: int = Field(gt=0, le=999_999_999_999)
+    amount: StrictInt = Field(gt=0, le=999_999_999_999)
 
 
 class CorrectionRequest(StrictModel):

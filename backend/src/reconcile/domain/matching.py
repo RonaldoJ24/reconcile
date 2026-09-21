@@ -15,21 +15,172 @@ from .types import (
     ProposalStatus,
 )
 
+_STRUCTURED_DELIMITERS = frozenset("._:/-")
+_ACTION_RE = re.compile(
+    r"\b(?:apply|aplicar)\b",
+    re.IGNORECASE,
+)
+_INSTRUCTION_WORDS = re.compile(
+    r"^(?:please|apply|the|payment|to|for|invoice|invoices|factura|facturas|a|al|la|el|"
+    r"las|los|para|por|favor|and|y|credit|note|nota|number|of|aplicar|pago|,|;|&|\s)+$",
+    re.IGNORECASE,
+)
+_NEGATION_RE = re.compile(
+    r"\b(?:do\s+not|don't|no\s+aplicar|not|without)\b",
+    re.IGNORECASE,
+)
+_UNCERTAINTY_RE = re.compile(
+    r"\b(?:maybe|perhaps|possibly|uncertain|tal\s+vez|quizá|quizas|posiblemente)\b|\?",
+    re.IGNORECASE,
+)
+_CONTRADICTION_RE = re.compile(
+    r"\b(?:instead|but|however|sino|en\s+vez\s+de)\b",
+    re.IGNORECASE,
+)
+_PROMPT_RE = re.compile(
+    r"\b(?:ignore|disregard)\b[^.!?\n]{0,80}\b(?:previous|prior|system|instructions?)\b|"
+    r"<\s*(?:system|assistant|user)\s*>",
+    re.IGNORECASE,
+)
+_REFERENCE_WORDS_RE = re.compile(
+    r"^(?:the|a|an|la|el|los|las|invoice|invoices|factura|facturas|number|"
+    r"credit|note|credit\s+note|nota|and|y|for|to|para|a|payment|,|;|&|\s)+$",
+    re.IGNORECASE,
+)
+
+
+def _standalone(identifier: str, text: str, start: int, end: int) -> bool:
+    """Accept terminal sentence punctuation but reject structured-ID substrings."""
+
+    if start and text[start - 1].isalnum():
+        return False
+    if end < len(text) and text[end].isalnum():
+        return False
+    if start and text[start - 1] in _STRUCTURED_DELIMITERS:
+        if start > 1 and text[start - 2].isalnum():
+            return False
+    if end < len(text) and text[end] in _STRUCTURED_DELIMITERS:
+        if end + 1 < len(text) and text[end + 1].isalnum():
+            return False
+    return bool(identifier)
+
+
+def _spans(identifier: str, text: str) -> tuple[re.Match[str], ...]:
+    return tuple(
+        match
+        for match in re.finditer(re.escape(identifier), text, flags=re.IGNORECASE)
+        if _standalone(identifier, text, match.start(), match.end())
+    )
+
 
 def _mentions(identifier: str, text: str) -> bool:
-    return bool(
-        re.search(rf"(?<![A-Za-z0-9._:/-]){re.escape(identifier)}(?![A-Za-z0-9._:/-])", text)
-    )
+    return bool(_spans(identifier, text))
+
+
+def _clauses(text: str) -> tuple[tuple[int, int, str], ...]:
+    """Split source text while retaining offsets for review evidence."""
+
+    result: list[tuple[int, int, str]] = []
+    start = 0
+    for match in re.finditer(r"[.!?;\n]+", text):
+        if (
+            match.group(0).startswith(".")
+            and match.start()
+            and match.end() < len(text)
+            and text[match.start() - 1].isalnum()
+            and text[match.end()].isalnum()
+        ):
+            continue
+        end = match.end()
+        if text[start:end].strip():
+            result.append((start, end, text[start:end]))
+        start = match.end()
+    if text[start:].strip():
+        result.append((start, len(text), text[start:]))
+    return tuple(result)
+
+
+def _canonical_references(
+    text: str, invoice_ids: set[str], credit_ids: set[str]
+) -> tuple[set[str], set[str]] | None:
+    """Parse the intentionally tiny reference-only syntax.
+
+    A line made solely of known identifiers and short reference connectors is
+    unambiguous. Free-form prose mentioning an identifier is not accepted.
+    """
+
+    invoice_matches: list[re.Match[str]] = []
+    credit_matches: list[re.Match[str]] = []
+    for identifier in sorted(invoice_ids | credit_ids, key=len, reverse=True):
+        target = invoice_matches if identifier in invoice_ids else credit_matches
+        target.extend(_spans(identifier, text))
+    matches = sorted([*invoice_matches, *credit_matches], key=lambda item: item.start())
+    if not matches:
+        return None
+    cursor = 0
+    remainder: list[str] = []
+    selected_invoices: set[str] = set()
+    selected_credits: set[str] = set()
+    for match in matches:
+        if match.start() < cursor:
+            continue
+        remainder.append(text[cursor : match.start()])
+        value = match.group(0)
+        if value.casefold() in {item.casefold() for item in invoice_ids}:
+            selected_invoices.add(
+                next(item for item in invoice_ids if item.casefold() == value.casefold())
+            )
+        else:
+            selected_credits.add(
+                next(item for item in credit_ids if item.casefold() == value.casefold())
+            )
+        cursor = match.end()
+    remainder.append(text[cursor:])
+    leftover = "".join(remainder).strip()
+    leftover = re.sub(r"\s*[.!?]+\s*$", "", leftover).strip()
+    if leftover and _REFERENCE_WORDS_RE.fullmatch(leftover) is None:
+        return None
+    return selected_invoices, selected_credits
+
+
+def _unsafe_reason(clause: str) -> str | None:
+    if _PROMPT_RE.search(clause):
+        return "prompt-like instruction"
+    if _NEGATION_RE.search(clause):
+        return "negated invoice reference"
+    if _CONTRADICTION_RE.search(clause):
+        return "contradictory invoice references"
+    if _UNCERTAINTY_RE.search(clause):
+        return "uncertain invoice reference"
+    return None
+
+
+def _meaningful(clause: str) -> bool:
+    return bool(clause.strip(" \t\r\n.!?;,"))
+
+
+def _bounded_instruction(clause: str, spans: tuple[re.Match[str], ...]) -> bool:
+    if not spans or _ACTION_RE.search(clause) is None:
+        return False
+    pieces: list[str] = []
+    cursor = 0
+    for match in spans:
+        pieces.append(clause[cursor : match.start()])
+        cursor = match.end()
+    pieces.append(clause[cursor:])
+    remainder = "".join(pieces).strip()
+    remainder = re.sub(r"\s*[.!?]+\s*$", "", remainder).strip()
+    return not remainder or _INSTRUCTION_WORDS.fullmatch(remainder) is not None
 
 
 def _evidence_for(identifier: str, evidence: Mapping[str, str]) -> tuple[Evidence, ...]:
     found: list[Evidence] = []
     for source_id, text in evidence.items():
-        match = re.search(
-            rf"(?<![A-Za-z0-9._:/-]){re.escape(identifier)}(?![A-Za-z0-9._:/-])", text
-        )
-        if match:
-            found.append(Evidence(source_id, match.start(), match.end(), match.group(0)))
+        for clause_start, clause_end, clause in _clauses(text):
+            for match in _spans(identifier, clause):
+                start = clause_start + len(clause) - len(clause.lstrip())
+                end = clause_start + len(clause.rstrip())
+                found.append(Evidence(source_id, start, end, text[start:end]))
     return tuple(found)
 
 
@@ -54,21 +205,96 @@ def propose(
         and c.balance_as_of <= payment.booking_date
         and (payment.customer_id is None or c.customer_id == payment.customer_id)
     )
-    all_text = " ".join((payment.reference, *(evidence or {}).values()))
-    mentioned_invoices = tuple(i for i in invoice_list if _mentions(i.invoice_id, all_text))
+    invoice_ids = {item.invoice_id for item in invoice_list}
+    credit_ids = {item.credit_note_id for item in credit_list}
+    evidence_map = evidence or {}
+    positive_invoice_ids: set[str] = set()
+    positive_credit_ids: set[str] = set()
+    mentioned_invoice_ids: set[str] = set()
+    deferred_reason: str | None = None
+
+    # Payment references are intentionally accepted only when they are an exact
+    # known-ID list. This keeps the legacy ``invoice INV-1`` form while refusing
+    # free-form prose as allocation intent.
+    for reference in (payment.reference, *evidence_map.values()):
+        for start, end, clause in _clauses(reference):
+            if not _meaningful(clause):
+                continue
+            clause_invoice_ids = {
+                item
+                for item in invoice_ids
+                if _spans(item, clause)
+            }
+            clause_credit_ids = {
+                item
+                for item in credit_ids
+                if _spans(item, clause)
+            }
+            if not clause_invoice_ids and not clause_credit_ids:
+                deferred_reason = deferred_reason or "unrecognized source text"
+                continue
+            mentioned_invoice_ids.update(clause_invoice_ids)
+            reason = _unsafe_reason(clause)
+            if reason is not None:
+                deferred_reason = deferred_reason or reason
+                continue
+            canonical = _canonical_references(clause, invoice_ids, credit_ids)
+            if canonical is not None:
+                positive_invoice_ids.update(canonical[0])
+                positive_credit_ids.update(canonical[1])
+                continue
+            clause_matches = tuple(
+                sorted(
+                    (
+                        match
+                        for item in (*invoice_ids, *credit_ids)
+                        for match in _spans(item, clause)
+                    ),
+                    key=lambda item: item.start(),
+                )
+            )
+            if _bounded_instruction(clause, clause_matches):
+                positive_invoice_ids.update(clause_invoice_ids)
+                positive_credit_ids.update(clause_credit_ids)
+            else:
+                deferred_reason = deferred_reason or "unrecognized source text"
+
+    mentioned_invoices = tuple(i for i in invoice_list if i.invoice_id in mentioned_invoice_ids)
     exact = tuple(i for i in invoice_list if i.outstanding_amount == payment.amount)
     signals: list[str] = []
     if exact:
         signals.append("exact_amount_candidate")
 
     # Explicit identity is required before any allocation. Payer names and totals are signals only.
-    if not mentioned_invoices:
+    if deferred_reason is not None:
+        return ProposalResult(
+            ProposalStatus.NEEDS_REVIEW,
+            evidence=tuple(
+                e
+                for identifier in [*invoice_ids, *credit_ids]
+                for e in _evidence_for(identifier, evidence_map)
+            ),
+            signals=tuple(signals) + ("unsafe_reference",),
+            reason=deferred_reason,
+        )
+    if not mentioned_invoices or not positive_invoice_ids:
         alternatives = tuple((i.invoice_id,) for i in exact)
         return ProposalResult(
             ProposalStatus.NEEDS_REVIEW,
             alternatives=alternatives,
             signals=tuple(signals),
-            reason="no explicit invoice reference",
+            reason=(
+                "invoice mention is not a bounded allocation instruction"
+                if mentioned_invoices
+                else "no explicit invoice reference"
+            ),
+        )
+    if positive_invoice_ids != {invoice.invoice_id for invoice in mentioned_invoices}:
+        return ProposalResult(
+            ProposalStatus.NEEDS_REVIEW,
+            alternatives=(tuple(invoice.invoice_id for invoice in mentioned_invoices),),
+            signals=tuple(signals) + ("uncertain_reference_scope",),
+            reason="invoice reference scope is uncertain",
         )
     if len({invoice.customer_id for invoice in mentioned_invoices}) > 1:
         return ProposalResult(
@@ -81,7 +307,7 @@ def propose(
         c
         for c in credit_list
         if c.invoice_id
-        and _mentions(c.credit_note_id, all_text)
+        and c.credit_note_id in positive_credit_ids
         and any(
             i.invoice_id == c.invoice_id and i.customer_id == c.customer_id
             for i in mentioned_invoices
@@ -111,11 +337,11 @@ def propose(
             )
             if credit
             else (),
-            evidence=_evidence_for(invoice.invoice_id, evidence or {})
+            evidence=_evidence_for(invoice.invoice_id, evidence_map)
             + tuple(
                 e
                 for credit_item in mentioned_credits
-                for e in _evidence_for(credit_item.credit_note_id, evidence or {})
+                for e in _evidence_for(credit_item.credit_note_id, evidence_map)
             ),
             signals=tuple(signals) + ("explicit_invoice_reference",),
         )
@@ -168,7 +394,7 @@ def propose(
                 *(i.invoice_id for i in mentioned_invoices),
                 *(c.credit_note_id for c in mentioned_credits),
             ]
-            for e in _evidence_for(identifier, evidence or {})
+            for e in _evidence_for(identifier, evidence_map)
         ),
         signals=tuple(signals) + ("explicit_group_references",),
     )

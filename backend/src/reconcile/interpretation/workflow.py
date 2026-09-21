@@ -12,8 +12,8 @@ from sqlalchemy.orm import Session
 
 from reconcile.config import InterpretationSettings, interpretation_settings
 from reconcile.ml.artifact import ArtifactError
-from reconcile.ml.runtime import rank_candidates
-from reconcile.persistence.models import CreditNote, Invoice, Payment, Proposal, Source
+from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY, rank_candidates
+from reconcile.persistence.models import CreditNote, ImportBatch, Invoice, Payment, Proposal, Source
 from reconcile.persistence.service import ReconcileService, ServiceError, _shadow_group
 
 from .budget import BudgetPolicy, RateCard
@@ -117,9 +117,12 @@ class CompiledInterpretationWorkflow:
         messages = list(
             db.scalars(
                 select(Source)
+                .join(ImportBatch, Source.batch_id == ImportBatch.id)
                 .where(
                     Source.workspace_id == workspace_id,
                     Source.kind == "message",
+                    ImportBatch.status == "COMMITTED",
+                    Source.status != "REJECTED_CONFLICT",
                 )
                 .order_by(Source.created_at, Source.id)
             )
@@ -299,6 +302,7 @@ class CompiledInterpretationWorkflow:
             return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
         key_payload = {
             "request": request.model_dump(mode="json"),
+            "rules_identity": ACTIVE_RULES_IDENTITY,
             "model": config.model,
             "base_url": "https://api.deepseek.com",
             "thinking": "disabled",
