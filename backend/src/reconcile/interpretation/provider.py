@@ -14,6 +14,7 @@ from .prompt import (
     MAX_OUTPUT_TOKENS,
     CompiledPrompt,
     PromptCompilationError,
+    PromptTooLarge,
     compile_prompt,
 )
 from .schemas import (
@@ -276,6 +277,21 @@ class DeepSeekProvider:
 
         try:
             compiled = compile_prompt(request)
+        except PromptTooLarge as exc:
+            context = AttemptContext(1, 0, self.model)
+            telemetry = self._telemetry(
+                context,
+                perf_counter_ns(),
+                failure_code=FailureCode.PROMPT_TOO_LARGE,
+            )
+            failure = self._failure(
+                FailureCode.PROMPT_TOO_LARGE,
+                str(exc),
+                context,
+                telemetry,
+                retryable=False,
+            )
+            return ProviderOutcome(None, failure, (telemetry,))
         except PromptCompilationError:
             context = AttemptContext(1, 0, self.model)
             telemetry = self._telemetry(
