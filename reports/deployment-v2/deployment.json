@@ -1,0 +1,77 @@
+{
+  "schema_version": "deployment-evidence-v2",
+  "checked_at": "2026-09-21",
+  "status": "live_verified",
+  "url": "https://reconcile-preview.onrender.com",
+  "repository": "RonaldoJ24/reconcile",
+  "repository_visibility": "private",
+  "merged_prs": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "merge_method": "merge_commit",
+  "final_merge_target": "main",
+  "deployed_sha": "2c1aacebffe769148c248619ff0afd3c5b4c9d82",
+  "tested_tree_sha": "c5a33c22cd45e7329de59def68cc159713747e20",
+  "deployed_tree_matches_tested_tree": true,
+  "render": {
+    "service_id": "srv-dakm0t8ae00c73btfpi0",
+    "deploy_id": "dep-daonnfg0cd8s73eggacg",
+    "deploy_status": "live",
+    "created_at": "2026-09-21T18:47:26.504127Z",
+    "finished_at": "2026-09-21T18:48:21.60756Z",
+    "plan": "free",
+    "runtime": "docker",
+    "region": "ohio",
+    "instances": 1,
+    "auto_deploy": "off",
+    "new_resources_created": false
+  },
+  "runtime": {
+    "mode": "preview",
+    "active_engine": "rules-v2-conservative",
+    "provider_access": false,
+    "session_interpret_capability": false,
+    "provider_calls_made": false
+  },
+  "checks": {
+    "root_http": 200,
+    "health_http": 200,
+    "hosted_playwright": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "duration_minutes": 2.9,
+      "projects": [
+        "desktop",
+        "mobile"
+      ],
+      "real_persistence": true,
+      "mocked_transport": false
+    },
+    "pre_merge_offline_backend_passed": 1089,
+    "pre_merge_postgres_passed": 62,
+    "pre_merge_frontend_unit_passed": 42,
+    "github_actions_run": false
+  },
+  "cost_evidence": {
+    "current_render_service_plan_verified": "free",
+    "payment_method_evidence": "Owner confirmation from 2026-09-15 remains the available account evidence; no account billing changes were made.",
+    "current_remaining_allowance_observable": false,
+    "current_account_wide_overage_state_observable": false,
+    "new_spend_or_zero_bill_guarantee_claimed": false,
+    "neon_plan_evidence": "Existing deployment-v1 preflight records Neon Free; connection and plan were not changed."
+  },
+  "limitations": [
+    "Native browser zoom at 200% not verified",
+    "No hosted load test or cold-start distribution",
+    "No new benchmark, provider inference, training or promotion",
+    "Independent domain review remains pending"
+  ]
+}
