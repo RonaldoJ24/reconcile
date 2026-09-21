@@ -291,7 +291,11 @@ class CompiledInterpretationWorkflow:
         cancelled: Callable[[], bool] | None = None,
     ) -> WorkflowOutcome:
         config = settings or interpretation_settings()
-        policy = BudgetPolicy(execution_microdollars=config.execution_microdollars)
+        policy = BudgetPolicy(
+            day_microdollars=config.day_microdollars,
+            month_microdollars=config.month_microdollars,
+            execution_microdollars=config.execution_microdollars,
+        )
         proposal = db.scalar(
             select(Proposal).where(
                 Proposal.id == proposal_id,

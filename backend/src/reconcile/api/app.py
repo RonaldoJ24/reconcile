@@ -33,7 +33,12 @@ from reconcile.api.schemas import (
     SessionRequest,
     VariantRequest,
 )
-from reconcile.config import interpretation_settings, provider_invite_hash, server_mode
+from reconcile.config import (
+    interpretation_settings,
+    provider_invite_hash,
+    public_provider_access_enabled,
+    server_mode,
+)
 from reconcile.domain.matching import validate_allocation
 from reconcile.domain.types import CashLine, CreditLine, JobStatus
 from reconcile.ingest.parsers import (
@@ -167,22 +172,38 @@ def _error(exc: ServiceError) -> HTTPException:
     return HTTPException(exc.status, detail={"code": exc.code, "message": exc.message})
 
 
-def _interpretation_enabled(record: DbSession) -> bool:
+def _live_interpretation_enabled() -> bool:
     try:
-        return record.provider_access and interpretation_settings().enabled
+        return interpretation_settings().enabled
     except RuntimeError:
         return False
 
 
+def _effective_provider_access(record: DbSession, workspace: Workspace) -> bool:
+    """Resolve access without persisting public preview enablement."""
+
+    if record.provider_access:
+        return True
+    return (
+        workspace.mode == "preview"
+        and public_provider_access_enabled()
+        and _live_interpretation_enabled()
+    )
+
+
+def _interpretation_enabled(record: DbSession, workspace: Workspace) -> bool:
+    return _effective_provider_access(record, workspace) and _live_interpretation_enabled()
+
+
 def _capabilities(
     record: DbSession,
+    workspace: Workspace,
     proposal: Proposal | None = None,
     application: ApplicationGroup | None = None,
 ) -> dict[str, bool]:
     status = proposal.status if proposal is not None else None
     return {
-        "interpret": _interpretation_enabled(record)
-        and status == "NEEDS_REVIEW",
+        "interpret": _interpretation_enabled(record, workspace) and status == "NEEDS_REVIEW",
         "correct": proposal is not None
         and status not in {"APPLIED", "REVERSED"},
         "apply": status == "PROPOSED",
@@ -199,9 +220,9 @@ def _session_response(
         "mode": workspace.mode,
         "expires_at": record.expires_at.isoformat(),
         "csrf_token": csrf_token,
-        "provider_access": record.provider_access,
+        "provider_access": _effective_provider_access(record, workspace),
         "active_engine": ACTIVE_RULES_IDENTITY,
-        "capabilities": _capabilities(record),
+        "capabilities": _capabilities(record, workspace),
     }
 
 
@@ -1291,7 +1312,7 @@ def create_app() -> FastAPI:
             "unapplied_cash": payment.amount - int(payment_used_cash),
             "application_id": (str(latest_application_id) if latest_application_id else None),
             "case": _case_for_payment(db, workspace.id, payment.source_id),
-            "capabilities": _capabilities(record, proposal, latest_application),
+            "capabilities": _capabilities(record, workspace, proposal, latest_application),
             "decision_trace": decision_trace,
             "comparison": (
                 None
@@ -1644,7 +1665,7 @@ def create_app() -> FastAPI:
         db: Session = Depends(_db),
     ) -> dict[str, object]:
         record, workspace = _require_mutation(request, db)
-        if workspace.mode == "preview" and not record.provider_access:
+        if not _effective_provider_access(record, workspace):
             raise HTTPException(403, "provider invite is required")
         if workspace.mode == "preview":
             enforce_database_admission(db)
