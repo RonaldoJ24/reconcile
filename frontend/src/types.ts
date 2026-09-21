@@ -9,7 +9,6 @@ export type InterpretationCitation = {
   start?: number
   end?: number
   quote?: string
-  [key: string]: unknown
 }
 
 export type Interpretation = {
@@ -30,11 +29,41 @@ export type InterpretationResponse = {
   interpretation: Interpretation
 }
 
+export type Capabilities = {
+  interpret: boolean
+  correct: boolean
+  apply: boolean
+  reverse: boolean
+}
+
 export type Session = {
   mode: Mode
-  expires_at?: string
-  csrf_token?: string
-  csrfToken?: string
+  expires_at: string
+  csrf_token: string
+  provider_access: boolean
+  active_engine?: string
+  capabilities?: Capabilities
+}
+
+export type CaseSummary = {
+  id: string
+  title: string
+  description: string
+  amount: number
+}
+
+export type CaseRegistry = {
+  version: string
+  cases: CaseSummary[]
+}
+
+export type CaseOpen = {
+  case_id: string
+  scenario_version: string
+  payment_id: string
+  proposal_id: string | null
+  jobs: string[]
+  resumed: boolean
 }
 
 export type RowIssue = {
@@ -45,127 +74,166 @@ export type RowIssue = {
   message: string
 }
 
+export type ImportSourceReport = {
+  kind: string
+  source_id: string
+  accepted: number
+  rejected: number
+  issues: RowIssue[]
+}
+
 export type ImportValidation = {
-  batch_id?: string
-  batchId?: string
-  committed?: boolean
-  row_issues?: RowIssue[]
-  rowIssues?: RowIssue[]
-  accepted_counts?: Record<string, number>
-  acceptedCounts?: Record<string, number>
-  rejected_counts?: Record<string, number>
-  rejectedCounts?: Record<string, number>
-  accepted?: number
-  rejected?: number
-  sources?: Array<{
-    kind?: string
-    source_id?: string
-    accepted?: number
-    rejected?: number
-    issues?: RowIssue[]
-  }>
-  status?: string
+  batch_id: string
+  sources: ImportSourceReport[]
+  accepted: number
+  rejected: number
+}
+
+export type ImportCommit = {
+  batch_id: string
+  payments: number
+  invoices: number
+  credits: number
+  conflicts: Array<Record<string, unknown>>
+  jobs: string[]
 }
 
 export type ImportSummary = {
-  id?: string
-  batch_id?: string
-  batchId?: string
-  status?: string
-  created_at?: string
-  accepted_counts?: Record<string, number>
-  rejected_counts?: Record<string, number>
-  [key: string]: unknown
+  batch_id: string
+  status: string
+  created_at: string
 }
 
 export type ProposalSummary = {
-  id?: string
-  proposal_id?: string
-  proposalId?: string
-  payment_id?: string
-  status?: string
-  payer_name?: string
-  payerName?: string
-  amount_cents?: number | string
-  amount?: number | string
-  currency?: string
-  revision?: number
-  [key: string]: unknown
+  proposal_id: string
+  status: string
+  revision: number
+  payment_id: string
+  amount: number
+  payer_name: string
+  source_account_id: string
+  transaction_id: string
+  booking_date: string
+  application_id: string | null
 }
 
 export type CashLine = {
-  invoice_id?: string
-  invoiceId?: string
-  amount_cents?: number | string
-  amountCents?: number | string
-  amount?: number | string
-  customer_name?: string
-  customerName?: string
-  [key: string]: unknown
+  invoice_id: string
+  amount: number
 }
 
 export type CreditLine = {
-  credit_note_id?: string
-  creditNoteId?: string
-  invoice_id?: string
-  invoiceId?: string
-  amount_cents?: number | string
-  amountCents?: number | string
-  amount?: number | string
-  [key: string]: unknown
+  credit_note_id: string
+  invoice_id: string
+  amount: number
+}
+
+export type Payment = {
+  id: string
+  amount: number
+  reference: string
+  payer_name: string
+  source_account_id: string
+  transaction_id: string
+  booking_date: string
+}
+
+export type InvoiceBalance = {
+  opening_amount: number
+  cash_applied: number
+  credit_applied: number
+  remaining_amount: number
 }
 
 export type Evidence = {
-  source_id?: string
-  sourceId?: string
-  kind?: string
-  start?: number
-  end?: number
-  start_offset?: number
-  end_offset?: number
-  record?: number
-  excerpt?: string
-  text?: string
-  quote?: string
-  [key: string]: unknown
+  source_id: string
+  start: number
+  end: number
+  quote: string
 }
 
-export type ProposalDetail = ProposalSummary & {
-  payment?: Record<string, unknown>
-  cash?: CashLine[]
-  credits?: CreditLine[]
-  cash_lines?: CashLine[]
-  cashLines?: CashLine[]
-  credit_lines?: CreditLine[]
-  creditLines?: CreditLine[]
-  unapplied_amount_cents?: number | string
-  unappliedAmountCents?: number | string
-  unapplied_amount?: number | string
-  balances?: Record<string, unknown> | Record<string, unknown>[]
-  evidence?: Evidence[]
-  alternatives?: (Record<string, unknown> | unknown[])[]
-  trace?: unknown
-  version_token?: string
-  versionToken?: string
-  application_id?: string
-  applicationId?: string
-  application?: Record<string, unknown>
-  interpretation?: Interpretation
-  capabilities?: {
-    interpret?: boolean
-    correct?: boolean
-    apply?: boolean
-    reverse?: boolean
-  }
-  revision?: number
-  reviewer?: string
-  [key: string]: unknown
+export type SourceRecord = {
+  source_id: string
+  kind: string
+  sha256: string
+  bytes: number
+  version?: number | string
+  raw_text?: string | null
+  text: string | null
+  rows: Record<string, unknown>[]
+  issues: RowIssue[]
+  row_locators: Record<string, unknown>[]
+  metadata: Record<string, unknown>
+}
+
+export type DecisionTraceStage = {
+  id: string
+  name: string
+  status: string
+  summary: string
+  duration_ms: number | null
+  details?: unknown
+  evidence?: string[]
+}
+
+export type DecisionTrace = {
+  schema_version?: string
+  input_fingerprint?: string
+  source?: 'live' | 'cache' | 'recorded' | 'unavailable' | 'rules'
+  stages: DecisionTraceStage[]
+}
+
+export type Comparison = {
+  input_fingerprint: string
+  revision: number
+  methods: Array<Record<string, unknown>>
+}
+
+export type ProposalDetail = {
+  proposal_id: string
+  status: string
+  revision: number
+  payment: Payment
+  cash: CashLine[]
+  credits: CreditLine[]
+  evidence: Evidence[]
+  alternatives: string[][]
+  signals: string[]
+  reason: string | null
+  version_token: string | null
+  balances: Record<string, InvoiceBalance>
+  unapplied_cash: number
+  application_id: string | null
+  trace: Record<string, unknown>
+  interpretation: Interpretation | null
+  review_required: boolean
+  capabilities?: Partial<Capabilities>
+  active_engine?: string
+  case?: { id: string; version: string } | null
+  decision_trace?: DecisionTrace | null
+  comparison?: Comparison | null
+  model_trace?: Record<string, unknown> | null
+}
+
+export type CorrectResponse = {
+  proposal_id: string
+  revision: number
+  status: string
+}
+
+export type ApplyResponse = {
+  application_id: string
+  proposal_id: string
+  revision: number
+  reversed: boolean
+}
+
+export type ReverseResponse = {
+  application_id: string
+  reversed: boolean
 }
 
 export type JobState = {
-  state?: string
-  status?: string
-  job_id?: string
-  jobId?: string
-  [key: string]: unknown
+  job_id: string | null
+  status: string
 }

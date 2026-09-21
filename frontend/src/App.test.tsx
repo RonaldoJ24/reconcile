@@ -1,8 +1,9 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App, { ApplyConfirmation, InterpretationAction, applyAttemptFingerprint, cashDraftToPayload, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, toCents } from './App'
+import App, { ApplyConfirmation, CasesView, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, toCents } from './App'
 import { centsToMxn, mxnToCents } from './money'
 import { interpretProposal } from './api'
+import type { DecisionTrace, SourceRecord } from './types'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -37,6 +38,19 @@ describe('Phase 4 interpretation UI', () => {
     expect(markup).toContain('candidate-1')
     expect(markup).toContain('Financial application still requires a reviewer.')
     expect(markup).toMatch(/button[^>]+disabled/)
+  })
+
+  it('states why optional interpretation is disabled', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      disabledReason="Live interpretation is disabled for this session."
+      busy=""
+      message=""
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('Optional interpretation')
+    expect(markup).toContain('Live interpretation is disabled for this session.')
   })
 
   it('sends an explicit direct interpretation request', async () => {
@@ -86,6 +100,62 @@ describe('Phase 4 interpretation UI', () => {
   })
 })
 
+describe('case study surfaces', () => {
+  it('maps browser hashes to stable case, queue, and detail routes', () => {
+    expect(parseAppRoute('#cases')).toEqual({ screen: 'cases' })
+    expect(parseAppRoute('#queue')).toEqual({ screen: 'queue' })
+    expect(parseAppRoute('#proposal/proposal%201')).toEqual({ screen: 'detail', id: 'proposal 1' })
+    expect(parseAppRoute('#proposal/%E0%A4%A')).toEqual({ screen: 'cases' })
+  })
+
+  it('keeps API calendar dates on the same calendar day', () => {
+    expect(formatDateTime('2026-01-15')).toBe('2026-01-15')
+  })
+
+  it('renders every server supplied case and the bundled entry point', () => {
+    const markup = renderToString(<CasesView
+      registry={{ version: 'v1', cases: [
+        { id: 'straightforward', title: 'Straightforward', description: 'One match', amount: 10000 },
+        { id: 'bundle', title: 'Bundled', description: 'Several matches', amount: 20000 },
+        { id: 'correction', title: 'Correction', description: 'Review a correction', amount: 30000 },
+        { id: 'insufficient', title: 'Insufficient', description: 'Short payment', amount: 40000 },
+        { id: 'adversarial', title: 'Adversarial', description: 'Conflicting evidence', amount: 50000 },
+      ] }}
+      busy=""
+      onOpen={async () => {}}
+    />)
+
+    expect(markup.match(/class="case-card"/g)).toHaveLength(5)
+    expect(markup).toContain('Open bundled payment case')
+  })
+
+  it('shows server provenance, stage evidence, and unknown timing without fabricating values', () => {
+    const trace: DecisionTrace = {
+      source: 'unavailable',
+      stages: [{ id: 'parse', name: 'Parse evidence', status: 'SUCCEEDED', summary: 'Parsed records', duration_ms: null, details: { candidates: ['101'] }, evidence: ['source-1'] }],
+    }
+    const markup = renderToString(<DecisionTracePanel trace={trace} onSource={() => {}} />)
+
+    expect(markup).toContain('Unavailable')
+    expect(markup).toContain('Not measured')
+    expect(markup).toContain('Stage details')
+    expect(markup).toContain('source-1')
+    expect(markup).toContain('candidates')
+  })
+
+  it('renders exact source metadata in the readable source surface', () => {
+    const source: SourceRecord = { source_id: 'source-1', kind: 'message', sha256: 'abc123', bytes: 42, version: 2, raw_text: 'raw source body', text: 'legacy source body', rows: [], issues: [], row_locators: [], metadata: { owner: 'case' } }
+    const markup = renderToString(<SourceViewer sourceId="source-1" source={source} busy={false} error="" onClose={() => {}} />)
+
+    expect(markup).toContain('raw source body')
+    expect(markup).not.toContain('legacy source body')
+    expect(markup).toContain('Version')
+    expect(markup).toContain('2')
+    expect(markup).toContain('abc123')
+    expect(markup).toContain('Exact source metadata')
+  })
+})
+
 describe('phase 1 money draft regressions', () => {
   it('converts a whole-MXN amount typed in the editor to centavos', () => {
     // An integer typed in the decimal-MXN editor is still a whole peso amount.
@@ -128,10 +198,10 @@ describe('phase 1 money draft regressions', () => {
 
   it('projects cash and credit deductions from the server balance before confirmation', () => {
     expect(projectedBalanceRows(
-      [{ invoice_id: '101', remaining_amount: 30000 }],
+      [{ invoice_id: '101', opening_amount: 30000, cash_applied: 0, credit_applied: 0, remaining_amount: 30000 }],
       [{ invoice_id: '101', amount_mxn: '100.00' }],
       [{ credit_note_id: '103', invoice_id: '101', amount_mxn: '50.00' }],
-    )).toEqual([{ invoice_id: '101', remaining_amount: 30000, projected_remaining_amount: 15000 }])
+    )).toEqual([{ invoice_id: '101', opening_amount: 30000, cash_applied: 0, credit_applied: 0, remaining_amount: 30000, projected_remaining_amount: 15000 }])
   })
 
   it('renders an accessible confirmation with persisted financial values and bank-transfer boundary', () => {
@@ -139,7 +209,7 @@ describe('phase 1 money draft regressions', () => {
       detail={{ revision: 3 }}
       cash={[{ invoice_id: '101', amount_mxn: '100.00' }]}
       credits={[{ credit_note_id: '103', invoice_id: '101', amount_mxn: '50.00' }]}
-      balances={[{ invoice_id: '101', remaining_amount: 30000 }]}
+      balances={[{ invoice_id: '101', opening_amount: 30000, cash_applied: 0, credit_applied: 0, remaining_amount: 30000 }]}
       busy=""
       onCancel={() => {}}
       onConfirm={() => {}}

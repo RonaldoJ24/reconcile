@@ -13,6 +13,7 @@ const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page)
 test.describe('fresh import through reviewed application', () => {
   test('validates, commits, corrects, applies, reloads, exports, and reverses', async ({ page }) => {
     await page.goto('/')
+    await page.getByRole('button', { name: 'Imports' }).click()
     await expect(page.getByRole('heading', { name: 'Match incoming payments to the right invoices' })).toBeVisible()
     await expect(page.getByText('Nothing is applied automatically')).toBeVisible()
     await expect(page.getByRole('link', { name: 'Download demo packet' })).toBeVisible()
@@ -42,7 +43,27 @@ test.describe('fresh import through reviewed application', () => {
 
     await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
+    await page.locator('.read-only-action').getByRole('button', { name: 'Edit allocation' }).click()
     await page.getByLabel('Reviewer name').fill('E2E reviewer')
+    const cashSection = page.locator('.correction-section').first()
+    const creditSection = page.locator('.correction-section').nth(1)
+    if (await cashSection.locator('.line-editor').count() === 0) {
+      await cashSection.getByRole('button', { name: 'Add line' }).click()
+      await cashSection.getByRole('button', { name: 'Add line' }).click()
+      const addedCash = cashSection.locator('.line-editor')
+      await addedCash.nth(0).getByLabel('Invoice ID').fill('101')
+      await addedCash.nth(0).getByLabel('Amount (MXN)').fill('')
+      await addedCash.nth(0).getByLabel('Amount (MXN)').pressSequentially('100')
+      await addedCash.nth(1).getByLabel('Invoice ID').fill('102')
+      await addedCash.nth(1).getByLabel('Amount (MXN)').fill('24000')
+    }
+    if (await creditSection.locator('.line-editor').count() === 0) {
+      await creditSection.getByRole('button', { name: 'Add line' }).click()
+      const addedCredit = creditSection.locator('.line-editor').first()
+      await addedCredit.getByLabel('Credit note ID').fill('103')
+      await addedCredit.getByLabel('Invoice ID').fill('102')
+      await addedCredit.getByLabel('Amount (MXN)').fill('1000')
+    }
     const cashAmount = page.getByLabel('Amount (MXN)').first()
     const proposalDetail = (response: import('@playwright/test').Response) => {
       const url = new URL(response.url())
@@ -65,6 +86,7 @@ test.describe('fresh import through reviewed application', () => {
     expect(firstDetail.cash?.[0]?.amount).toBe(10_000)
     await expect(page.getByText(/revision 2/i)).toBeVisible()
 
+    await page.locator('.read-only-action').getByRole('button', { name: 'Edit allocation' }).click()
     await cashAmount.fill('100.00')
     const secondCorrection = page.waitForRequest(correction)
     const secondPersisted = page.waitForResponse(proposalDetail)
@@ -84,7 +106,7 @@ test.describe('fresh import through reviewed application', () => {
     await expect(confirmation).toContainText('does not move money in a bank account')
     await page.screenshot({ path: path.join(__dirname, '..', 'output', 'quality-demo', `confirmation-${test.info().project.name}.png`), fullPage: true })
     await confirmation.getByRole('button', { name: 'Confirm and apply' }).click()
-    await expect(page.getByText('APPLIED', { exact: true })).toBeVisible()
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
     await expect(page.getByRole('button', { name: 'Applied', exact: true })).toBeDisabled()
     const balances = page.getByRole('table', { name: 'Remaining balances' })
     await expect(balances.locator('tbody tr').filter({ hasText: '101' })).toContainText('29,900.00')
@@ -95,7 +117,7 @@ test.describe('fresh import through reviewed application', () => {
     await page.getByRole('button', { name: 'Review queue' }).click()
     await expect(page.locator('.proposal-card').first()).toBeVisible()
     await page.locator('.proposal-card').first().click()
-    await expect(page.getByText('APPLIED', { exact: true })).toBeVisible()
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
     const reloadedBalances = page.getByRole('table', { name: 'Remaining balances' })
     await expect(reloadedBalances.locator('tbody tr').filter({ hasText: '101' })).toContainText('29,900.00')
     await expect(reloadedBalances.locator('tbody tr').filter({ hasText: '102' })).toContainText('0.00')
@@ -107,7 +129,7 @@ test.describe('fresh import through reviewed application', () => {
     await page.getByLabel('Reviewer name').fill('E2E reversal reviewer')
     await page.getByLabel('Reversal reason').fill('E2E reversal check')
     await page.getByRole('button', { name: 'Reverse application' }).click()
-    await expect(page.getByText('REVERSED', { exact: true })).toBeVisible()
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('REVERSED')
     const reversedBalances = page.getByRole('table', { name: 'Remaining balances' })
     await expect(reversedBalances.locator('tbody tr').filter({ hasText: '101' })).toContainText('30,000.00')
     await expect(reversedBalances.locator('tbody tr').filter({ hasText: '102' })).toContainText('25,000.00')

@@ -8,7 +8,7 @@ function detail(status: 'PROPOSED' | 'APPLIED' | 'REVERSED') {
     proposal_id: proposalId,
     status,
     revision: 1,
-    payment: { amount: 5_400_000, currency: 'MXN', payer_name: 'Mock payer' },
+    payment: { id: 'payment-1', amount: 5_400_000, reference: 'Mock payment', payer_name: 'Mock payer', source_account_id: 'acct-1', transaction_id: 'pay-1', booking_date: '2026-01-15' },
     cash: [{ invoice_id: '101', amount: 3_000_000 }],
     credits: [{ credit_note_id: '103', invoice_id: '102', amount: 100_000 }],
     balances: {
@@ -17,6 +17,7 @@ function detail(status: 'PROPOSED' | 'APPLIED' | 'REVERSED') {
     },
     version_token: token,
     application_id: status === 'PROPOSED' ? null : 'application-1',
+    evidence: [], alternatives: [], signals: [], reason: null, unapplied_cash: 2_400_000, trace: {}, interpretation: null, review_required: false,
   }
 }
 
@@ -30,7 +31,17 @@ async function mockApi(page: import('@playwright/test').Page, uncertainFirstAppl
     const url = new URL(request.url())
     const method = request.method()
     if (url.pathname === '/api/v1/session' && method === 'POST') {
-      await route.fulfill({ json: { mode: 'local', csrf_token: 'mock-csrf' } })
+      await route.fulfill({ json: { mode: 'local', csrf_token: 'mock-csrf', provider_access: true, active_engine: 'rules-v2', capabilities: { interpret: true, correct: true, apply: true, reverse: true } } })
+      return
+    }
+    if (url.pathname === '/api/v1/cases' && method === 'GET') {
+      await route.fulfill({ json: { version: 'mock-v1', cases: [
+        { id: 'straightforward', title: 'Straightforward payment', description: 'One clear invoice match.', amount: 10000 },
+        { id: 'bundle', title: 'Bundled payment', description: 'Several plausible invoice matches.', amount: 5400000 },
+        { id: 'correction', title: 'Correction case', description: 'Review an allocation that needs a correction.', amount: 300000 },
+        { id: 'insufficient', title: 'Insufficient payment', description: 'The payment does not cover every balance.', amount: 10000 },
+        { id: 'adversarial', title: 'Adversarial evidence', description: 'Inspect conflicting evidence before deciding.', amount: 10000 },
+      ] } })
       return
     }
     if (url.pathname === '/api/v1/imports' && method === 'GET') {
@@ -38,7 +49,7 @@ async function mockApi(page: import('@playwright/test').Page, uncertainFirstAppl
       return
     }
     if (url.pathname === '/api/v1/proposals' && method === 'GET') {
-      await route.fulfill({ json: [{ proposal_id: proposalId, status, revision: 1, amount: 5_400_000, payer_name: 'Mock payer' }] })
+      await route.fulfill({ json: [{ proposal_id: proposalId, status, revision: 1, payment_id: 'payment-1', amount: 5_400_000, payer_name: 'Mock payer', source_account_id: 'acct-1', transaction_id: 'pay-1', booking_date: '2026-01-15', application_id: status === 'PROPOSED' ? null : 'application-1' }] })
       return
     }
     if (url.pathname === `/api/v1/proposals/${proposalId}` && method === 'GET') {
@@ -74,7 +85,6 @@ async function mockApi(page: import('@playwright/test').Page, uncertainFirstAppl
 
 async function openProposal(page: import('@playwright/test').Page) {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Match incoming payments to the right invoices' })).toBeVisible()
   await page.getByRole('button', { name: 'Review queue' }).click()
   await page.locator('.proposal-card').first().click()
   await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
@@ -85,6 +95,7 @@ test.describe('financial interaction integrity', () => {
     await mockApi(page)
     await openProposal(page)
     await page.getByLabel('Reviewer name').fill('Mock reviewer')
+    await page.getByRole('button', { name: 'Edit allocation' }).first().click()
     const apply = page.getByRole('button', { name: 'Apply allocation' })
     const amount = page.getByLabel('Amount (MXN)').first()
     await expect(page.locator('#amount-format-help')).toBeVisible()
@@ -122,7 +133,7 @@ test.describe('financial interaction integrity', () => {
     await expect(page.locator('.error-banner')).toBeVisible()
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: 'Confirm and apply' }).click()
-    await expect(page.getByText('APPLIED', { exact: true })).toBeVisible()
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
     expect(applyKeys).toHaveLength(2)
     expect(applyKeys[0]).toBe(applyKeys[1])
 
@@ -131,7 +142,7 @@ test.describe('financial interaction integrity', () => {
     await reviewer.fill('Reversal reviewer')
     await page.getByLabel('Reversal reason').fill('Mock reversal')
     await page.getByRole('button', { name: 'Reverse application' }).click()
-    await expect(page.getByText('REVERSED', { exact: true })).toBeVisible()
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('REVERSED')
   })
 
   test('keeps the confirmation modal open when Escape is pressed during apply', async ({ page }) => {
@@ -157,7 +168,7 @@ test.describe('financial interaction integrity', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toBeVisible()
     await releaseApply?.()
-    await expect(page.getByText('APPLIED', { exact: true })).toBeVisible()
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
   })
 
   test('does not let stale validation restore commit and invalidates a successful result on input change', async ({ page }) => {
@@ -183,6 +194,7 @@ test.describe('financial interaction integrity', () => {
     })
 
     await page.goto('/')
+    await page.getByRole('button', { name: 'Imports' }).click()
     await page.getByLabel('Bank CSV').setInputFiles({ name: 'bank.csv', mimeType: 'text/csv', buffer: Buffer.from('source_account_id,transaction_id,amount\nacct,pay,100\n') })
     await page.getByLabel('Invoice CSV').setInputFiles({ name: 'invoices.csv', mimeType: 'text/csv', buffer: Buffer.from('invoice_id,outstanding_amount\n101,100\n') })
     const firstRequest = page.waitForRequest((request) => request.url().endsWith('/api/v1/imports/validate') && request.method() === 'POST')
@@ -221,6 +233,7 @@ test.describe('financial interaction integrity', () => {
     const reviewer = page.getByLabel('Reviewer name')
     const amount = page.getByLabel('Amount (MXN)').first()
     await reviewer.fill('Busy reviewer')
+    await page.getByRole('button', { name: 'Edit allocation' }).first().click()
     await amount.fill('30000')
     await page.getByRole('button', { name: 'Save correction' }).click()
     await expect.poll(() => Boolean(releaseCorrect)).toBe(true)

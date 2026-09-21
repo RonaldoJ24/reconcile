@@ -31,19 +31,24 @@ The 24-case blinded synthetic domain-review packet is committed in `65bec35`.
 Blank responses, provisional author labels and adjudication instructions are
 separate. No independent review has occurred.
 
-Backend integrity changes remain unaccepted in the separate worktree. Acceptance
-found unsupported follow-up clauses still produce an allocation (for example,
-`Apply invoice 101. Actually wait for confirmation.`). After the two bounded Luna
-corrections, the configured Gemini fallback exited 1 twice before any completed
-agent message. No fallback changes were produced. The owner then explicitly
-authorized one additional Luna correction. The targeted follow-up phrases now
-defer, including the ambiguous `No invoice 101` form. Primary acceptance ran
-`make lint typecheck test`: Ruff and strict mypy passed, with 1,065 offline tests
-passing and 49 PostgreSQL checks deselected. The PostgreSQL acceptance run is
-in progress using the existing test branch's direct connection. Its earlier
-pooled attempt was interrupted during connection establishment, before a test
-completed; a read-only activity check found no blocked SQL transaction.
+Backend integrity was accepted in `c668a7f`: strict JSON centavo integers,
+conservative reference handling, committed-source filtering, changed-message
+invalidation and rerun scheduling, immutable applied/reversed history, and narrower
+invoice/credit locks. Unsupported follow-up clauses and ambiguous `No invoice 101`
+references defer. Primary acceptance ran `make lint typecheck test`: Ruff and strict
+mypy passed, with 1,065 offline tests passing and 49 PostgreSQL checks deselected.
+
+Targeted PostgreSQL acceptance passed 30/30 in 258.57 s on the existing test branch:
+new evidence lifecycle, changed-context rejection, 25 contested-balance races, and
+an independent allocation completing while an unrelated invoice row remained locked.
+The run used the direct endpoint with a bounded connection timeout. An earlier
+pooled attempt was interrupted during connection establishment before a test
+completed; read-only activity checks found no blocked SQL transaction.
 No application-provider inference was called.
+
+Canonical frontend DTOs and the case/trace interface are accepted locally (`b56313a`);
+real case endpoint acceptance remains in progress. Draft PRs #24–#27 form the
+verified dependency chain described in `docs/PR_SEQUENCE.md`. No PR was merged.
 
 ## Quality/demo correction — Phase 0 baseline
 
@@ -272,3 +277,12 @@ Hosted desktop/mobile Playwright then passed 2/2 in 36.8 seconds.
 Next bounded phase: operate the rules-only preview under Free-tier constraints,
 rotate the deferred credentials, and authorize a separate invite-gated provider
 preview only if a new key and explicit nonzero inference budget are supplied.
+
+## Case lifecycle acceptance — 2026-09-16
+
+Registered cases and immutable traces integrated at `b37a879`. Backend targeted
+checks: Ruff/mypy, 42 offline tests, seven PostgreSQL case/lifecycle tests plus one
+concurrent import/apply regression. Real Playwright: two case journeys and two
+financial workflows passed across desktop/mobile; four viewport widths and keyboard
+skip navigation checked. Evidence: `reports/portfolio-v2/engineering-validation.md`.
+Comparison/evaluation and controlled variants/reliability remain in progress.

@@ -1,0 +1,75 @@
+{
+  "schema_version": "evaluation-summary-v1",
+  "provenance": {
+    "kind": "historical_aggregate",
+    "report_path": "reports/release-v1/evaluation.json",
+    "report_sha256": "a20c40c0a7a0074125b6e7dff4230a420324b5c8fe9b01feb3849ca216214308",
+    "evaluated_at": "2026-09-14T23:12:08.754954+00:00",
+    "release_commit": "2325734dd55d9e6a2f028a46437823ff05ac012e"
+  },
+  "historical": [
+    {
+      "method": "rules-v1",
+      "split": "final",
+      "groups": 500,
+      "proposals": 300,
+      "correct_proposals_per_v1_labels": 250,
+      "incorrect_proposals_per_v1_labels": 50,
+      "precision": 0.8333333333333334,
+      "coverage": 0.6,
+      "underdetermined_groups": 250,
+      "abstained_underdetermined": 200
+    },
+    {
+      "method": "ranker-ml-v1-logistic",
+      "split": "final",
+      "groups": 500,
+      "proposals": 500,
+      "correct_proposals_per_v1_labels": 250,
+      "incorrect_proposals_per_v1_labels": 250,
+      "precision": 0.5,
+      "coverage": 1.0,
+      "underdetermined_groups": 250,
+      "abstained_underdetermined": 0
+    },
+    {
+      "method": "rules-v1",
+      "split": "sealed_challenge",
+      "groups": 20,
+      "proposals": 10,
+      "correct_proposals_per_v1_labels": 9,
+      "incorrect_proposals_per_v1_labels": 1,
+      "precision": 0.9,
+      "coverage": 0.5,
+      "underdetermined_groups": 10,
+      "abstained_underdetermined": 9
+    },
+    {
+      "method": "ranker-ml-v1-logistic",
+      "split": "sealed_challenge",
+      "groups": 20,
+      "proposals": 20,
+      "correct_proposals_per_v1_labels": 10,
+      "incorrect_proposals_per_v1_labels": 10,
+      "precision": 0.5,
+      "coverage": 1.0,
+      "underdetermined_groups": 10,
+      "abstained_underdetermined": 0
+    }
+  ],
+  "v2": {
+    "status": "not_evaluated",
+    "provider_calls_this_continuation": 0,
+    "final_access_this_continuation": false,
+    "independent_domain_review": "pending"
+  },
+  "limitations": [
+    "Synthetic agent-generated labels; no independent domain validation or real-world accuracy claim.",
+    "Historical rules-v1 results do not measure the active conservative engine.",
+    "Operating points differ: the historical ranker proposed on every case and remains shadow-only.",
+    "Historical evaluator latency excluded feature construction and inference, so it is not displayed as execution latency.",
+    "Historical candidate recall used supplied candidates, not end-to-end retrieval.",
+    "Correctness here means the preserved v1 label definition; exact citation location and financial validity do not establish semantic support.",
+    "No new provider benchmark, final evaluation, model training or promotion occurred in this continuation."
+  ]
+}

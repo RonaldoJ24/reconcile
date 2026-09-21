@@ -156,7 +156,10 @@ def _unsafe_reason(clause: str) -> str | None:
 
 
 def _meaningful(clause: str) -> bool:
-    return bool(clause.strip(" \t\r\n.!?;,"))
+    # A punctuation-only reference (for example the neutral em dash used by
+    # registered cases) carries no allocation instruction.  Unicode ``\w``
+    # keeps this boundary small without trying to classify arbitrary prose.
+    return bool(re.search(r"\w", clause, flags=re.UNICODE))
 
 
 def _bounded_instruction(clause: str, spans: tuple[re.Match[str], ...]) -> bool:

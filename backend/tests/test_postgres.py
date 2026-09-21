@@ -7,7 +7,7 @@ import os
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
-from threading import Barrier
+from threading import Barrier, Event
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,6 +27,7 @@ from reconcile.interpretation.budget import (
     reconcile_unknown_attempt,
     reserve_attempt,
 )
+from reconcile.interpretation.workflow import compile_workflow
 from reconcile.jobs.queue import claim_one, run_once
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.maintenance import (
@@ -35,14 +36,17 @@ from reconcile.persistence.maintenance import (
 )
 from reconcile.persistence.models import (
     ApplicationGroup,
+    AuditEvent,
     Base,
     CashApplication,
+    CreditNote,
     ImportBatch,
     InterpretationBudgetCounter,
     InterpretationCall,
     Invoice,
     Job,
     Payment,
+    Proposal,
     ProposalRevision,
     Source,
     Workspace,
@@ -85,6 +89,49 @@ def session(db_engine):
     factory = sessionmaker(bind=db_engine, expire_on_commit=False)
     with factory() as db:
         yield db
+
+
+def _api_client(session, monkeypatch: pytest.MonkeyPatch) -> tuple[object, TestClient]:
+    monkeypatch.setenv("RECONCILE_MODE", "local")
+    monkeypatch.setenv("RECONCILE_LLM_ENABLED", "0")
+    api = create_app()
+    api.dependency_overrides[_db] = lambda: session
+    client = TestClient(api)
+    response = client.post("/api/v1/session", json={})
+    assert response.status_code == 200, response.text
+    client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+    return api, client
+
+
+def _run_all_jobs(client: TestClient) -> None:
+    for _ in range(20):
+        response = client.post("/api/v1/jobs/run-once")
+        assert response.status_code == 200, response.text
+        if response.json()["job_id"] is None:
+            return
+    raise AssertionError("bounded case job drain did not reach idle")
+
+
+def _manual_packet() -> tuple[bytes, bytes, bytes]:
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"manual-account,manual-payment,2026-01-15,Manual Customer,"
+        + "—".encode()
+        + b",1000.00,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"manual-customer,Manual Customer,manual-invoice,2025-12-01,2026-01-01,"
+        b"2026-01-15,1000.00,MXN\n"
+    )
+    return bank, invoices, b"Please review this payment."
+
+
+def _open_case(client: TestClient, case_id: str) -> dict[str, object]:
+    response = client.post(f"/api/v1/cases/{case_id}/open")
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def test_workspace_scoped_and_application_idempotency(session) -> None:
@@ -335,6 +382,218 @@ def test_duplicate_message_bytes_with_changed_context_are_rejected(session) -> N
             ),
             "local",
         )
+
+
+def test_repeated_validation_before_commit_preserves_bound_sources(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,bound-before-commit,2026-01-15,C,invoice bound,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,bound,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    parsed = parse_batch(
+        bank,
+        invoices,
+        message=b"Apply invoice bound.",
+        message_context=parse_message_context(
+            "2026-01-15T12:00:00+00:00", "acct", "bound-before-commit"
+        ),
+    )
+    first = service.validate_import(workspace.id, parsed, "local")
+    second = service.validate_import(workspace.id, parsed, "local")
+    session.commit()
+
+    result = service.commit_import(workspace.id, second.id)
+
+    assert result["payments"] == 1
+    assert result["invoices"] == 1
+    assert session.query(Source).filter_by(workspace_id=workspace.id).count() == 3
+    assert session.get(ImportBatch, first.id).status == "VALIDATED"
+    assert session.get(ImportBatch, second.id).status == "COMMITTED"
+    payment = session.scalar(
+        select(Payment).where(
+            Payment.workspace_id == workspace.id,
+            Payment.transaction_id == "bound-before-commit",
+        )
+    )
+    assert payment is not None
+    message_source = session.scalar(
+        select(Source).where(Source.workspace_id == workspace.id, Source.kind == "message")
+    )
+    assert message_source is not None
+    assert message_source.batch_id == first.id
+    assert message_source.status == "COMMITTED"
+    proposal = service.process_match(workspace.id, payment.id)
+    assert proposal.status == "PROPOSED"
+    request, _ = compile_workflow()._request(
+        session,
+        workspace_id=workspace.id,
+        proposal=proposal,
+        mode="direct",
+        policy=BudgetPolicy(),
+    )
+    assert request.source_spans
+
+
+def test_identical_committed_message_reimport_is_idempotent(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,identical-message,2026-01-15,C,invoice identical,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,identical,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    parsed = parse_batch(
+        bank,
+        invoices,
+        message=b"Apply invoice identical.",
+        message_context=parse_message_context(
+            "2026-01-15T12:00:00+00:00", "acct", "identical-message"
+        ),
+    )
+    first = service.validate_import(workspace.id, parsed, "local")
+    session.commit()
+    service.commit_import(workspace.id, first.id)
+    payment = session.scalar(
+        select(Payment).where(
+            Payment.workspace_id == workspace.id,
+            Payment.transaction_id == "identical-message",
+        )
+    )
+    assert payment is not None
+    proposal = service.process_match(workspace.id, payment.id)
+    assert proposal.status == "PROPOSED"
+    completed = run_once(session, owner="identical-message", workspace_id=workspace.id)
+    assert completed is not None and completed.status == "SUCCEEDED"
+    session.refresh(payment)
+    jobs_before = session.query(Job).filter_by(workspace_id=workspace.id).count()
+
+    second = service.validate_import(workspace.id, parsed, "local")
+    session.commit()
+    result = service.commit_import(workspace.id, second.id)
+    session.refresh(payment)
+
+    assert payment.version == 1
+    assert result["jobs"] == []
+    assert session.query(Job).filter_by(workspace_id=workspace.id).count() == jobs_before
+
+
+def test_new_message_import_and_apply_keep_proposal_first_lock_order(session) -> None:
+    service = ReconcileService(session)
+    workspace = service.create_workspace()
+    bank = (
+        b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+        b"acct,lock-order,2026-01-15,C,invoice lock-invoice,100,MXN\n"
+    )
+    invoices = (
+        b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+        b"outstanding_amount,currency\n"
+        b"c,C,lock-invoice,2026-01-01,2026-01-15,2026-01-15,100,MXN\n"
+    )
+    first = service.validate_import(workspace.id, parse_batch(bank, invoices), "local")
+    session.commit()
+    service.commit_import(workspace.id, first.id)
+    payment = session.scalar(
+        select(Payment).where(
+            Payment.workspace_id == workspace.id, Payment.transaction_id == "lock-order"
+        )
+    )
+    assert payment is not None
+    initial_job = run_once(session, owner="initial-lock-order", workspace_id=workspace.id)
+    assert initial_job is not None and initial_job.status == "SUCCEEDED"
+    proposal = session.scalar(
+        select(Proposal).where(
+            Proposal.workspace_id == workspace.id, Proposal.payment_id == payment.id
+        )
+    )
+    assert proposal is not None
+    revision = session.scalar(
+        select(ProposalRevision).where(
+            ProposalRevision.proposal_id == proposal.id,
+            ProposalRevision.revision == proposal.current_revision,
+        )
+    )
+    assert revision is not None
+    session.commit()
+
+    factory = sessionmaker(bind=session.get_bind(), expire_on_commit=False)
+    proposal_ready = Event()
+    import_reached = Barrier(2)
+    allow_import = Event()
+
+    class CoordinatedService(ReconcileService):
+        def _lock_payment_proposals(self, workspace_id, payment_id):
+            import_reached.wait(timeout=60)
+            assert allow_import.wait(timeout=60)
+            return super()._lock_payment_proposals(workspace_id, payment_id)
+
+    changed_bank = bank.replace(b"\n", b"\r\n")
+    changed_parsed = parse_batch(
+        changed_bank,
+        invoices,
+        message=b"Evidence changed after application.",
+        message_context=parse_message_context(
+            "2026-01-15T12:00:00+00:00", "acct", "lock-order"
+        ),
+    )
+    pending_batch = service.validate_import(workspace.id, changed_parsed, "local")
+    session.commit()
+
+    def apply_worker() -> ApplicationGroup:
+        db = factory()
+        try:
+            db.execute(text("SET LOCAL lock_timeout = '5s'"))
+            db.execute(
+                select(Proposal)
+                .where(Proposal.id == proposal.id)
+                .with_for_update()
+            ).scalar_one()
+            proposal_ready.set()
+            import_reached.wait(timeout=60)
+            result = ReconcileService(db).apply(
+                workspace.id,
+                proposal.id,
+                revision.revision,
+                revision.version_token,
+                "reviewer",
+                "lock-order-apply",
+            )
+            return result
+        finally:
+            allow_import.set()
+            db.close()
+
+    def import_worker() -> dict[str, object]:
+        db = factory()
+        try:
+            import_service = CoordinatedService(db)
+            return import_service.commit_import(workspace.id, pending_batch.id)
+        finally:
+            db.close()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        apply_future = pool.submit(apply_worker)
+        assert proposal_ready.wait(timeout=60)
+        import_future = pool.submit(import_worker)
+        applied = apply_future.result(timeout=90)
+        imported = import_future.result(timeout=90)
+
+    assert applied.id
+    assert imported["jobs"]
+    session.refresh(payment)
+    session.refresh(proposal)
+    assert payment.version == 3
+    assert proposal.status == "APPLIED"
+    assert proposal.review_required is True
 
 
 def test_expired_job_lease_is_reclaimed(session) -> None:
@@ -709,6 +968,292 @@ def test_api_run_once_reports_job_claimed_by_lifecycle_consumer(session, monkeyp
     assert response.status_code == 200
     assert response.json() == {"job_id": str(claimed.id), "status": "RUNNING"}
     api.dependency_overrides.clear()
+
+
+def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        listing = client.get("/api/v1/cases")
+        assert listing.status_code == 200
+        cases = listing.json()["cases"]
+        assert [item["id"] for item in cases] == [
+            "straightforward",
+            "bundle",
+            "correction",
+            "insufficient",
+            "adversarial",
+        ]
+        opened = {
+            case_id: _open_case(client, case_id)
+            for case_id in [item["id"] for item in cases]
+        }
+        assert all(
+            item["payment_id"] and item["proposal_id"] is None for item in opened.values()
+        )
+        _run_all_jobs(client)
+
+        expected_status = {
+            "straightforward": "PROPOSED",
+            "bundle": "PROPOSED",
+            "correction": "NEEDS_REVIEW",
+            "insufficient": "NEEDS_REVIEW",
+            "adversarial": "NEEDS_REVIEW",
+        }
+        details: dict[str, dict[str, object]] = {}
+        for case_id, handle in opened.items():
+            proposals = client.get("/api/v1/proposals").json()
+            proposal = next(
+                item for item in proposals if item["payment_id"] == handle["payment_id"]
+            )
+            detail_response = client.get(f"/api/v1/proposals/{proposal['proposal_id']}")
+            assert detail_response.status_code == 200, detail_response.text
+            detail = detail_response.json()
+            details[case_id] = detail
+            assert detail["status"] == expected_status[case_id]
+            assert detail["case"] == {"id": case_id, "version": "v1"}
+            assert detail["decision_trace"]["source"] == "rules"
+            assert any(
+                stage["id"] == "parse-observations"
+                for stage in detail["decision_trace"]["stages"]
+            )
+
+        bundle = details["bundle"]
+        assert bundle["payment"]["amount"] == 5_400_000
+        assert {row["invoice_id"] for row in bundle["cash"]} == {
+            "case-bundle-target-a",
+            "case-bundle-target-b",
+        }
+        assert {row["amount"] for row in bundle["cash"]} == {3_000_000, 2_400_000}
+        assert bundle["credits"] == [
+            {
+                "credit_note_id": "case-bundle-credit",
+                "invoice_id": "case-bundle-target-b",
+                "amount": 100_000,
+            }
+        ]
+        assert "case-bundle-decoy" not in {row["invoice_id"] for row in bundle["cash"]}
+        validation = next(
+            stage
+            for stage in bundle["decision_trace"]["stages"]
+            if stage["id"] == "financial-validation"
+        )
+        assert validation["details"]["checks"] == ["opening_snapshot", "structural_allocation"]
+        assert validation["details"]["transactional_live_balance"] == "not_executed"
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_case_open_resumes_without_new_entities_or_jobs(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        first = _open_case(client, "straightforward")
+        _run_all_jobs(client)
+        workspace_id = session.scalar(select(Workspace.id).order_by(Workspace.created_at.desc()))
+        assert workspace_id is not None
+        counts_before = {
+            model.__name__: session.query(model).filter_by(workspace_id=workspace_id).count()
+            for model in (Source, Payment, Invoice, CreditNote, Proposal, Job)
+        }
+        second = _open_case(client, "straightforward")
+        assert second["resumed"] is True
+        assert second["payment_id"] == first["payment_id"]
+        assert second["proposal_id"] == first["proposal_id"] or second["proposal_id"] is not None
+        assert second["jobs"] == first["jobs"]
+        for model in (Source, Payment, Invoice, CreditNote, Proposal, Job):
+            assert (
+                session.query(model).filter_by(workspace_id=workspace_id).count()
+                == counts_before[model.__name__]
+            )
+        assert (
+            session.query(AuditEvent)
+            .filter_by(workspace_id=workspace_id, action="case.open")
+            .count()
+            == 1
+        )
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_case_api_csrf_and_workspace_isolation_cover_sources_and_details(
+    session, monkeypatch
+) -> None:
+    api, client_a = _api_client(session, monkeypatch)
+    try:
+        handle = _open_case(client_a, "straightforward")
+        _run_all_jobs(client_a)
+        proposal = client_a.get("/api/v1/proposals").json()[0]
+        detail = client_a.get(f"/api/v1/proposals/{proposal['proposal_id']}").json()
+        source_id = detail["decision_trace"]["snapshot"]["sources"][0]["source_id"]
+        source = client_a.get(f"/api/v1/sources/{source_id}")
+        assert source.status_code == 200
+        assert source.json()["raw_text"]
+
+        _, client_b = _api_client(session, monkeypatch)
+        csrf = client_b.headers.pop("X-CSRF-Token")
+        denied = client_b.post("/api/v1/cases/adversarial/open")
+        assert denied.status_code == 403
+        client_b.headers["X-CSRF-Token"] = csrf
+        assert client_b.get(f"/api/v1/proposals/{proposal['proposal_id']}").status_code == 404
+        assert client_b.get(f"/api/v1/sources/{source_id}").status_code == 404
+        assert handle["payment_id"]
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_case_fingerprint_is_stable_across_clutter_and_workspaces(session, monkeypatch) -> None:
+    api, cluttered = _api_client(session, monkeypatch)
+    try:
+        _open_case(cluttered, "straightforward")
+        _open_case(cluttered, "bundle")
+        manual_bank, manual_invoices, manual_message = _manual_packet()
+        files = {
+            "bank": ("manual-bank.csv", manual_bank, "text/csv"),
+            "invoices": ("manual-invoices.csv", manual_invoices, "text/csv"),
+            "message": ("manual-message.txt", manual_message, "text/plain"),
+        }
+        validated = cluttered.post(
+            "/api/v1/imports/validate",
+            files=files,
+            data={
+                "message_time": "2026-01-15T12:00:00+00:00",
+                "payment_source_account_id": "manual-account",
+                "payment_transaction_id": "manual-payment",
+            },
+        )
+        assert validated.status_code == 200, validated.text
+        batch_id = validated.json()["batch_id"]
+        assert cluttered.post(f"/api/v1/imports/{batch_id}/commit").status_code == 200
+        insufficient = _open_case(cluttered, "insufficient")
+        _run_all_jobs(cluttered)
+        cluttered_detail = next(
+            client_item
+            for client_item in cluttered.get("/api/v1/proposals").json()
+            if client_item["payment_id"] == insufficient["payment_id"]
+        )
+        cluttered_trace = cluttered.get(
+            f"/api/v1/proposals/{cluttered_detail['proposal_id']}"
+        ).json()["decision_trace"]
+
+        _, fresh = _api_client(session, monkeypatch)
+        fresh_handle = _open_case(fresh, "insufficient")
+        _run_all_jobs(fresh)
+        fresh_summary = next(
+            client_item
+            for client_item in fresh.get("/api/v1/proposals").json()
+            if client_item["payment_id"] == fresh_handle["payment_id"]
+        )
+        fresh_trace = fresh.get(
+            f"/api/v1/proposals/{fresh_summary['proposal_id']}"
+        ).json()["decision_trace"]
+        assert cluttered_trace["input_fingerprint"] == fresh_trace["input_fingerprint"]
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_case_trace_survives_correction_apply_reverse_with_audits(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        handle = _open_case(client, "straightforward")
+        _run_all_jobs(client)
+        proposal_row = next(
+            item
+            for item in client.get("/api/v1/proposals").json()
+            if item["payment_id"] == handle["payment_id"]
+        )
+        proposal_id = proposal_row["proposal_id"]
+        initial = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        original_trace = initial["model_trace"]
+        source_id = original_trace["snapshot"]["sources"][0]["source_id"]
+
+        correction = client.post(
+            f"/api/v1/proposals/{proposal_id}/correct",
+            json={
+                "expected_revision": 1,
+                "cash": [{"invoice_id": "case-straightforward-invoice", "amount": 100_000}],
+                "credits": [],
+                "reviewer": "case-reviewer",
+            },
+        )
+        assert correction.status_code == 200, correction.text
+        corrected = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert corrected["revision"] == 2
+        assert (
+            corrected["model_trace"]["input_fingerprint"]
+            == original_trace["input_fingerprint"]
+        )
+        assert any(
+            stage["id"] == "human-correction-r2"
+            for stage in corrected["decision_trace"]["stages"]
+        )
+        old_revision = session.scalar(
+            select(ProposalRevision).where(
+                ProposalRevision.proposal_id == uuid.UUID(proposal_id),
+                ProposalRevision.revision == 1,
+            )
+        )
+        assert old_revision is not None
+        assert old_revision.model_trace == original_trace
+
+        apply_response = client.post(
+            f"/api/v1/proposals/{proposal_id}/apply",
+            json={
+                "expected_revision": 2,
+                "version_token": corrected["version_token"],
+                "reviewer": "case-reviewer",
+                "idempotency_key": "case-apply",
+            },
+        )
+        assert apply_response.status_code == 200, apply_response.text
+        application_id = apply_response.json()["application_id"]
+        applied = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert applied["status"] == "APPLIED"
+        assert applied["capabilities"] == {
+            "interpret": False,
+            "correct": False,
+            "apply": False,
+            "reverse": True,
+        }
+        assert any(
+            stage["id"] == "application-apply"
+            for stage in applied["decision_trace"]["stages"]
+        )
+
+        reverse_response = client.post(
+            f"/api/v1/applications/{application_id}/reverse",
+            json={
+                "reviewer": "case-reviewer",
+                "reason": "case lifecycle test",
+                "idempotency_key": "case-reverse",
+            },
+        )
+        assert reverse_response.status_code == 200, reverse_response.text
+        reversed_detail = client.get(f"/api/v1/proposals/{proposal_id}").json()
+        assert reversed_detail["status"] == "REVERSED"
+        assert reversed_detail["capabilities"]["reverse"] is False
+        assert any(
+            stage["id"] == "application-reverse"
+            for stage in reversed_detail["decision_trace"]["stages"]
+        )
+        audits = list(
+            session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.workspace_id == session.scalar(
+                        select(Workspace.id).order_by(Workspace.created_at.desc())
+                    ),
+                    AuditEvent.action.in_(
+                        ("proposal.correct", "application.apply", "application.reverse")
+                    ),
+                )
+            )
+        )
+        assert {event.action for event in audits} == {
+            "proposal.correct",
+            "application.apply",
+            "application.reverse",
+        }
+        assert source_id in {item["source_id"] for item in original_trace["snapshot"]["sources"]}
+    finally:
+        api.dependency_overrides.clear()
 
 
 def test_preview_rejects_non_sample_upload(session, monkeypatch) -> None:
