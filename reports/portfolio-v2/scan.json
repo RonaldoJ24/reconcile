@@ -1,0 +1,18 @@
+{
+  "artifact": {
+    "model_id": "ranker-ml-v1-logistic",
+    "model_sha256": "bb9774c99870bfa0d20759c6ceb37aafd6fbf65619b28c71947bdb993c16135e",
+    "model_version": "1",
+    "verified": true
+  },
+  "passed": true,
+  "release_commit": "914bbe93bfc133dec8819455837f9b144253ea7c",
+  "runtime_allowlist": {
+    "entries": 21,
+    "forbidden": [],
+    "missing_required": []
+  },
+  "schema_version": "release-scan-v1",
+  "secret_findings": [],
+  "tracked_text_files_scanned": 169
+}

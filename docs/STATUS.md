@@ -297,3 +297,23 @@ Focused backend, PostgreSQL, frontend and real desktop/mobile checks passed; exa
 scope and counts are in `reports/portfolio-v2/engineering-validation.md`.
 Controlled variants and reliability remain in progress. No deployment or benchmark
 was executed.
+
+
+## Controlled variants and final review sequence — 2026-09-21
+
+Controlled message variants preserve source/decision history and invalidate stale
+comparisons. The synthetic lab invokes actual validators and transaction guards;
+duplicate checks reuse an explicitly approved operation without new financial rows.
+The interface, immutable-history controls and review sequence are implemented.
+
+Final checks: Ruff/mypy, 1,089 offline backend tests, 62 PostgreSQL tests, 42 frontend
+unit tests, TypeScript and production build passed. All 32 distinct desktop/mobile
+browser scenarios passed across the integrated run (30) and focused import rerun
+(2); the initial import selectors and total timeout were corrected in the tests.
+Native browser 200% zoom remains unverified. Exact evidence and limits are in
+`reports/portfolio-v2/engineering-validation.md`.
+
+The eight private draft PRs #24–#31 follow `docs/PR_SEQUENCE.md`. No merge,
+deployment, provider inference, fresh benchmark or model promotion occurred.
+Independent domain review remains pending; prepared synthetic packets are not
+external validation.
