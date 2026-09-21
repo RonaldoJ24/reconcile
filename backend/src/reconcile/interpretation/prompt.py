@@ -8,7 +8,9 @@ from typing import Any
 
 from .schemas import PROMPT_VERSION, SCHEMA_VERSION, InterpretationRequest
 
-MAX_PROMPT_BYTES = 6_000
+# Keep the serialized request well below the 6,000-input-token budget while
+# allowing the registered correction case's complete direct and hybrid payloads.
+MAX_PROMPT_BYTES = 8_000
 MAX_OUTPUT_TOKENS = 2_048
 
 # Keep this text constant and before all request content.  Source material is

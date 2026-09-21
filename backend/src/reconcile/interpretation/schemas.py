@@ -460,6 +460,7 @@ class FailureCode(StrEnum):
     NOT_FOUND = "not_found"
     UNPROCESSABLE = "unprocessable"
     HTTP_ERROR = "http_error"
+    PROMPT_TOO_LARGE = "prompt_too_large"
     INVALID_RESPONSE = "invalid_response"
     INVALID_CITATION = "invalid_citation"
     INVALID_ALLOCATION = "invalid_allocation"

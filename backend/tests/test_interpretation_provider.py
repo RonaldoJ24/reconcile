@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from reconcile.interpretation import (
+    MAX_PROMPT_BYTES,
     AllocationLine,
     CandidateAllocation,
     Citation,
@@ -115,6 +116,112 @@ def test_prompt_modes_are_bounded_and_delimited() -> None:
     assert "rank_context" in hybrid.user
     with pytest.raises(PromptTooLarge):
         compile_prompt(make_request(source_text="x" * 100_000))
+
+
+def test_correction_shaped_hybrid_request_fits_default_bound() -> None:
+    suffixes = (
+        "case-correction-first",
+        "case-correction-second",
+        "case-correction-decoy-a",
+        "case-correction-decoy-b",
+        "case-correction-decoy-c",
+        "case-correction-decoy-d",
+    )
+    message = (
+        "Do not apply invoice invoice-case-correction-first. "
+        "Apply invoice invoice-case-correction-second."
+    )
+    request = InterpretationRequest(
+        workspace_id="workspace-correction",
+        payment=PaymentObservation(
+            payment_id="payment-correction",
+            amount_centavos=1_000_000,
+            currency="MXN",
+            booking_date="2026-01-15",
+            payer_name="Case Customer",
+            reference="Unidentified transfer",
+            source_id="payment-source",
+            source_hash="a" * 64,
+        ),
+        invoices=[
+            InvoiceObservation(
+                invoice_id=f"invoice-{suffix}",
+                outstanding_amount_centavos=1_000_000,
+                currency="MXN",
+                customer_id="customer-correction",
+                customer_name="Case Customer",
+                issued_date="2025-12-01",
+                due_date="2026-01-01",
+                balance_as_of="2026-01-15",
+                source_id="invoice-source",
+                source_hash="b" * 64,
+            )
+            for suffix in suffixes
+        ],
+        candidates=[
+            CandidateAllocation(
+                candidate_id=f"online-{suffix}",
+                invoice_ids=[f"invoice-{suffix}"],
+                cash=[AllocationLine(invoice_id=f"invoice-{suffix}", amount=1_000_000)],
+            )
+            for suffix in suffixes
+        ],
+        source_spans=[
+            SourceSpan(
+                source_id="message-source",
+                start=0,
+                end=len(message),
+                text=message,
+                source_hash="c" * 64,
+            )
+        ],
+        mode="hybrid",
+        ranked_candidates=[
+            {"candidate_id": f"online-{suffix}", "raw_score": 0.4}
+            for suffix in suffixes
+        ],
+        decision_timestamp="2026-09-14T12:00:00Z",
+    )
+
+    compiled = compile_prompt(request)
+    direct = compile_prompt(request.model_copy(update={"mode": "direct", "ranked_candidates": ()}))
+
+    assert 6_000 < compiled.request_bytes <= MAX_PROMPT_BYTES
+    assert 6_000 < direct.request_bytes <= MAX_PROMPT_BYTES
+
+
+def test_oversized_prompt_fails_before_provider_or_reservation() -> None:
+    calls = 0
+    reservations = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return response({})
+
+    def reserve(_context: AttemptContext) -> object:
+        nonlocal reservations
+        reservations += 1
+        return object()
+
+    client = httpx.Client(
+        base_url="https://api.deepseek.com",
+        transport=httpx.MockTransport(handler),
+    )
+    outcome = DeepSeekProvider(
+        api_key="provided-explicitly",
+        enabled=True,
+        client=client,
+        reserve_attempt=reserve,
+    ).interpret(make_request(source_text="x" * 100_000))
+
+    assert not outcome.ok
+    assert outcome.failure is not None
+    assert outcome.failure.code is FailureCode.PROMPT_TOO_LARGE
+    assert outcome.attempts[0].failure_code is FailureCode.PROMPT_TOO_LARGE
+    assert calls == 0
+    assert reservations == 0
+    client.close()
 
 
 def test_provider_posts_required_deepseek_options_without_network() -> None:
