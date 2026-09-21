@@ -317,3 +317,16 @@ The eight private draft PRs #24–#31 follow `docs/PR_SEQUENCE.md`. No merge,
 deployment, provider inference, fresh benchmark or model promotion occurred.
 Independent domain review remains pending; prepared synthetic packets are not
 external validation.
+
+
+## Authorized merge and hosted acceptance — 2026-09-21
+
+The owner subsequently authorized merge and deployment. PRs #24–#31 were merged
+in order into `main`; final code merge `2c1aace` exactly matches the tested tree.
+Render deployment `dep-daonnfg0cd8s73eggacg` is live at
+https://reconcile-preview.onrender.com on the existing single Free web service.
+Root/health returned 200; the active engine is `rules-v2-conservative` with provider
+access disabled. Eight real hosted desktop/mobile journeys passed in 2.9 minutes,
+covering cases, variants, comparison, integrity checks and the complete financial
+review workflow. No new resource, billing change, provider call or benchmark ran.
+See `reports/deployment-v2/` for deploy identity, checks and cost-observability limits.

@@ -2,14 +2,15 @@
 
 The preceding implementation ended with merged PR #23 at `c19034d`. This
 continuation preserves that history and the local correction-contract commit
-`dd18e1c`. It follows the earlier task's small coherent commits and PRs, with the
-later explicit restriction: **do not merge or deploy**.
+`dd18e1c`. It follows the earlier task's small coherent commits and PRs. The initial
+draft-only restriction was superseded by the authorization below.
 
-All entries below are draft PRs in the existing private repository. Each branch
-is an ancestor of the next; no published history was rewritten. Review the PR's
-own base-to-head diff rather than comparing every head directly with main.
+The owner authorized merge and deployment on 2026-09-21. PRs #24–#31 were
+merged in this order with merge commits, retargeting each next PR to `main`.
+The table preserves the original review bases and implementation boundaries;
+all eight PRs now have `main` as their final target branch. No history was rewritten.
 
-| Order | PR | Base | Head | Code/review boundary |
+| Order | PR | Original review base | Head | Code/review boundary |
 | --- | --- | --- | --- | --- |
 | 1 | [#24 Contracts](https://github.com/RonaldoJ24/reconcile/pull/24) | `main` | `review/reconcile-contracts` | `a24106f` |
 | 2 | [#25 Financial review UI](https://github.com/RonaldoJ24/reconcile/pull/25) | `review/reconcile-contracts` | `review/reconcile-financial-ui` | `56b6fb1` |
@@ -22,15 +23,16 @@ own base-to-head diff rather than comparing every head directly with main.
 
 The integration branch `feat/reconcile-case-study` supplies the eighth review
 branch. Its interface and integrated evidence are included in the same
-draft PR. Worker branches are implementation lanes, not extra duplicate PRs.
+PR. Worker branches are implementation lanes, not extra duplicate PRs.
 The final row names the implementation/test commit; the PR head also includes the
 subsequent validation report and scan.
 
 PR descriptions name the checks actually run and separate persisted PostgreSQL
 behavior from mocked transport checks. Historical reports and the model artifact
 are unchanged. The independent-review packet is preparation, not human validation.
-Draft status preserves the requested review gate; it does not authorize merging.
+The earlier draft-only restriction was superseded by the owner’s explicit
+merge/deployment instruction.
 
-If merging is authorized later, process this dependency order and verify/retarget
-remaining PR bases as needed. No merge, squash, rebase or deployment is authorized
-by this document itself.
+Final merge commit: `2c1aacebffe769148c248619ff0afd3c5b4c9d82`. Its tree is
+identical to the tested `c5a33c2` integration tree. Deployment evidence is recorded
+separately under `reports/deployment-v2/`.
