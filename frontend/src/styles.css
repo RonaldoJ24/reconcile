@@ -202,6 +202,19 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
 .error-banner { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; margin-bottom: 18px; padding: 12px 14px; color: #8f2d2d; background: var(--red-bg); border: 1px solid #e8b4b0; border-radius: 7px; font-size: .8rem; }
 .icon-button { border: 0; padding: 0 2px; color: inherit; background: transparent; font-size: 1.2rem; line-height: 1; }
 .loading-card { padding: 40px; color: var(--muted); background: white; border: 1px solid var(--line); border-radius: 10px; text-align: center; }
+.confirmation-dialog { width: min(560px, calc(100vw - 30px)); max-height: calc(100vh - 30px); overflow: auto; margin: auto; padding: 26px; color: var(--ink); background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 50px rgba(17, 45, 78, .22); }
+.confirmation-dialog::backdrop { background: rgba(17, 45, 78, .48); }
+.confirmation-dialog h2 { margin: 0; color: var(--navy); font-size: 1.2rem; }
+.confirmation-dialog h3 { margin: 0 0 8px; color: var(--navy); font-size: .8rem; }
+.confirmation-section { margin-top: 17px; padding-top: 14px; border-top: 1px solid var(--line); }
+.confirmation-section ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.confirmation-section li { display: flex; justify-content: space-between; gap: 15px; color: #36536a; font-size: .76rem; }
+.confirmation-section li strong { color: var(--navy); white-space: nowrap; }
+.confirmation-note { margin: 18px 0 0; padding: 11px 12px; color: #526d81; background: var(--soft); border-radius: 6px; font-size: .74rem; }
+.confirmation-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+.draft-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 9px 11px; color: var(--amber); background: var(--amber-bg); border-radius: 6px; font-size: .73rem; }
+.draft-status .button { min-height: 30px; padding-top: 5px; padding-bottom: 5px; font-size: .7rem; }
+.draft-error { color: var(--red); background: var(--red-bg); }
 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 190px minmax(0, 1fr); }

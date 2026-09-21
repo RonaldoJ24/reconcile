@@ -48,6 +48,7 @@ export type RowIssue = {
 export type ImportValidation = {
   batch_id?: string
   batchId?: string
+  committed?: boolean
   row_issues?: RowIssue[]
   rowIssues?: RowIssue[]
   accepted_counts?: Record<string, number>
@@ -150,6 +151,12 @@ export type ProposalDetail = ProposalSummary & {
   applicationId?: string
   application?: Record<string, unknown>
   interpretation?: Interpretation
+  capabilities?: {
+    interpret?: boolean
+    correct?: boolean
+    apply?: boolean
+    reverse?: boolean
+  }
   revision?: number
   reviewer?: string
   [key: string]: unknown

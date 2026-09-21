@@ -44,18 +44,61 @@ test.describe('fresh import through reviewed application', () => {
     await expectNoHorizontalOverflow(page)
     await page.getByLabel('Reviewer name').fill('E2E reviewer')
     const cashAmount = page.getByLabel('Amount (MXN)').first()
-    if (await cashAmount.count()) await cashAmount.fill('30000.00')
+    const proposalDetail = (response: import('@playwright/test').Response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'GET' && /^\/api\/v1\/proposals\/[^/]+$/.test(url.pathname)
+    }
+    const correction = (request: import('@playwright/test').Request) => {
+      const url = new URL(request.url())
+      return request.method() === 'POST' && /\/api\/v1\/proposals\/[^/]+\/correct$/.test(url.pathname)
+    }
+
+    expect(await cashAmount.count()).toBeGreaterThan(0)
+    await cashAmount.fill('')
+    await cashAmount.pressSequentially('100')
+    const firstCorrection = page.waitForRequest(correction)
+    const firstPersisted = page.waitForResponse(proposalDetail)
     await page.getByRole('button', { name: 'Save correction' }).click()
+    const firstPayload = JSON.parse((await firstCorrection).postData() ?? '{}') as { cash?: Array<{ amount?: number }> }
+    expect(firstPayload.cash?.[0]?.amount).toBe(10_000)
+    const firstDetail = await (await firstPersisted).json() as { cash?: Array<{ amount?: number }> }
+    expect(firstDetail.cash?.[0]?.amount).toBe(10_000)
     await expect(page.getByText(/revision 2/i)).toBeVisible()
 
+    await cashAmount.fill('100.00')
+    const secondCorrection = page.waitForRequest(correction)
+    const secondPersisted = page.waitForResponse(proposalDetail)
+    await page.getByRole('button', { name: 'Save correction' }).click()
+    const secondPayload = JSON.parse((await secondCorrection).postData() ?? '{}') as { cash?: Array<{ amount?: number }> }
+    expect(secondPayload.cash?.[0]?.amount).toBe(10_000)
+    const secondDetail = await (await secondPersisted).json() as { cash?: Array<{ amount?: number }> }
+    expect(secondDetail.cash?.[0]?.amount).toBe(10_000)
+    await expect(page.getByText(/revision 3/i)).toBeVisible()
+
     await page.getByRole('button', { name: 'Apply allocation' }).click()
+    const confirmation = page.getByRole('dialog', { name: 'Apply persisted allocation?' })
+    await expect(confirmation).toBeVisible()
+    await expect(confirmation).toContainText('Review revision 3')
+    await expect(confirmation).toContainText('100.00 MXN')
+    await expect(confirmation).toContainText('Projected invoice balances')
+    await expect(confirmation).toContainText('does not move money in a bank account')
+    await page.screenshot({ path: path.join(__dirname, '..', 'output', 'quality-demo', `confirmation-${test.info().project.name}.png`), fullPage: true })
+    await confirmation.getByRole('button', { name: 'Confirm and apply' }).click()
     await expect(page.getByText('APPLIED', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Applied', exact: true })).toBeDisabled()
+    const balances = page.getByRole('table', { name: 'Remaining balances' })
+    await expect(balances.locator('tbody tr').filter({ hasText: '101' })).toContainText('29,900.00')
+    await expect(balances.locator('tbody tr').filter({ hasText: '102' })).toContainText('0.00')
+    await page.screenshot({ path: path.join(__dirname, '..', 'output', 'quality-demo', `applied-${test.info().project.name}.png`), fullPage: true })
 
     await page.reload()
     await page.getByRole('button', { name: 'Review queue' }).click()
     await expect(page.locator('.proposal-card').first()).toBeVisible()
     await page.locator('.proposal-card').first().click()
     await expect(page.getByText('APPLIED', { exact: true })).toBeVisible()
+    const reloadedBalances = page.getByRole('table', { name: 'Remaining balances' })
+    await expect(reloadedBalances.locator('tbody tr').filter({ hasText: '101' })).toContainText('29,900.00')
+    await expect(reloadedBalances.locator('tbody tr').filter({ hasText: '102' })).toContainText('0.00')
 
     const download = page.waitForEvent('download')
     await page.getByRole('link', { name: 'Download CSV' }).click()
@@ -65,5 +108,8 @@ test.describe('fresh import through reviewed application', () => {
     await page.getByLabel('Reversal reason').fill('E2E reversal check')
     await page.getByRole('button', { name: 'Reverse application' }).click()
     await expect(page.getByText('REVERSED', { exact: true })).toBeVisible()
+    const reversedBalances = page.getByRole('table', { name: 'Remaining balances' })
+    await expect(reversedBalances.locator('tbody tr').filter({ hasText: '101' })).toContainText('30,000.00')
+    await expect(reversedBalances.locator('tbody tr').filter({ hasText: '102' })).toContainText('25,000.00')
   })
 })
