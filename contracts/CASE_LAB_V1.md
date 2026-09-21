@@ -55,8 +55,9 @@ behavior, observed result, and persisted effect counts before/after. A rejected
 request is evidence only for the named check, never proof of semantic support.
 
 Invalid allocation and citation experiments call the same validation functions
-used by the application. Stale apply uses an intentionally obsolete revision with
-the real transactional service and must leave balances/history unchanged.
+used by the application. Stale apply uses an intentionally mismatched revision or
+version token with the real transactional service and must leave balances/history
+unchanged.
 Duplicate apply is available only after an explicit reviewer application, replays
 that already approved logical operation's identical payload/key, and must return
 the same application ID with no new effects. It does not create a first application

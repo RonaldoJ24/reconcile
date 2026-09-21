@@ -24,6 +24,10 @@ authenticated recordings. The Evaluation page reads the preserved aggregate repo
 and distinguishes historical results from the unevaluated v2 protocol. See
 [comparison and replay boundaries](docs/COMPARISON_AND_REPLAY.md).
 
+The [case lab](docs/CASE_LAB.md) changes the active registered message while keeping
+source and decision history. Its labeled synthetic checks exercise allocation,
+citation, stale-request and duplicate-application controls through the real backend.
+
 ## The financial workflow
 
 Open a registered case or import bounded CSV/TXT evidence, inspect a persisted

@@ -60,11 +60,14 @@ export type CaseRegistry = {
 export type CaseOpen = {
   case_id: string
   scenario_version: string
+  variant?: CaseVariant
   payment_id: string
   proposal_id: string | null
   jobs: string[]
   resumed: boolean
 }
+
+export type CaseVariant = 'original' | 'ambiguous' | 'prompt_like'
 
 export type RowIssue = {
   row?: number
@@ -277,10 +280,32 @@ export type ProposalDetail = {
   review_required: boolean
   capabilities?: Partial<Capabilities>
   active_engine?: string
-  case?: { id: string; version: string } | null
+  case?: { id: string; version: string; variant?: CaseVariant } | null
   decision_trace?: DecisionTrace | null
   comparison?: Comparison | null
   model_trace?: Record<string, unknown> | null
+}
+
+export type ReliabilityExperiment = 'invalid_allocation' | 'invalid_citation' | 'stale_apply' | 'duplicate_apply'
+
+export type ReliabilityEffects = {
+  application_groups: number
+  cash_applications: number
+  credit_applications: number
+  cash_centavos: number
+  credit_centavos: number
+}
+
+export type ReliabilityResult = {
+  experiment: ReliabilityExperiment
+  synthetic: true
+  validator: string
+  expected: Record<string, unknown>
+  observed: Record<string, unknown>
+  passed: boolean
+  application_id: string | null
+  effects_before: ReliabilityEffects
+  effects_after: ReliabilityEffects
 }
 
 export type CorrectResponse = {

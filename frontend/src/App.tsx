@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
+  applyCaseVariant,
   applyProposal,
   compareProposal,
   commitImport,
@@ -16,17 +17,21 @@ import {
   listProposals,
   openCase as openCaseRequest,
   reverseApplication,
+  runReliabilityCheck,
   runJobOnce,
   sampleUrl,
   validateImport,
 } from './api'
+import CaseVariantPanel from './CaseVariantPanel'
 import ComparisonPanel from './ComparisonPanel'
 import EvaluationView from './EvaluationView'
+import ReliabilityPanel from './ReliabilityPanel'
 import type {
   CashLine,
   Capabilities,
   CaseOpen,
   CaseRegistry,
+  CaseVariant,
   Comparison,
   CreditLine,
   DecisionTrace,
@@ -43,6 +48,8 @@ import type {
   ProposalDetail,
   ProposalSummary,
   RowIssue,
+  ReliabilityExperiment,
+  ReliabilityResult,
   Session,
   SourceRecord,
 } from './types'
@@ -683,15 +690,29 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const [sourceError, setSourceError] = useState('')
   const [comparisonBusy, setComparisonBusy] = useState(false)
   const [comparisonError, setComparisonError] = useState('')
+  const [variantSelection, setVariantSelection] = useState<CaseVariant | ''>('')
+  const [variantBusy, setVariantBusy] = useState(false)
+  const [variantError, setVariantError] = useState('')
+  const [reliabilityExperiment, setReliabilityExperiment] = useState<ReliabilityExperiment>('invalid_allocation')
+  const [reliabilityResult, setReliabilityResult] = useState<ReliabilityResult>()
+  const [reliabilityBusy, setReliabilityBusy] = useState(false)
+  const [reliabilityError, setReliabilityError] = useState('')
   const applyAttemptRef = useRef<{ fingerprint: string; key: string } | undefined>(undefined)
   const applyInFlightRef = useRef(false)
   const sourceRequestVersion = useRef(0)
   const comparisonGeneration = useRef(0)
+  const reliabilityGeneration = useRef(0)
 
   const load = useCallback(async (preserveInterpretation = false) => {
     comparisonGeneration.current += 1
+    reliabilityGeneration.current += 1
     setComparisonError('')
     setComparisonBusy(false)
+    setVariantError('')
+    setVariantBusy(false)
+    setReliabilityError('')
+    setReliabilityResult(undefined)
+    setReliabilityBusy(false)
     if (!id) { setLoading(false); return }
     setLoading(true)
     try {
@@ -704,6 +725,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
       setCreditDraft(nextCreditDraft)
       setPersistedCashDraft(nextCashDraft)
       setPersistedCreditDraft(nextCreditDraft)
+      setVariantSelection(result.case?.variant ?? '')
       applyAttemptRef.current = undefined
       setEditing(false)
       if (!preserveInterpretation) setInterpretation(result.interpretation ?? undefined)
@@ -727,13 +749,15 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const versionToken = detail.version_token
   const immutable = ['APPLIED', 'REVERSED'].includes(status)
   const canCorrect = !immutable && (capabilities?.correct ?? sessionCapabilities?.correct ?? true)
-  const canApply = status === 'PROPOSED' && !immutable && (capabilities?.apply ?? sessionCapabilities?.apply ?? status === 'PROPOSED') && typeof versionToken === 'string' && versionToken.length === 64 && !hasUnsavedChanges && !draftError
+  const financialActionBusy = Boolean(busy) || variantBusy || reliabilityBusy
+  const canApply = status === 'PROPOSED' && !immutable && (capabilities?.apply ?? sessionCapabilities?.apply ?? status === 'PROPOSED') && typeof versionToken === 'string' && versionToken.length === 64 && !hasUnsavedChanges && !draftError && !variantBusy && !reliabilityBusy
   const canReverse = status === 'APPLIED' && (capabilities?.reverse ?? sessionCapabilities?.reverse ?? true)
   const interpretationEnabled = capabilities?.interpret ?? sessionCapabilities?.interpret ?? false
-  const canInterpret = status === 'NEEDS_REVIEW' && !hasUnsavedChanges && interpretationEnabled
+  const canInterpret = status === 'NEEDS_REVIEW' && !hasUnsavedChanges && interpretationEnabled && !variantBusy && !reliabilityBusy
   const interpretationDisabledReason = status === 'NEEDS_REVIEW' && (capabilities?.interpret === false || (capabilities?.interpret === undefined && sessionCapabilities?.interpret === false))
     ? 'Live interpretation is disabled for this session.'
-    : status === 'NEEDS_REVIEW' && hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.' : undefined
+    : status === 'NEEDS_REVIEW' && hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.'
+      : status === 'NEEDS_REVIEW' && (variantBusy || reliabilityBusy) ? 'Wait for the current case lab request to finish before requesting interpretation.' : undefined
   const comparisonStale = Boolean(detail.comparison && !comparisonMatchesDetail(detail, detail.comparison))
   const comparison = hasUnsavedChanges || comparisonStale ? undefined : detail.comparison
   const comparisonDisabledReason = hasUnsavedChanges
@@ -743,8 +767,12 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
       : undefined
   const clearComparison = () => {
     comparisonGeneration.current += 1
+    reliabilityGeneration.current += 1
     setComparisonBusy(false)
     setComparisonError('')
+    setReliabilityBusy(false)
+    setReliabilityError('')
+    setReliabilityResult(undefined)
     setDetail((current) => current?.comparison ? { ...current, comparison: undefined } : current)
   }
   const apply = async () => {
@@ -804,7 +832,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   }
 
   const compare = async () => {
-    if (comparisonBusy || Boolean(busy) || loading) return
+    if (comparisonBusy || Boolean(busy) || variantBusy || reliabilityBusy || loading) return
     if (hasUnsavedChanges) {
       setComparisonError('Save or discard unsaved correction changes before comparing this revision.')
       return
@@ -828,6 +856,69 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
     } finally {
       if (comparisonGeneration.current === generation) setComparisonBusy(false)
     }
+  }
+
+  const variantReason = detail.case?.variant === undefined
+    ? 'The server did not return the current case variant.'
+    : immutable
+      ? 'Case variants cannot change an applied or reversed revision.'
+      : hasUnsavedChanges
+        ? 'Save or discard unsaved correction changes before changing the case variant.'
+        : Boolean(busy) || comparisonBusy || reliabilityBusy || variantBusy
+          ? 'Wait for the current request to finish before changing the case variant.'
+          : undefined
+  const runVariant = async () => {
+    const caseId = detail.case?.id
+    if (!caseId || !variantSelection || variantReason) return
+    clearComparison()
+    const generation = reliabilityGeneration.current
+    setVariantBusy(true)
+    setVariantError('')
+    try {
+      const opened = await applyCaseVariant(caseId, detail.revision, variantSelection)
+      if (reliabilityGeneration.current !== generation) return
+      setVariantSelection(opened.variant ?? variantSelection)
+      if (opened.jobs.length > 0) await runJobsUntilSettled(runJobOnce, () => {}, async () => {})
+      if (reliabilityGeneration.current !== generation) return
+      await load()
+      await onRefresh()
+    } catch (cause) {
+      if (reliabilityGeneration.current === generation) setVariantError(errorText(cause))
+    } finally {
+      if (reliabilityGeneration.current === generation) setVariantBusy(false)
+    }
+  }
+
+  const reliabilityReason = hasUnsavedChanges
+    ? 'Save or discard unsaved correction changes before running a synthetic check.'
+    : Boolean(busy) || comparisonBusy || variantBusy || reliabilityBusy
+      ? 'Wait for the current request to finish before running a synthetic check.'
+      : reliabilityExperiment === 'stale_apply' && status !== 'PROPOSED'
+        ? 'Stale apply requires a PROPOSED revision so a discordant version token can be checked safely.'
+        : reliabilityExperiment === 'duplicate_apply' && status !== 'APPLIED'
+          ? 'Duplicate apply is available only after an explicit reviewer application.'
+          : ['invalid_allocation', 'invalid_citation'].includes(reliabilityExperiment) && balances.length === 0
+            ? 'This synthetic check requires an invoice balance in the current proposal.'
+            : undefined
+  const runReliability = async () => {
+    if (reliabilityReason) return
+    const generation = reliabilityGeneration.current
+    setReliabilityBusy(true)
+    setReliabilityError('')
+    try {
+      const result = await runReliabilityCheck(id, detail.revision, reliabilityExperiment)
+      if (reliabilityGeneration.current === generation) setReliabilityResult(result)
+    } catch (cause) {
+      if (reliabilityGeneration.current === generation) setReliabilityError(errorText(cause))
+    } finally {
+      if (reliabilityGeneration.current === generation) setReliabilityBusy(false)
+    }
+  }
+  const changeReliabilityExperiment = (experiment: ReliabilityExperiment) => {
+    reliabilityGeneration.current += 1
+    setReliabilityExperiment(experiment)
+    setReliabilityResult(undefined)
+    setReliabilityError('')
   }
 
   const inspectSource = async (sourceId: string) => {
@@ -894,7 +985,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
     <PageHeading eyebrow="Allocation detail" title="Allocation detail" description={`${payment.payer_name} · proposal ${id} · revision ${detail.revision} · ${status}`} />
     <section className="detail-grid">
       <div className="detail-main">
-        <DecisionSummary detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} status={status} onEdit={() => setEditing(true)} canEdit={canCorrect} />
+        <DecisionSummary detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} status={status} onEdit={() => setEditing(true)} canEdit={canCorrect && !financialActionBusy} />
         <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
         <CanonicalAllocationLines title="Cash applications" lines={cashLines} kind="cash" />
         <CanonicalAllocationLines title="Credit applications" lines={creditLines} kind="credit" />
@@ -907,32 +998,57 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
           loading={comparisonBusy}
           error={comparisonError}
           onCompare={() => void compare()}
-          canCompare={!hasUnsavedChanges && !Boolean(busy) && !loading}
+          canCompare={!hasUnsavedChanges && !Boolean(busy) && !variantBusy && !reliabilityBusy && !loading}
           disabledReason={comparisonDisabledReason}
+        />
+        {detail.case && <CaseVariantPanel
+          caseId={detail.case.id}
+          scenarioVersion={detail.case.version}
+          currentVariant={detail.case.variant}
+          selectedVariant={variantSelection}
+          loading={variantBusy}
+          disabled={Boolean(variantReason)}
+          disabledReason={variantReason}
+          error={variantError}
+          onVariantChange={setVariantSelection}
+          onApply={() => void runVariant()}
+        />}
+        <ReliabilityPanel
+          status={status}
+          revision={detail.revision}
+          selectedExperiment={reliabilityExperiment}
+          result={reliabilityResult}
+          loading={reliabilityBusy}
+          disabled={Boolean(reliabilityReason)}
+          selectionDisabled={Boolean(hasUnsavedChanges) || Boolean(busy) || comparisonBusy || variantBusy || reliabilityBusy}
+          disabledReason={reliabilityReason}
+          error={reliabilityError}
+          onExperimentChange={changeReliabilityExperiment}
+          onRun={() => void runReliability()}
         />
       </div>
       <aside className="detail-side">
         {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
         <section className="panel action-panel">
           <div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div>
-          <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={Boolean(busy) || (!canCorrect && !canReverse && !canApply)} /></label>
+          <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={financialActionBusy || (!canCorrect && !canReverse && !canApply)} /></label>
           {editing && canCorrect ? <form onSubmit={correct}>
             <div className="correction-section">
-              <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => { clearComparison(); setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
+              <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || financialActionBusy} onClick={() => { clearComparison(); setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
               <p id="amount-format-help" className="field-help">Enter MXN as a decimal amount, such as 100 or 100.00. Values are saved as integer centavos.</p>
-              {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || Boolean(busy)} onChange={(next) => { clearComparison(); setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item)) }} onRemove={() => { clearComparison(); setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
+              {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || financialActionBusy} onChange={(next) => { clearComparison(); setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item)) }} onRemove={() => { clearComparison(); setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
             </div>
             <div className="correction-section">
-              <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || Boolean(busy)} onClick={() => { clearComparison(); setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
-              {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || Boolean(busy)} onChange={(next) => { clearComparison(); setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item)) }} onRemove={() => { clearComparison(); setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
+              <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || financialActionBusy} onClick={() => { clearComparison(); setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
+              {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || financialActionBusy} onChange={(next) => { clearComparison(); setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item)) }} onRemove={() => { clearComparison(); setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
             </div>
-            {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
+            {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={financialActionBusy} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
             {draftError && <p className="draft-status draft-error" role="alert">{draftError}</p>}
-            <div className="edit-actions"><button className="button button-quiet" type="button" disabled={Boolean(busy)} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft); setEditing(false) }}>Cancel edit</button><button className="button button-secondary" type="submit" disabled={Boolean(busy) || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></div>
-          </form> : canCorrect ? <div className="read-only-action"><p className="muted">The persisted allocation is shown above. Enter edit mode to change invoice, credit, or amount lines.</p><button className="button button-secondary full-width" type="button" onClick={() => setEditing(true)}>Edit allocation</button></div> : <p className="muted">This revision is locked. Reviewer details remain available for reversal when the server permits it.</p>}
+            <div className="edit-actions"><button className="button button-quiet" type="button" disabled={financialActionBusy} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft); setEditing(false) }}>Cancel edit</button><button className="button button-secondary" type="submit" disabled={financialActionBusy || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></div>
+          </form> : canCorrect ? <div className="read-only-action"><p className="muted">The persisted allocation is shown above. Enter edit mode to change invoice, credit, or amount lines.</p><button className="button button-secondary full-width" type="button" onClick={() => setEditing(true)} disabled={financialActionBusy}>Edit allocation</button></div> : <p className="muted">This revision is locked. Reviewer details remain available for reversal when the server permits it.</p>}
           <div className="action-divider" />
-          <button className="button button-primary full-width" onClick={() => void apply()} disabled={Boolean(busy) || !canApply}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>
-          {status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" disabled={Boolean(busy) || !canReverse} /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={Boolean(busy) || !applicationId || !canReverse}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}
+          <button className="button button-primary full-width" onClick={() => void apply()} disabled={financialActionBusy || !canApply}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>
+          {status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" disabled={financialActionBusy || !canReverse} /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={financialActionBusy || !applicationId || !canReverse}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}
         </section>
         <ExportCard />
       </aside>

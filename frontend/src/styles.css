@@ -150,6 +150,22 @@ caption { padding: 0 0 10px; color: var(--navy); font-weight: 700; text-align: l
 .comparison-allocation ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .comparison-allocation li { display: flex; justify-content: space-between; gap: 10px; color: #526d81; font-size: .7rem; }
 .comparison-allocation li strong { color: var(--navy); white-space: nowrap; }
+.case-variant-panel, .reliability-panel { display: grid; gap: 11px; }
+.case-variant-panel label, .reliability-panel label { display: grid; gap: 7px; color: #375269; font-size: .78rem; font-weight: 600; }
+.case-variant-panel select, .reliability-panel select { width: 100%; min-height: 40px; padding: 8px 10px; color: var(--navy); background: #fff; border: 1px solid #c9d6df; border-radius: 6px; }
+.case-variant-meta, .case-variant-note, .reliability-warning, .reliability-note { color: var(--muted); font-size: .76rem; }
+.case-variant-meta { margin: -4px 0 0; }
+.case-variant-note, .reliability-warning, .reliability-note { margin: 0; padding: 10px 12px; color: #36536a; background: var(--soft); border-radius: 6px; }
+.reliability-result { display: grid; gap: 12px; margin-top: 5px; padding-top: 15px; border-top: 1px solid var(--line); }
+.reliability-result-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.reliability-result-heading h3 { margin: 0; color: var(--navy); font-size: .86rem; }
+.reliability-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.reliability-facts dt { color: var(--muted); font-size: .65rem; }
+.reliability-facts dd { margin: 2px 0 0; font-size: .72rem; overflow-wrap: anywhere; }
+.reliability-result details { border-top: 1px solid var(--line); padding-top: 10px; }
+.reliability-result summary { color: #5c7487; cursor: pointer; font-size: .74rem; font-weight: 700; }
+.reliability-result pre { max-height: 240px; overflow: auto; margin: 9px 0 0; padding: 11px; color: #d4e6f3; background: #152b3e; border-radius: 6px; font-size: .67rem; white-space: pre-wrap; }
+.reliability-effects-wrap { margin-top: 2px; }
 .evaluation-active { margin: -10px 0 14px; }
 .evaluation-active strong { color: var(--navy); }
 .evaluation-v2 { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 17px; padding: 12px; color: #526d81; background: var(--soft); border-radius: 7px; font-size: .73rem; }
@@ -342,5 +358,5 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
   .line-editor .remove-button { justify-self: start; }
   .toolbar { padding-bottom: 12px; }
   .source-meta { grid-template-columns: 1fr; }
-  .comparison-facts, .evaluation-facts { grid-template-columns: 1fr; }
+  .comparison-facts, .evaluation-facts, .reliability-facts { grid-template-columns: 1fr; }
 }

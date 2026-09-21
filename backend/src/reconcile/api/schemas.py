@@ -60,5 +60,17 @@ class ComparisonRequest(StrictModel):
     expected_revision: int = Field(ge=1)
 
 
+class VariantRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    variant: Literal["original", "ambiguous", "prompt_like"]
+
+
+class ReliabilityRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    experiment: Literal[
+        "invalid_allocation", "invalid_citation", "stale_apply", "duplicate_apply"
+    ]
+
+
 class ErrorResponse(StrictModel):
     error: dict[str, Any]

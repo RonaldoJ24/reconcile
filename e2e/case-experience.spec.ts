@@ -175,7 +175,7 @@ test.describe('case study workspace', () => {
       await card.click()
       await expect((await firstOpen).json()).resolves.toMatchObject({ case_id: scenario.id, resumed: false })
       await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
-      await expect(page.getByText(scenario.id, { exact: true })).toBeVisible()
+      await expect(page.locator('.decision-summary').getByText(scenario.id, { exact: true })).toBeVisible()
       await expectNoHorizontalOverflow(page)
 
       await page.getByRole('button', { name: 'Cases' }).click()
@@ -207,7 +207,7 @@ test.describe('case study workspace', () => {
       const firstBody = await (await firstOpen).json() as { case_id?: string; resumed?: boolean }
       expect(firstBody).toMatchObject({ case_id: scenario.id, resumed: false })
       await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
-      await expect(page.getByText(scenario.id, { exact: true })).toBeVisible()
+      await expect(page.locator('.decision-summary').getByText(scenario.id, { exact: true })).toBeVisible()
       await expectNoHorizontalOverflow(page)
 
       if (scenario.id === 'bundle') {

@@ -10,8 +10,11 @@ import type {
   ReverseResponse,
   CaseOpen,
   CaseRegistry,
+  CaseVariant,
   Comparison,
   EvaluationResponse,
+  ReliabilityExperiment,
+  ReliabilityResult,
   ProposalDetail,
   ProposalSummary,
   Session,
@@ -93,6 +96,13 @@ export function openCase(caseId: string) {
   })
 }
 
+export function applyCaseVariant(caseId: string, expectedRevision: number, variant: CaseVariant) {
+  return request<CaseOpen>(`/api/v1/cases/${encodeURIComponent(caseId)}/variant`, {
+    method: 'POST',
+    body: JSON.stringify({ expected_revision: expectedRevision, variant }),
+  })
+}
+
 export function listProposals() {
   return request<ProposalSummary[]>('/api/v1/proposals')
 }
@@ -110,6 +120,13 @@ export function compareProposal(id: string, expectedRevision: number) {
 
 export function getEvaluation() {
   return request<EvaluationResponse>('/api/v1/evaluation')
+}
+
+export function runReliabilityCheck(id: string, expectedRevision: number, experiment: ReliabilityExperiment) {
+  return request<ReliabilityResult>(`/api/v1/proposals/${encodeURIComponent(id)}/reliability`, {
+    method: 'POST',
+    body: JSON.stringify({ expected_revision: expectedRevision, experiment }),
+  })
 }
 
 export function getSource(id: string) {

@@ -12,6 +12,7 @@ const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page)
 
 test.describe('fresh import through reviewed application', () => {
   test('validates, commits, corrects, applies, reloads, exports, and reverses', async ({ page }) => {
+    test.setTimeout(180_000)
     await page.goto('/')
     await page.getByRole('button', { name: 'Imports' }).click()
     await expect(page.getByRole('heading', { name: 'Match incoming payments to the right invoices' })).toBeVisible()
@@ -84,7 +85,7 @@ test.describe('fresh import through reviewed application', () => {
     expect(firstPayload.cash?.[0]?.amount).toBe(10_000)
     const firstDetail = await (await firstPersisted).json() as { cash?: Array<{ amount?: number }> }
     expect(firstDetail.cash?.[0]?.amount).toBe(10_000)
-    await expect(page.getByText(/revision 2/i)).toBeVisible()
+    await expect(page.locator('.page-heading').getByText(/revision 2/i)).toBeVisible()
 
     await page.locator('.read-only-action').getByRole('button', { name: 'Edit allocation' }).click()
     await cashAmount.fill('100.00')
@@ -95,7 +96,7 @@ test.describe('fresh import through reviewed application', () => {
     expect(secondPayload.cash?.[0]?.amount).toBe(10_000)
     const secondDetail = await (await secondPersisted).json() as { cash?: Array<{ amount?: number }> }
     expect(secondDetail.cash?.[0]?.amount).toBe(10_000)
-    await expect(page.getByText(/revision 3/i)).toBeVisible()
+    await expect(page.locator('.page-heading').getByText(/revision 3/i)).toBeVisible()
 
     await page.getByRole('button', { name: 'Apply allocation' }).click()
     const confirmation = page.getByRole('dialog', { name: 'Apply persisted allocation?' })

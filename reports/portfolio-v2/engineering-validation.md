@@ -1,6 +1,8 @@
 # Portfolio continuation engineering evidence
 
-Date: 2026-09-16. Status: **in progress**. This report records development checks,
+Development started 2026-09-16; final checks resumed 2026-09-21.
+Status: **implementation and draft review sequence complete**, with verification
+limits below. This report records development checks,
 not benchmark or production results. Existing v1 reports and the model artifact
 are preserved. No provider inference, reserved-final evaluation, deployment,
 training or promotion was executed for this continuation.
@@ -86,6 +88,16 @@ Primary review inspected the real desktop comparison and mobile evaluation captu
 An observed mobile navigation overflow was corrected with a two-column layout.
 The final real browser check also asserts no page overflow (2 passed, 39.2 s).
 
+## Accepted controlled-variant and reliability backend
+
+Ruff, mypy and 15 focused offline tests passed. Eight PostgreSQL case/lab tests
+passed in 271.63 s after the final backend correction: source reactivation and
+version changes, immediate stale-comparison rejection, session/CSRF isolation,
+applied/reversed history guards, actual validator failures, same-key application
+identity, unchanged financial rows, and injected rollback after import processing.
+An initial connection attempt failed during fixture setup before product assertions;
+a read-only direct connection succeeded before the focused retry.
+
 ## Accepted v2 harness checks
 
 `backend/tests/test_ml_evaluate_v2.py`: 15 tests passed. Ruff and mypy passed for
@@ -107,9 +119,60 @@ V2 harness tests test evaluation logic; they are not v2 benchmark
 results. Raw ranker scores are not calibrated confidence. Financial and exact
 citation-location checks do not establish semantic entailment.
 
-## Remaining acceptance
+## Integrated checks — 2026-09-21
 
-Controlled evidence variants and reliability experiments;
-final integrated backend, PostgreSQL and browser verification;
-final release-boundary scan and private PR. Replace this section with observed
-results as those checks complete.
+`make lint typecheck test` passed: Ruff, mypy and 1,089 offline backend tests.
+The separate complete PostgreSQL suite passed 62/62 tests in 831.86 s,
+including the unchanged-variant resume regression at `138038f`. Historical reports, sealed data and the ranker artifact have no diff
+against `origin/main` (`c19034d`). Existing original-worktree edits are preserved.
+
+## Controlled-variant and reliability interface — 2026-09-21
+
+TypeScript, production build and all 42 frontend unit tests passed. The integrated
+same-origin Playwright run used the production frontend and real PostgreSQL API
+in preview mode, with both real-case flags enabled and provider inference disabled.
+It passed 30 checks in 10.2 minutes. The two import workflows stopped at an
+ambiguous revision-text selector because the new lab also shows the revision;
+the selector was scoped to the page heading for a focused desktop/mobile rerun.
+The first focused rerun passed that assertion and reached reversal but exhausted
+the 90-second whole-test budget. Trace requests showed database-backed reads
+taking up to 14.5 seconds. The workflow budget was raised to 180 seconds; individual
+assertion timeouts and product code were unchanged.
+
+Both real case-lab journeys passed. They record a comparison before changing
+variants and verify its invalidation, reload the persisted prompt-like variant,
+restore the original message, run invalid allocation/citation/stale checks, obtain
+explicit approval, check duplicate identity and exact unchanged financial effects,
+and reverse through the ordinary reviewer action. The duplicate result contains
+one application group, two cash rows and one credit row, totaling 5,400,000 cash
+centavos and 100,000 credit centavos both before and after the check.
+
+Primary visual inspection covered the real desktop trace and desktop/mobile
+synthetic duplicate-result panels. Browser checks assert no horizontal page overflow.
+Native browser zoom at 200% remains unverified; viewport/device scaling is not
+reported as native zoom verification. Captures and raw logs are local ignored
+artifacts under `output/quality-demo/`.
+
+## Final acceptance and review handoff
+
+The final focused import rerun passed 2/2 desktop/mobile checks in 4.4 minutes
+(about 2.2 minutes per workflow), including persisted corrections, explicit
+confirmation, application, reload, CSV export and reversal. Together with the
+30 accepted checks from the integrated run, all 32 distinct browser scenarios
+have passed: 24 mocked transport checks and eight real PostgreSQL/API journeys.
+This is aggregate coverage across the full run and focused rerun, not a claim
+that the initial 32-test invocation was entirely green. No product source changed
+after that integrated run; only the two import selectors and whole-test budget did.
+
+Implementation and test boundary: `914bbe9`; interface implementation: `085130a`.
+The separate `scan.json` records the implementation/test boundary and scans the
+tracked working files. It passed with zero secret findings, 21 allowed runtime
+entries and the unchanged verified model SHA-256
+`bb9774c99870bfa0d20759c6ceb37aafd6fbf65619b28c71947bdb993c16135e`.
+The following documentation commit carries this report, scan and final PR sequence.
+
+Eight dependent draft PRs (#24–#31) form the review sequence in the private
+repository; see `docs/PR_SEQUENCE.md`. Checks above were run locally; no GitHub CI
+result is claimed. No merge or deployment occurred. Native 200% zoom, independent
+domain validation and a new v2 benchmark remain unverified or outside this run's
+authorization. Provider inference, training and model promotion remain disabled.
