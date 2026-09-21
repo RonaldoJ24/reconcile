@@ -8,7 +8,9 @@ Use one Render **Free** web service serving the compiled React UI and FastAPI on
 
 Use one new Reconcile-owned **Neon Free** project. All persistent records, small bounded CSV/TXT source payloads, jobs/checkpoints, quotas, and interpretation-cache metadata belong there. Temporary local files can be recreated. Train scikit-learn locally and include only an integrity-checked compact inference artifact in the runtime build. Exclude training data, hidden labels, notebooks, and benchmark workloads from runtime. Limit inference threads and measure memory on the actual free instance.
 
-The hosted preview remains synthetic-only with real parsing, inference, persistence, and review behavior. Visitor provider access is invite-gated and rate-limited. Do not solve cost by replacing actual inference with a hidden prerecorded answer.
+The hosted preview remains synthetic-only with real parsing, inference, persistence, and review behavior. Visitor provider access is invite-gated by default and rate-limited. The owner may
+explicitly enable public preview access with `RECONCILE_PUBLIC_PROVIDER_ACCESS=1`
+after approving its live-call budget; see `PUBLIC_PROVIDER_ACCESS.md`. Do not solve cost by replacing actual inference with a hidden prerecorded answer.
 
 ## Required cost preflight
 

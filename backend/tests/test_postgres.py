@@ -27,7 +27,7 @@ from reconcile.interpretation.budget import (
     reconcile_unknown_attempt,
     reserve_attempt,
 )
-from reconcile.interpretation.workflow import compile_workflow
+from reconcile.interpretation.workflow import WorkflowOutcome, compile_workflow
 from reconcile.jobs.queue import claim_one, run_once
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.maintenance import (
@@ -52,6 +52,9 @@ from reconcile.persistence.models import (
     Source,
     Workspace,
     now_utc,
+)
+from reconcile.persistence.models import (
+    Session as DbSession,
 )
 from reconcile.persistence.service import ReconcileService, ServiceError
 
@@ -1696,6 +1699,137 @@ def test_evaluation_route_serves_packaged_summary_with_active_engine(session, mo
         assert payload["schema_version"] == "evaluation-summary-v1"
         assert payload["v2"]["status"] == "not_evaluated"
         assert "dataset" not in payload
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_preview_public_provider_access_is_reversible_and_invites_persist(
+    session, monkeypatch
+) -> None:
+    monkeypatch.setenv("RECONCILE_MODE", "preview")
+    monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "public-access-test")
+    monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0.01")
+    monkeypatch.delenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", raising=False)
+    invite = "preview-provider-invite"
+    monkeypatch.setenv(
+        "RECONCILE_PROVIDER_INVITE_SHA256", hashlib.sha256(invite.encode()).hexdigest()
+    )
+    api = create_app()
+    api.dependency_overrides[_db] = lambda: session
+    client = TestClient(api, base_url="https://testserver")
+    try:
+        invite_only = client.post("/api/v1/session", json={})
+        assert invite_only.status_code == 200, invite_only.text
+        assert invite_only.json()["provider_access"] is False
+        assert invite_only.json()["capabilities"]["interpret"] is False
+
+        monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
+        new_client = TestClient(api, base_url="https://testserver")
+        public_new = new_client.post("/api/v1/session", json={})
+        assert public_new.status_code == 200, public_new.text
+        assert public_new.json()["provider_access"] is True
+        public_existing = client.post("/api/v1/session", json={})
+        assert public_existing.status_code == 200, public_existing.text
+        assert public_existing.json()["provider_access"] is True
+        stored = session.scalar(select(DbSession).order_by(DbSession.created_at.desc()))
+        assert stored is not None and stored.provider_access is False
+
+        monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "0")
+        revoked = client.post("/api/v1/session", json={})
+        assert revoked.status_code == 200, revoked.text
+        assert revoked.json()["provider_access"] is False
+
+        invited = client.post("/api/v1/session", json={"invite_token": invite})
+        assert invited.status_code == 200, invited.text
+        assert invited.json()["provider_access"] is True
+        monkeypatch.delenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", raising=False)
+        retained_invite = client.post("/api/v1/session", json={})
+        assert retained_invite.status_code == 200, retained_invite.text
+        assert retained_invite.json()["provider_access"] is True
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_preview_public_access_routes_direct_and_hybrid_and_revokes_post(
+    session, monkeypatch
+) -> None:
+    monkeypatch.setenv("RECONCILE_MODE", "preview")
+    monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
+    monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "public-access-test")
+    monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0.01")
+    api = create_app()
+    api.dependency_overrides[_db] = lambda: session
+    client = TestClient(api, base_url="https://testserver")
+    modes: list[str] = []
+
+    class RecordingWorkflow:
+        def run(self, _db_session, **kwargs):
+            modes.append(kwargs["mode"])
+            return WorkflowOutcome("unavailable", "none", kwargs["mode"], failure_code="test")
+
+    monkeypatch.setattr(app_module, "INTERPRETATION_WORKFLOW", RecordingWorkflow())
+    try:
+        session_response = client.post("/api/v1/session", json={})
+        assert session_response.status_code == 200, session_response.text
+        client.headers["X-CSRF-Token"] = session_response.json()["csrf_token"]
+        opened = _open_case(client, "correction")
+        _run_all_jobs(client)
+        proposal = next(
+            item
+            for item in client.get("/api/v1/proposals").json()
+            if item["payment_id"] == opened["payment_id"]
+        )
+        detail = client.get(f"/api/v1/proposals/{proposal['proposal_id']}")
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["capabilities"]["interpret"] is True
+
+        for mode in ("direct", "hybrid"):
+            response = client.post(
+                f"/api/v1/proposals/{proposal['proposal_id']}/interpret",
+                json={"mode": mode},
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["interpretation"]["mode"] == mode
+        assert modes == ["direct", "hybrid"]
+
+        monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "0")
+        refreshed = client.post("/api/v1/session", json={})
+        assert refreshed.status_code == 200, refreshed.text
+        assert refreshed.json()["provider_access"] is False
+        client.headers["X-CSRF-Token"] = refreshed.json()["csrf_token"]
+        revoked_detail = client.get(f"/api/v1/proposals/{proposal['proposal_id']}")
+        assert revoked_detail.status_code == 200, revoked_detail.text
+        assert revoked_detail.json()["capabilities"]["interpret"] is False
+        denied = client.post(
+            f"/api/v1/proposals/{proposal['proposal_id']}/interpret",
+            json={"mode": "direct"},
+        )
+        assert denied.status_code == 403
+        assert modes == ["direct", "hybrid"]
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_preview_public_access_stays_disabled_when_runtime_is_killed(session, monkeypatch) -> None:
+    monkeypatch.setenv("RECONCILE_MODE", "preview")
+    monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
+    monkeypatch.setenv("RECONCILE_LLM_ENABLED", "0")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("RECONCILE_LLM_EXECUTION_ID", raising=False)
+    monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0")
+    api = create_app()
+    api.dependency_overrides[_db] = lambda: session
+    client = TestClient(api, base_url="https://testserver")
+    try:
+        response = client.post("/api/v1/session", json={})
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["provider_access"] is False
+        assert payload["capabilities"]["interpret"] is False
     finally:
         api.dependency_overrides.clear()
 

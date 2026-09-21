@@ -330,3 +330,21 @@ access disabled. Eight real hosted desktop/mobile journeys passed in 2.9 minutes
 covering cases, variants, comparison, integrity checks and the complete financial
 review workflow. No new resource, billing change, provider call or benchmark ran.
 See `reports/deployment-v2/` for deploy identity, checks and cost-observability limits.
+
+
+## Public DeepSeek access acceptance — 2026-09-21
+
+The owner authorized public Direct/Hybrid use with shared spending ceilings of
+USD 0.50 per UTC day and USD 5 per UTC month. Public access is a reversible
+preview flag evaluated on every request; existing sessions gain access without
+persisting an invitation grant. The DeepSeek credential remains server side.
+Public execution reservations use a stable prefix plus UTC day, preserving the
+global day/month counters and existing session, attempt, token and concurrency
+limits. Interpretation still requires manual approval before any allocation applies.
+
+Validation: 1,102 offline tests, five focused PostgreSQL public-access and budget
+reservation tests, Ruff and mypy (44 source files) passed. Checks ran locally
+against the dedicated test database, with provider responses stubbed for the
+PostgreSQL route tests. No new benchmark or model promotion occurred. Hosted
+provider verification follows the code deployment. Operational configuration is
+documented in `PUBLIC_PROVIDER_ACCESS.md`.
