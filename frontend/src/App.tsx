@@ -396,7 +396,7 @@ function App() {
             {screen === 'cases' && <CasesView registry={caseRegistry} busy={caseBusy} onOpen={openCase} />}
             {screen === 'imports' && <ImportsView mode={mode} imports={imports} onError={setError} onRefresh={refresh} />}
             {screen === 'queue' && <QueueView proposals={proposals} onOpen={openDetail} onRefresh={refresh} onError={setError} />}
-            {screen === 'evaluation' && <EvaluationView evaluation={evaluation} loading={evaluationLoading} error={evaluationError} onRetry={retryEvaluation} />}
+            {screen === 'evaluation' && <><PageHeading eyebrow="Evaluation" title="Evaluation" description="What the preserved report measured." /><EvaluationView evaluation={evaluation} loading={evaluationLoading} error={evaluationError} onRetry={retryEvaluation} /></>}
             {screen === 'detail' && (
               <DetailView
                 id={selectedId}
@@ -419,7 +419,7 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
 
 function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit }: { detail: ProposalDetail; cash: CashDraft[]; credits: CreditDraft[]; status: string; canEdit: boolean; onEdit: () => void }) {
   const reason = typeof detail.reason === 'string' ? detail.reason : undefined
-  return <section className="panel decision-summary" aria-labelledby="decision-summary-heading"><div className="decision-summary-top"><div><p className="eyebrow">Decision</p><h2 id="decision-summary-heading">{decisionStateLabel(status)}</h2><p className="muted">Server state: <span className="mono">{status}</span>. Review the evidence and balances before taking a financial action.</p>{reason && <p className="decision-reason">Reason: {reason}</p>}</div>{canEdit && <button className="button button-secondary" type="button" onClick={onEdit}>Edit allocation</button>}</div><div className="decision-summary-lines"><div><span>Cash</span><strong>{cash.length} line{cash.length === 1 ? '' : 's'}</strong></div><div><span>Credit</span><strong>{credits.length} line{credits.length === 1 ? '' : 's'}</strong></div><div><span>Case</span><strong>{detail.case?.id ?? 'Manual import'}</strong></div></div></section>
+  return <section className={`panel decision-summary decision-summary-${status.toLowerCase()}`} aria-labelledby="decision-summary-heading"><div className="decision-summary-top"><div><p className="eyebrow">Decision</p><div className="decision-heading-line"><h2 id="decision-summary-heading">{decisionStateLabel(status)}</h2><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><p className="muted">Server state: <span className="mono">{status}</span>. Review the evidence and balances before taking a financial action.</p>{reason && <p className="decision-reason">Reason: {reason}</p>}</div>{canEdit && <button className="button button-secondary" type="button" onClick={onEdit}>Edit allocation</button>}</div><div className="decision-summary-lines"><div><span>Cash</span><strong>{cash.length} line{cash.length === 1 ? '' : 's'}</strong></div><div><span>Credit</span><strong>{credits.length} line{credits.length === 1 ? '' : 's'}</strong></div><div><span>Case</span><strong>{detail.case?.id ?? 'Manual import'}</strong></div></div></section>
 }
 
 function decisionStateLabel(status: string) {
@@ -464,7 +464,7 @@ export function SourceViewer({ sourceId, source, busy, error, onClose }: { sourc
     return () => { if (dialog?.open) dialog.close() }
   }, [])
   if (!sourceId) return null
-  return <dialog className="source-dialog" ref={dialogRef} aria-labelledby="source-viewer-heading" onCancel={(event) => { event.preventDefault(); onClose() }}><div className="panel-heading"><div><p className="eyebrow">Source record</p><h2 id="source-viewer-heading">{source?.kind ?? 'Source'} · {sourceId}</h2></div><button className="icon-button" type="button" aria-label="Close source" onClick={onClose}>×</button></div>{busy && <p role="status">Loading authenticated source…</p>}{error && <p className="draft-status draft-error" role="alert">{error}</p>}{source && <><dl className="source-meta"><Data label="Source ID" value={source.source_id} mono /><Data label="Version" value={source.version === undefined ? 'Not returned' : String(source.version)} /><Data label="SHA-256" value={source.sha256} mono /><Data label="Bytes" value={String(source.bytes)} /></dl><pre className="source-content">{source.raw_text ?? source.text ?? JSON.stringify(source.rows, null, 2)}</pre><details className="trace-raw"><summary>Exact source metadata</summary><pre>{JSON.stringify({ version: source.version ?? null, metadata: source.metadata, row_locators: source.row_locators, issues: source.issues }, null, 2)}</pre></details></>}<div className="confirmation-actions"><button className="button button-secondary" type="button" onClick={onClose}>Close source</button></div></dialog>
+  return <dialog className="source-dialog" ref={dialogRef} aria-labelledby="source-viewer-heading" onCancel={(event) => { event.preventDefault(); onClose() }}><div className="source-dialog-heading"><div><p className="eyebrow">Source record</p><h2 id="source-viewer-heading">{source?.kind ?? 'Source'} content</h2><p className="source-id">Source <span className="mono">{sourceId}</span></p></div><button className="icon-button" type="button" aria-label="Close source" onClick={onClose}>×</button></div>{busy && <p role="status">Loading authenticated source…</p>}{error && <p className="draft-status draft-error" role="alert">{error}</p>}{source && <><div className="source-content-block"><p className="eyebrow">Source content</p><pre className="source-content">{source.raw_text ?? source.text ?? JSON.stringify(source.rows, null, 2)}</pre></div><details className="source-provenance"><summary>Source provenance</summary><dl className="source-meta"><Data label="Source ID" value={source.source_id} mono /><Data label="Version" value={source.version === undefined ? 'Not returned' : String(source.version)} /><Data label="SHA-256" value={source.sha256} mono /><Data label="Bytes" value={String(source.bytes)} /></dl><details className="trace-raw"><summary>Exact source metadata</summary><pre>{JSON.stringify({ version: source.version ?? null, metadata: source.metadata, row_locators: source.row_locators, issues: source.issues }, null, 2)}</pre></details></details></>}<div className="confirmation-actions"><button className="button button-secondary" type="button" onClick={onClose}>Close source</button></div></dialog>
 }
 
 export function CasesView({ registry, busy, onOpen }: { registry?: CaseRegistry; busy: string; onOpen: (caseId: string) => Promise<void> }) {
@@ -982,16 +982,45 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
 
   return <>
     <button className="back-link" onClick={onBack}>← Back to review queue</button>
-    <PageHeading eyebrow="Allocation detail" title="Allocation detail" description={`${payment.payer_name} · proposal ${id} · revision ${detail.revision} · ${status}`} />
+    <PageHeading eyebrow="Allocation detail" title="Allocation detail" description={<span className="detail-page-meta">{payment.payer_name} · proposal <span className="mono">{id}</span> · revision {detail.revision} · {status}</span>} />
     <section className="detail-grid">
       <div className="detail-main">
         <DecisionSummary detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} status={status} onEdit={() => setEditing(true)} canEdit={canCorrect && !financialActionBusy} />
-        <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
-        <CanonicalAllocationLines title="Cash applications" lines={cashLines} kind="cash" />
-        <CanonicalAllocationLines title="Credit applications" lines={creditLines} kind="credit" />
-        <section className="panel balances-card"><div className="panel-heading"><div><h2>Balances and cash</h2><p className="muted">Authoritative amounts returned by the server.</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
-        <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />
+        <div className="allocation-overview">
+          <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
+          <div className="proposed-lines">
+            <CanonicalAllocationLines title="Cash applications" lines={cashLines} kind="cash" />
+            <CanonicalAllocationLines title="Credit applications" lines={creditLines} kind="credit" />
+          </div>
+          <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />
+        </div>
+        <section className="panel balances-card current-balances-card"><div className="panel-heading"><div><p className="eyebrow">Current state</p><h2>Balances and cash</h2><p className="muted">Authoritative amounts returned by the server.</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
         <AlternativesSection alternatives={detail.alternatives} />
+        <aside className="detail-side">
+          {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
+          <section className="panel action-panel">
+            <div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div>
+            <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={financialActionBusy || (!canCorrect && !canReverse && !canApply)} /></label>
+            {editing && canCorrect ? <form onSubmit={correct}>
+              <div className="correction-section">
+                <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || financialActionBusy} onClick={() => { clearComparison(); setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
+                <p id="amount-format-help" className="field-help">Enter MXN as a decimal amount, such as 100 or 100.00. Values are saved as integer centavos.</p>
+                {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || financialActionBusy} onChange={(next) => { clearComparison(); setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item)) }} onRemove={() => { clearComparison(); setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
+              </div>
+              <div className="correction-section">
+                <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || financialActionBusy} onClick={() => { clearComparison(); setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
+                {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || financialActionBusy} onChange={(next) => { clearComparison(); setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item)) }} onRemove={() => { clearComparison(); setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
+              </div>
+              {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={financialActionBusy} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
+              {draftError && <p className="draft-status draft-error" role="alert">{draftError}</p>}
+              <div className="edit-actions"><button className="button button-quiet" type="button" disabled={financialActionBusy} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft); setEditing(false) }}>Cancel edit</button><button className="button button-secondary" type="submit" disabled={financialActionBusy || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></div>
+            </form> : canCorrect ? <div className="read-only-action"><p className="muted">The persisted allocation is shown above. Enter edit mode to change invoice, credit, or amount lines.</p><button className="button button-secondary full-width" type="button" onClick={() => setEditing(true)} disabled={financialActionBusy}>Edit allocation</button></div> : <p className="muted">This revision is locked. Reviewer details remain available for reversal when the server permits it.</p>}
+            <div className="action-divider" />
+            <button className="button button-primary full-width" onClick={() => void apply()} disabled={financialActionBusy || !canApply}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>
+            {status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" disabled={financialActionBusy || !canReverse} /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={financialActionBusy || !applicationId || !canReverse}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}
+          </section>
+          <ExportCard />
+        </aside>
         <DecisionTracePanel trace={detail.decision_trace} modelTrace={detail.model_trace} onSource={inspectSource} />
         <ComparisonPanel
           comparison={comparison}
@@ -1027,31 +1056,6 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
           onRun={() => void runReliability()}
         />
       </div>
-      <aside className="detail-side">
-        {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
-        <section className="panel action-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div>
-          <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={financialActionBusy || (!canCorrect && !canReverse && !canApply)} /></label>
-          {editing && canCorrect ? <form onSubmit={correct}>
-            <div className="correction-section">
-              <div className="subheading"><h3>Cash lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || financialActionBusy} onClick={() => { clearComparison(); setCashDraft([...cashDraft, { invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
-              <p id="amount-format-help" className="field-help">Enter MXN as a decimal amount, such as 100 or 100.00. Values are saved as integer centavos.</p>
-              {cashDraft.map((line, index) => <LineEditor key={`cash-${index}`} line={line} kind="cash" disabled={!canCorrect || financialActionBusy} onChange={(next) => { clearComparison(); setCashDraft(cashDraft.map((item, itemIndex) => itemIndex === index ? next as CashDraft : item)) }} onRemove={() => { clearComparison(); setCashDraft(cashDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
-            </div>
-            <div className="correction-section">
-              <div className="subheading"><h3>Credit lines</h3><button className="button button-quiet" type="button" disabled={!canCorrect || financialActionBusy} onClick={() => { clearComparison(); setCreditDraft([...creditDraft, { credit_note_id: '', invoice_id: '', amount_mxn: '' }]) }}>Add line</button></div>
-              {creditDraft.map((line, index) => <LineEditor key={`credit-${index}`} line={line} kind="credit" disabled={!canCorrect || financialActionBusy} onChange={(next) => { clearComparison(); setCreditDraft(creditDraft.map((item, itemIndex) => itemIndex === index ? next as CreditDraft : item)) }} onRemove={() => { clearComparison(); setCreditDraft(creditDraft.filter((_, itemIndex) => itemIndex !== index)) }} />)}
-            </div>
-            {hasUnsavedChanges && <div className="draft-status" role="status"><span>Unsaved changes — save or discard before applying.</span>{canCorrect && <button className="button button-quiet" type="button" disabled={financialActionBusy} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft) }}>Discard changes</button>}</div>}
-            {draftError && <p className="draft-status draft-error" role="alert">{draftError}</p>}
-            <div className="edit-actions"><button className="button button-quiet" type="button" disabled={financialActionBusy} onClick={() => { clearComparison(); setCashDraft(persistedCashDraft); setCreditDraft(persistedCreditDraft); setEditing(false) }}>Cancel edit</button><button className="button button-secondary" type="submit" disabled={financialActionBusy || !canCorrect}>{busy === 'correct' ? 'Saving correction…' : 'Save correction'}</button></div>
-          </form> : canCorrect ? <div className="read-only-action"><p className="muted">The persisted allocation is shown above. Enter edit mode to change invoice, credit, or amount lines.</p><button className="button button-secondary full-width" type="button" onClick={() => setEditing(true)} disabled={financialActionBusy}>Edit allocation</button></div> : <p className="muted">This revision is locked. Reviewer details remain available for reversal when the server permits it.</p>}
-          <div className="action-divider" />
-          <button className="button button-primary full-width" onClick={() => void apply()} disabled={financialActionBusy || !canApply}>{busy === 'apply' ? 'Applying…' : status === 'APPLIED' ? 'Applied' : 'Apply allocation'}</button>
-          {status === 'APPLIED' && <><label className="reversal-reason">Reversal reason<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this being reversed?" disabled={financialActionBusy || !canReverse} /></label><button className="button button-danger full-width" onClick={() => void reverse()} disabled={financialActionBusy || !applicationId || !canReverse}>{busy === 'reverse' ? 'Reversing…' : 'Reverse application'}</button></>}
-        </section>
-        <ExportCard />
-      </aside>
     </section>
     {confirmationOpen && <ApplyConfirmation detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} balances={balances} busy={busy} onCancel={() => setConfirmationOpen(false)} onConfirm={() => void confirmApply()} />}
     {sourceRequest && <SourceViewer sourceId={sourceRequest} source={sourceRecord} busy={sourceBusy} error={sourceError} onClose={closeSource} />}
@@ -1130,7 +1134,7 @@ export function ApplyConfirmation({ detail, cash, credits, balances, busy, onCan
 }
 function AlternativesSection({ alternatives }: { alternatives: string[][] }) { return <section className="panel alternatives-card"><div className="panel-heading"><div><h2>Alternatives</h2><p className="muted">Plausible alternatives remain visible for review.</p></div></div>{alternatives.length === 0 ? <p className="empty-inline">No alternatives returned.</p> : <ul className="alternative-list">{alternatives.map((alternative, index) => <li key={index}><strong>{alternative.join(' → ')}</strong><span>Returned as an equally feasible combination.</span></li>)}</ul>}</section> }
 function ExportCard() { return <section className="panel export-card"><p className="eyebrow">History</p><h2>Export applications</h2><p className="muted">Download active and historical applications as RFC 4180 CSV.</p><a className="button button-secondary full-width" href={exportUrl()} download>Download CSV</a></section> }
-function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) { return <div className="page-heading"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div> }
+function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: React.ReactNode }) { return <div className="page-heading"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div> }
 function Data({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div><dt>{label}</dt><dd className={mono ? 'mono' : ''}>{value}</dd></div> }
 function Balance({ label, value }: { label: string; value?: number }) { return <div className="balance"><span>{label}</span><strong>{money(value)}</strong></div> }
 function EmptyState({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) { return <div className="empty-state"><span className="empty-symbol" aria-hidden="true">○</span><h2>{title}</h2><p>{body}</p>{action}</div> }
