@@ -83,7 +83,7 @@ describe('Phase 4 interpretation UI', () => {
     expect(markup).toContain('Saved proposal evidence')
     expect(markup).not.toContain('Relevant evidence')
     expect(markup).toContain('Saved proposal reason:')
-    expect(markup).toContain('evidence supported')
+    expect(markup).toContain('The cited evidence supports the selected allocation.')
   })
 
   it('shows the latest observed workflow stage while interpretation is running', () => {

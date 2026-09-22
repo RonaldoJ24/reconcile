@@ -201,6 +201,16 @@ function readableCode(value: string | undefined) {
   return value ? value.replace(/[_-]+/g, ' ') : undefined
 }
 
+function interpretationReason(value: string | undefined) {
+  switch (value) {
+    case 'evidence_supported': return 'The cited evidence supports the selected allocation.'
+    case 'ambiguous': return 'The evidence fits more than one candidate, so no allocation was selected.'
+    case 'contradictory': return 'The sources conflict, so no allocation was selected.'
+    case 'insufficient_evidence': return 'The available evidence is too weak to select an allocation.'
+    default: return readableCode(value)
+  }
+}
+
 function interpretationSource(source: Interpretation['source']) {
   if (source === 'live') return 'Live DeepSeek'
   if (source === 'cache') return 'Validated cache'
@@ -1290,10 +1300,10 @@ export function InterpretationAction({
     ...cash.map((line) => `Invoice ${line.invoice_id} (${money(line.amount)})`),
     ...credits.map((line) => `Credit note ${line.credit_note_id} → invoice ${line.invoice_id} (${money(line.amount)})`),
   ]
-  const reason = readableCode(interpretation?.reason_code)
+  const reason = interpretationReason(interpretation?.reason_code)
     ?? (interpretation?.status === 'unavailable' ? message : undefined)
     ?? readableCode(interpretation?.failure_code)
-  const savedReason = proposalReason ? readableCode(proposalReason.replace(/^bounded interpretation:\s*/i, '')) : undefined
+  const savedReason = proposalReason ? interpretationReason(proposalReason.replace(/^bounded interpretation:\s*/i, '')) : undefined
   const citations = interpretation?.citations ?? []
   const nextAction = interpretationRefreshFailed
     ? 'Refresh the proposal to confirm the saved allocation before applying.'
