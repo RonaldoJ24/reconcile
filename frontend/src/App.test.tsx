@@ -36,8 +36,10 @@ describe('Phase 4 interpretation UI', () => {
 
     expect(markup).toContain('Validated cache')
     expect(markup).toContain('candidate-1')
-    expect(markup).toContain('Financial application still requires a reviewer.')
-    expect(markup).toMatch(/button[^>]+disabled/)
+    expect(markup).toContain('DeepSeek review result')
+    expect(markup).toContain('Next reviewer action:')
+    expect(markup).not.toContain('>Direct<')
+    expect(markup).not.toContain('>Hybrid<')
   })
 
   it('keeps the completed allocation outcome and reviewer action readable', () => {
@@ -55,8 +57,8 @@ describe('Phase 4 interpretation UI', () => {
       onInterpret={async () => {}}
     />)
 
-    expect(markup).toContain('Proposal update:</strong>')
-    expect(markup).toContain('PROPOSED')
+    expect(markup).toContain('Saved decision:</strong>')
+    expect(markup).toContain('Suggested allocation ready for review')
     expect(markup).toContain('Chosen allocation:</strong>')
     expect(markup).toContain('Invoice 101')
     expect(markup).toContain('source-1')
@@ -100,6 +102,23 @@ describe('Phase 4 interpretation UI', () => {
 
     expect(markup).toContain('Waiting for the provider response.')
     expect(markup).toContain('Observed workflow steps')
+  })
+
+  it('keeps observed review steps available after the result arrives', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      busy=""
+      message=""
+      interpretation={{ status: 'selected', source: 'live', mode: 'direct' }}
+      proposalStatus="PROPOSED"
+      proposalRevision={3}
+      progress={[{ stage: 'reserve_and_call', status: 'succeeded', summary: 'Provider response received.' }]}
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('What happened during this review')
+    expect(markup).toContain('Provider response received.')
+    expect(markup).toContain('DeepSeek review result')
   })
 
   it('holds the completed outcome until the saved proposal refresh finishes', () => {
