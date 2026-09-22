@@ -348,3 +348,23 @@ against the dedicated test database, with provider responses stubbed for the
 PostgreSQL route tests. No new benchmark or model promotion occurred. Hosted
 provider verification follows the code deployment. Operational configuration is
 documented in `PUBLIC_PROVIDER_ACCESS.md`.
+
+## Visual hierarchy acceptance — 2026-09-22
+
+Based on `a3c2779`, allocation detail now groups payment, cash, credit and evidence,
+keeps current balances distinct, and places mobile reviewer controls before the
+diagnostic sections. Proposal identifiers are secondary; source content precedes
+expandable provenance. Proposed/review/applied states use blue/amber/green with
+explicit labels. Evaluation separates the current engine from historical splits
+and presents labeled metric cards on mobile. Existing branding, financial handlers,
+provider limits, historical metrics and caveats are preserved.
+
+Validation: `pnpm test -- --run` (6 files, 42 tests), `pnpm typecheck`, `pnpm build`
+and `git diff --check` passed. Actual browser checks covered 1440px desktop, 390px
+mobile and 320px overflow checks, including below-fold evidence, reviewer controls,
+source provenance, Evaluation, Cases, Imports and queue states. Opening/canceling
+an unsaved correction preserved the existing disabled-action guards. Screenshots
+were retained in the owner's visual-review output directory. This was a visual
+acceptance pass, not a new financial end-to-end suite or live-provider benchmark.
+The owner authorized deployment to the existing Render Free preview; deployment
+identity and hosted verification are recorded on the associated pull request.
