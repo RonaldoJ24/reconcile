@@ -1,9 +1,9 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App, { ApplyConfirmation, CasesView, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, toCents } from './App'
+import App, { ApplyConfirmation, CasesView, DecisionSummary, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, shouldShowInterpretation, toCents } from './App'
 import { centsToMxn, mxnToCents } from './money'
 import { interpretProposal } from './api'
-import type { Comparison, DecisionTrace, SourceRecord } from './types'
+import type { Comparison, DecisionTrace, ProposalDetail, SourceRecord } from './types'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -209,6 +209,64 @@ describe('case study surfaces', () => {
 
     expect(markup.match(/class="case-card"/g)).toHaveLength(5)
     expect(markup).toContain('Open bundled payment case')
+  })
+
+  it('opens with the registered bundle story and keeps the evidence ledger ordered', () => {
+    const markup = renderToString(<CasesView
+      registry={{ version: 'v1', cases: [{ id: 'bundle', title: 'Bundled payment', description: 'Several matches', amount: 5400000 }] }}
+      busy=""
+      onOpen={async () => {}}
+    />)
+
+    expect(markup).toContain('Registered demo · bundle v1')
+    expect(markup).toContain('MX$54,000 arrives with a tempting wrong answer')
+    expect(markup).toContain('Invoice · MX$54,000')
+    expect(markup).toContain('Invoice A · cash')
+    expect(markup).toContain('MX$30,000')
+    expect(markup).toContain('Invoice B · cash')
+    expect(markup).toContain('MX$24,000')
+    expect(markup).toContain('Invoice B · linked credit')
+    expect(markup).toContain('MX$1,000')
+    expect(markup.indexOf('Invoice · MX$54,000')).toBeLessThan(markup.indexOf('Message-supported split'))
+    expect(markup).toContain('human reviewer approves every allocation')
+  })
+
+  it('falls back to server case copy when the registry is not the registered bundle', () => {
+    const markup = renderToString(<CasesView
+      registry={{ version: 'v2', cases: [{ id: 'bundle', title: 'Server bundle', description: 'A different registered example', amount: 1200000 }] }}
+      busy=""
+      onOpen={async () => {}}
+    />)
+
+    expect(markup).toContain('Server bundle is ready for review')
+    expect(markup).toContain('A different registered example')
+    expect(markup).not.toContain('MX$54,000 arrives with a tempting wrong answer')
+    expect(markup).not.toContain('Invoice A · cash')
+  })
+
+  it('explains plain-language decision status and separates proposed effects from current balances', () => {
+    const detail = { proposal_id: 'proposal-1', revision: 3, reason: null, case: null } as ProposalDetail
+    const markup = renderToString(<DecisionSummary
+      detail={detail}
+      status="PROPOSED"
+      cash={[{ invoice_id: '101', amount_mxn: '30000.00' }]}
+      credits={[{ credit_note_id: '103', invoice_id: '102', amount_mxn: '1000.00' }]}
+      canEdit={false}
+      onEdit={() => {}}
+    />)
+
+    expect(markup).toContain('Suggested allocation ready for review')
+    expect(markup).toContain('Proposed cash')
+    expect(markup).toContain('Proposed credit')
+    expect(markup).toContain('Current balances')
+    expect(markup).toContain('Unchanged')
+    expect(markup).toContain('human reviewer')
+  })
+
+  it('keeps interpretation available for unresolved work and gives proposed work the reviewer lead', () => {
+    expect(shouldShowInterpretation('PROPOSED', false)).toBe(false)
+    expect(shouldShowInterpretation('PROPOSED', true)).toBe(true)
+    expect(shouldShowInterpretation('NEEDS_REVIEW', false)).toBe(true)
   })
 
   it('shows server provenance, stage evidence, and unknown timing without fabricating values', () => {
