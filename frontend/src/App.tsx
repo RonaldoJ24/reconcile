@@ -405,10 +405,9 @@ function App() {
           <span className="brand-mark" aria-hidden="true">R</span>
           <div><span className="brand">Reconcile</span><span className="brand-subtitle">Payment-to-invoice review</span></div>
         </div>
-        <div className="session-meta" aria-label="Runtime mode">
+        <div className="session-meta" aria-label={`Synthetic preview; active engine ${session?.active_engine ?? 'unavailable'}; mode ${mode}`}>
           <span className="mode-dot" aria-hidden="true" />
-          <span>{session?.active_engine ?? 'Engine unavailable'} · {mode}</span>
-          <span className="mode-note">runtime</span>
+          <span>Synthetic preview</span>
         </div>
       </header>
 
@@ -468,8 +467,11 @@ export function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit
   const reason = typeof detail.reason === 'string' ? decisionReason(detail.reason) : undefined
   const proposedCash = cash.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
   const proposedCredit = credits.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
-  const summary = decisionSummaryCopy(status)
-  const balanceState = status === 'PROPOSED' || status === 'NEEDS_REVIEW' ? 'Unchanged' : status === 'APPLIED' ? 'Updated' : status === 'REVERSED' ? 'Restored' : 'Check now'
+  const registeredInsufficientCase = status === 'NEEDS_REVIEW' && detail.case?.id === 'insufficient' && detail.case.version === 'v1' && detail.case.variant === 'original' && detail.payment?.amount === 1_000_000 && cash.length === 0 && credits.length === 0
+  const summary = registeredInsufficientCase
+    ? { label: 'Needs review', title: 'Two invoices fit; the message picks neither', description: 'Both invoices match the MX$10,000 payment. The payment message identifies neither one, so the system leaves the allocation unresolved and balances unchanged.' }
+    : decisionSummaryCopy(status)
+  const balanceState = status === 'PROPOSED' || status === 'NEEDS_REVIEW' ? 'Unchanged' : 'See below'
   const bundleStory = registeredBundleStory(detail)
   const effectLabel = status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'
   return <section className={`panel decision-summary decision-summary-${status.toLowerCase()}`} aria-labelledby="decision-summary-heading">
@@ -478,15 +480,15 @@ export function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit
         <p className="eyebrow">Decision</p>
         <div className="decision-heading-line"><h2 id="decision-summary-heading">{summary.title}</h2><span className={`status-pill status-${status.toLowerCase()}`}>{summary.label}</span></div>
         <p className="decision-description">{summary.description}</p>
-        {reason && <p className="decision-reason">Why: {reason}</p>}
+        {reason && !registeredInsufficientCase && <p className="decision-reason">Why: {reason}</p>}
       </div>
     </div>
-    {bundleStory ? <BundleDetailStory story={bundleStory} /> : <GenericAllocationSummary status={status} cash={cash} credits={credits} evidenceCount={detail.evidence?.length ?? 0} />}
-    <div className="decision-summary-lines">
+    {bundleStory ? <BundleDetailStory story={bundleStory} /> : (cash.length > 0 || credits.length > 0 || status !== 'NEEDS_REVIEW') && <GenericAllocationSummary status={status} cash={cash} credits={credits} evidenceCount={detail.evidence?.length ?? 0} />}
+    {(cash.length > 0 || credits.length > 0 || status !== 'NEEDS_REVIEW') && <div className="decision-summary-lines">
       <div><span>{`${effectLabel} cash`}</span><strong>{money(proposedCash)}</strong></div>
       <div><span>{`${effectLabel} credit`}</span><strong>{money(proposedCredit)}</strong></div>
       <div><span>Current balances</span><strong>{balanceState}</strong></div>
-    </div>
+    </div>}
   </section>
 }
 
@@ -514,7 +516,7 @@ function registeredBundleStory(detail: ProposalDetail): RegisteredBundleStory | 
 
 function BundleDetailStory({ story }: { story: RegisteredBundleStory }) {
   return <section className="detail-story" aria-labelledby="detail-story-heading">
-    <div><p className="eyebrow">Registered bundle v1 · original message</p><h3 id="detail-story-heading">The message supports a split, not the exact amount match</h3><p>MX$54,000 in cash is assigned to Invoice A and Invoice B. A linked MX$1,000 credit reduces Invoice B; the exact-amount decoy stays untouched.</p></div>
+    <div><p className="eyebrow">Registered bundle v1 · original message</p><h3 id="detail-story-heading">The message supports a split, not the exact amount match</h3><p>MX$54,000 in cash is assigned to Invoice A and Invoice B. A linked MX$1,000 credit reduces Invoice B; this allocation leaves out the exact-amount invoice.</p></div>
     <div className="detail-story-lines">
       <div><strong>Invoice A</strong><span>Cash · {money(story.cashA.amount)}</span></div>
       <div><strong>Invoice B</strong><span>Cash · {money(story.cashB.amount)}</span></div>
@@ -531,7 +533,7 @@ function GenericAllocationSummary({ status, cash, credits, evidenceCount }: { st
   const cashSummary = cash.length ? `${cash.length} cash line${cash.length === 1 ? '' : 's'} · ${money(cashTotal)}` : 'No cash lines'
   const creditSummary = credits.length ? `${credits.length} credit line${credits.length === 1 ? '' : 's'} · ${money(creditTotal)}` : 'No credit lines'
   const heading = status === 'APPLIED' ? 'Recorded allocation lines' : status === 'REVERSED' ? 'Reversed allocation lines' : 'Actual proposal lines'
-  return <div className="generic-allocation-summary"><strong>{heading}</strong><p>{cashSummary}; {creditSummary}. Evidence returned: {evidenceCount} citation{evidenceCount === 1 ? '' : 's'}.</p><span>The server data is shown as returned; this summary does not infer support beyond the cited evidence.</span></div>
+  return <div className="generic-allocation-summary"><strong>{heading}</strong><p>{cashSummary}; {creditSummary}. Evidence returned: {evidenceCount} citation{evidenceCount === 1 ? '' : 's'}.</p></div>
 }
 
 function decisionReason(value: string) {
@@ -540,6 +542,7 @@ function decisionReason(value: string) {
   if (normalized === 'human-correction') return 'A reviewer supplied this allocation.'
   if (normalized === 'amount_only') return 'The amount matches, but the evidence does not identify the invoice.'
   if (normalized === 'unsupported_evidence') return 'The available evidence does not support a safe allocation.'
+  if (normalized === 'unrecognized_source_text' || normalized === 'unrecognized source text') return 'The source message does not identify a supported invoice.'
   return interpretationReason(normalized) ?? readableCode(normalized) ?? value
 }
 
@@ -557,6 +560,7 @@ function decisionSummaryCopy(status: string) {
 function allocationEffectCopy(status: string) {
   if (status === 'APPLIED') return { eyebrow: 'Recorded effect', title: 'What this allocation recorded', description: 'This is the internal allocation a reviewer approved. It does not move money in a bank account.' }
   if (status === 'REVERSED') return { eyebrow: 'Reversed effect', title: 'What this allocation recorded before reversal', description: 'These lines remain available in the audit history after the internal allocation was reversed.' }
+  if (status === 'NEEDS_REVIEW') return { eyebrow: 'Unresolved', title: 'No allocation to record yet', description: 'Review the source message or correct the allocation before any internal balance can change.' }
   return { eyebrow: 'Proposed effect', title: 'What this allocation would record', description: 'These are suggestions for the reviewer. Current balances stay unchanged until approval.' }
 }
 
@@ -642,7 +646,7 @@ function caseJudgment(id: string) {
     case 'bundle': return 'whether message evidence beats a tempting exact-amount match.'
     case 'correction': return 'how a reviewer can correct a proposed allocation before approval.'
     case 'insufficient': return 'whether the system pauses when the evidence cannot support a full match.'
-    case 'adversarial': return 'whether conflicting evidence leads to review instead of a guess.'
+    case 'adversarial': return 'whether instruction-like source text is deferred instead of followed.'
     default: return 'what evidence supports the proposed decision and when review is needed.'
   }
 }
@@ -1273,14 +1277,14 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
         <div className="allocation-overview">
           <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><p className="payment-payer">{payment.payer_name}</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{decisionSummaryCopy(status).label}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
           <div className="proposed-effects-heading"><p className="eyebrow">{effectCopy.eyebrow}</p><h2>{effectCopy.title}</h2><p>{effectCopy.description}</p></div>
-          <div className="proposed-lines">
+          {(cashLines.length > 0 || creditLines.length > 0 || status !== 'NEEDS_REVIEW') && <div className="proposed-lines">
             <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} cash applications`} lines={cashLines} kind="cash" lineLabel={bundleStory ? (line) => line.invoice_id === bundleStory.cashA.invoice_id ? 'Invoice A' : 'Invoice B' : undefined} />
             <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} credit applications`} lines={creditLines} kind="credit" lineLabel={bundleStory ? () => 'Linked credit · Invoice B' : undefined} />
-          </div>
-          <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />
+          </div>}
+          {(detail.evidence.length > 0 || status !== 'NEEDS_REVIEW') && <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />}
         </div>
         <section className="panel balances-card current-balances-card"><div className="panel-heading"><div><p className="eyebrow">Current balances</p><h2>Balances and cash today</h2><p className="muted">{currentBalancesDescription(status)}</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
-        <AlternativesSection alternatives={detail.alternatives} />
+        {detail.alternatives.length > 0 && <AlternativesSection alternatives={detail.alternatives} />}
         <aside className={`detail-side detail-side-${status.toLowerCase()}`}>
           {showInterpretation && <InterpretationAction
             enabled={canInterpret}
