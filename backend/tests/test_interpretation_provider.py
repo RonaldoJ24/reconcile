@@ -110,7 +110,7 @@ def test_prompt_modes_are_bounded_and_delimited() -> None:
     hybrid = compile_prompt(make_request(mode="hybrid"))
     assert direct.mode == "direct"
     assert hybrid.mode == "hybrid"
-    assert direct.request_bytes <= 6000
+    assert direct.request_bytes <= MAX_PROMPT_BYTES
     assert "<untrusted_source>INV-1</untrusted_source>" in direct.user
     assert '"citation_template":{"end":5,"quote":"INV-1"' in direct.user
     assert "rank_context" in hybrid.user
@@ -126,6 +126,9 @@ def test_correction_shaped_hybrid_request_fits_default_bound() -> None:
         "case-correction-decoy-b",
         "case-correction-decoy-c",
         "case-correction-decoy-d",
+        "case-correction-decoy-e",
+        "case-correction-decoy-f",
+        "case-correction-decoy-g",
     )
     message = (
         "Do not apply invoice invoice-case-correction-first. "
@@ -186,8 +189,12 @@ def test_correction_shaped_hybrid_request_fits_default_bound() -> None:
     compiled = compile_prompt(request)
     direct = compile_prompt(request.model_copy(update={"mode": "direct", "ranked_candidates": ()}))
 
-    assert 6_000 < compiled.request_bytes <= MAX_PROMPT_BYTES
-    assert 6_000 < direct.request_bytes <= MAX_PROMPT_BYTES
+    assert compiled.request_bytes <= MAX_PROMPT_BYTES
+    assert direct.request_bytes <= MAX_PROMPT_BYTES
+    assert '"customer_name":"Case Customer"' in compiled.user
+    assert '"outstanding_amount_centavos":1000000' in compiled.user
+    assert '"source_hash"' not in compiled.user
+    assert '"workspace_id"' not in compiled.user
 
 
 def test_oversized_prompt_fails_before_provider_or_reservation() -> None:

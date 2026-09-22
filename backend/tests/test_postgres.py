@@ -27,7 +27,7 @@ from reconcile.interpretation.budget import (
     reconcile_unknown_attempt,
     reserve_attempt,
 )
-from reconcile.interpretation.workflow import WorkflowOutcome, compile_workflow
+from reconcile.interpretation.workflow import WorkflowOutcome, WorkflowProgress, compile_workflow
 from reconcile.jobs.queue import claim_one, run_once
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.maintenance import (
@@ -1666,6 +1666,7 @@ def test_comparison_is_authenticated_non_actionable_and_revision_scoped(
             f"/api/v1/proposals/{proposal_id}/compare", json={"expected_revision": 1}
         )
         assert missing_csrf.status_code == 403
+        assert missing_csrf.json()["error"]["code"] == "csrf_required"
         client.headers["X-CSRF-Token"] = csrf
 
         corrected = client.post(
@@ -1764,11 +1765,25 @@ def test_preview_public_access_routes_direct_and_hybrid_and_revokes_post(
     api = create_app()
     api.dependency_overrides[_db] = lambda: session
     client = TestClient(api, base_url="https://testserver")
+    monkeypatch.setattr(
+        app_module,
+        "SessionLocal",
+        sessionmaker(bind=session.get_bind(), expire_on_commit=False),
+    )
     modes: list[str] = []
 
     class RecordingWorkflow:
         def run(self, _db_session, **kwargs):
             modes.append(kwargs["mode"])
+            progress = kwargs.get("progress")
+            if progress is not None:
+                progress(
+                    WorkflowProgress(
+                        "reserve_and_call",
+                        "running",
+                        "provider is waiting",
+                    )
+                )
             return WorkflowOutcome("unavailable", "none", kwargs["mode"], failure_code="test")
 
     monkeypatch.setattr(app_module, "INTERPRETATION_WORKFLOW", RecordingWorkflow())
@@ -1787,6 +1802,14 @@ def test_preview_public_access_routes_direct_and_hybrid_and_revokes_post(
         assert detail.status_code == 200, detail.text
         assert detail.json()["capabilities"]["interpret"] is True
 
+        missing_csrf = client.post(
+            f"/api/v1/proposals/{proposal['proposal_id']}/interpret/stream",
+            json={"mode": "direct"},
+            headers={"X-CSRF-Token": "stale-token"},
+        )
+        assert missing_csrf.status_code == 403
+        assert missing_csrf.json()["error"]["code"] == "csrf_required"
+
         for mode in ("direct", "hybrid"):
             response = client.post(
                 f"/api/v1/proposals/{proposal['proposal_id']}/interpret",
@@ -1794,7 +1817,14 @@ def test_preview_public_access_routes_direct_and_hybrid_and_revokes_post(
             )
             assert response.status_code == 200, response.text
             assert response.json()["interpretation"]["mode"] == mode
-        assert modes == ["direct", "hybrid"]
+        stream_response = client.post(
+            f"/api/v1/proposals/{proposal['proposal_id']}/interpret/stream",
+            json={"mode": "direct"},
+        )
+        assert stream_response.status_code == 200, stream_response.text
+        assert "event: progress" in stream_response.text
+        assert "event: complete" in stream_response.text
+        assert modes == ["direct", "hybrid", "direct"]
 
         monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "0")
         refreshed = client.post("/api/v1/session", json={})
@@ -1809,7 +1839,7 @@ def test_preview_public_access_routes_direct_and_hybrid_and_revokes_post(
             json={"mode": "direct"},
         )
         assert denied.status_code == 403
-        assert modes == ["direct", "hybrid"]
+        assert modes == ["direct", "hybrid", "direct"]
     finally:
         api.dependency_overrides.clear()
 

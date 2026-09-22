@@ -623,6 +623,40 @@ def _trace_with_history(
     return trace
 
 
+def _interpretation_trace(
+    source: str,
+    mode: str,
+    result_status: str,
+    trace: dict[str, object],
+) -> dict[str, object]:
+    raw_stages = trace.get("stages")
+    stages = (
+        [dict(stage) for stage in raw_stages if isinstance(stage, dict)]
+        if isinstance(raw_stages, list)
+        else []
+    )
+    for stage in stages:
+        if (
+            stage.get("id") == "record_proposal_revision"
+            and stage.get("status") == "running"
+        ):
+            stage["status"] = "completed"
+            stage["summary"] = (
+                "Recorded the cached interpretation revision; financial application still "
+                "requires a reviewer."
+                if source == "cache"
+                else "Recorded the reviewable interpretation revision; financial application "
+                "still requires a reviewer."
+            )
+    return {
+        "schema_version": "decision-trace-v1",
+        "source": source,
+        "input_fingerprint": trace.get("input_fingerprint"),
+        "final_status": result_status,
+        "stages": stages,
+    }
+
+
 class ReconcileService:
     def __init__(self, session: Session):
         self.session = session
@@ -1585,6 +1619,11 @@ class ReconcileService:
         proposal.current_revision += 1
         proposal.status = result.status.value
         proposal.review_required = True
+        decision_trace = _interpretation_trace(source, mode, result.status.value, trace)
+        interpretation_trace = {
+            **trace,
+            "stages": decision_trace["stages"],
+        }
         self.session.add(
             _revision_from_result(
                 proposal.id,
@@ -1592,7 +1631,14 @@ class ReconcileService:
                 result,
                 _token(payment, invoices, credit_rows, result),
                 provenance=f"llm-{mode}-v1",
-                model_trace={"interpretation": {"source": source, "mode": mode, **trace}},
+                model_trace={
+                    **decision_trace,
+                    "interpretation": {
+                        "source": source,
+                        "mode": mode,
+                        **interpretation_trace,
+                    },
+                },
             )
         )
         self.session.add(

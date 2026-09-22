@@ -23,6 +23,8 @@ from .budget import reserve_attempt as reserve_budget_attempt
 from .cache import cache_key, load_cached, source_fingerprint, store_cached
 from .provider import AttemptContext, AttemptEvent, DeepSeekProvider
 from .schemas import (
+    PROMPT_VERSION,
+    SCHEMA_VERSION,
     InterpretationRequest,
     InterpretationResult,
     SourceSpan,
@@ -30,6 +32,53 @@ from .schemas import (
 )
 
 _PROVIDER_SLOT = threading.BoundedSemaphore(1)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowProgress:
+    """Safe, transient progress from an observed workflow boundary."""
+
+    stage: str
+    status: Literal["running", "succeeded", "skipped", "failed"]
+    summary: str
+
+    def api_dict(self) -> dict[str, str]:
+        return {"stage": self.stage, "status": self.status, "summary": self.summary}
+
+
+ProgressCallback = Callable[[WorkflowProgress], None]
+
+
+def _progress(
+    callback: ProgressCallback | None,
+    stage: str,
+    status: Literal["running", "succeeded", "skipped", "failed"],
+    summary: str,
+) -> None:
+    if callback is None:
+        return
+    try:
+        callback(WorkflowProgress(stage, status, summary))
+    except Exception:
+        # A disconnected stream must never change workflow or financial behavior.
+        return
+
+
+def _decision_trace_stages(events: list[WorkflowProgress]) -> list[dict[str, object]]:
+    """Collapse observed progress boundaries into the persisted trace shape."""
+
+    stages: dict[str, dict[str, object]] = {}
+    for event in events:
+        if event.stage == "workflow":
+            continue
+        stages[event.stage] = {
+            "id": event.stage,
+            "name": event.stage.replace("_", " ").title(),
+            "status": "completed" if event.status == "succeeded" else event.status,
+            "summary": event.summary,
+            "duration_ms": None,
+        }
+    return list(stages.values())
 
 
 @dataclass(frozen=True)
@@ -91,7 +140,14 @@ class CompiledInterpretationWorkflow:
         proposal: Proposal,
         mode: Literal["direct", "hybrid"],
         policy: BudgetPolicy,
+        progress: ProgressCallback | None = None,
     ) -> tuple[InterpretationRequest, dict[str, str]]:
+        _progress(
+            progress,
+            "load_observations",
+            "running",
+            "Loading persisted payment, balance, and evidence observations.",
+        )
         payment = db.scalar(
             select(Payment)
             .join(Source, Payment.source_id == Source.id)
@@ -161,12 +217,27 @@ class CompiledInterpretationWorkflow:
         evidence = {
             str(item.id): item.raw_bytes.decode("utf-8") for item in relevant if item.raw_bytes
         }
+        _progress(
+            progress,
+            "load_observations",
+            "succeeded",
+            (
+                f"Loaded {len(invoices)} invoice observations, {len(credits)} credit "
+                f"observations, and {len(relevant)} evidence sources."
+            ),
+        )
         payment_source = db.scalar(select(Source).where(Source.id == payment.source_id))
         if payment_source is None:
             raise ServiceError("stale_source", "payment source is unavailable")
         from reconcile.domain.matching import propose
         from reconcile.persistence.service import _credit_fact, _invoice_fact, _payment_fact
 
+        _progress(
+            progress,
+            "enumerate_candidates",
+            "running",
+            "Enumerating bounded allocation candidates from the observations.",
+        )
         rules_result = propose(
             _payment_fact(payment),
             [_invoice_fact(item) for item in invoices],
@@ -176,6 +247,12 @@ class CompiledInterpretationWorkflow:
         group = _shadow_group(payment, invoices, credits, evidence, rules_result)
         if not group["candidates"]:
             raise ServiceError("no_candidates", "no bounded allocation candidates are available")
+        _progress(
+            progress,
+            "enumerate_candidates",
+            "succeeded",
+            f"Enumerated {len(group['candidates'])} bounded allocation candidates.",
+        )
         invoice_ids = {str(item["invoice_id"]) for item in group["invoices"]}
         invoice_rows = [item for item in invoices if item.invoice_id in invoice_ids]
         credit_rows = [
@@ -198,6 +275,12 @@ class CompiledInterpretationWorkflow:
         }
         ranked: list[dict[str, Any]] = []
         if mode == "hybrid":
+            _progress(
+                progress,
+                "rank_if_hybrid",
+                "running",
+                "Computing the verified rank order for hybrid context.",
+            )
             try:
                 rank_trace = rank_candidates(group, force=True)
             except ArtifactError as exc:
@@ -205,6 +288,25 @@ class CompiledInterpretationWorkflow:
             ranked = list(rank_trace.get("ranked_candidates", []))
             if not ranked:
                 raise ServiceError("ranker_unavailable", "ranker returned no candidate order")
+            _progress(
+                progress,
+                "rank_if_hybrid",
+                "succeeded",
+                (
+                    f"Computed rank context for {len(ranked)} candidates; it remains "
+                    "observational context."
+                ),
+            )
+        else:
+            _progress(
+                progress, "rank_if_hybrid", "skipped", "Direct mode does not request rank context."
+            )
+        _progress(
+            progress,
+            "compile_and_validate",
+            "running",
+            "Compiling and validating the bounded interpretation request.",
+        )
         request = InterpretationRequest.model_validate(
             {
                 "workspace_id": str(workspace_id),
@@ -271,11 +373,17 @@ class CompiledInterpretationWorkflow:
                 ],
                 "mode": mode,
                 "ranked_candidates": ranked,
-                "prompt_version": "reconcile-interpretation-prompt-v1",
-                "schema_version": "reconcile-interpretation-schema-v1",
+                "prompt_version": PROMPT_VERSION,
+                "schema_version": SCHEMA_VERSION,
                 "budget_policy_version": policy.policy_version,
                 "decision_timestamp": proposal.created_at,
             }
+        )
+        _progress(
+            progress,
+            "compile_and_validate",
+            "succeeded",
+            "Validated the bounded request without exposing source text or provider output.",
         )
         return request, source_hashes
 
@@ -289,7 +397,20 @@ class CompiledInterpretationWorkflow:
         mode: Literal["direct", "hybrid"],
         settings: InterpretationSettings | None = None,
         cancelled: Callable[[], bool] | None = None,
+        progress: ProgressCallback | None = None,
     ) -> WorkflowOutcome:
+        observed_progress: list[WorkflowProgress] = []
+        caller_progress = progress
+
+        def observe(item: WorkflowProgress) -> None:
+            observed_progress.append(item)
+            if caller_progress is not None:
+                try:
+                    caller_progress(item)
+                except Exception:
+                    return
+
+        progress = observe
         config = settings or interpretation_settings()
         policy = BudgetPolicy(
             day_microdollars=config.day_microdollars,
@@ -316,10 +437,23 @@ class CompiledInterpretationWorkflow:
                 proposal=proposal,
                 mode=mode,
                 policy=policy,
+                progress=progress,
             )
         except ServiceError as exc:
+            _progress(
+                progress,
+                "workflow",
+                "failed",
+                f"Interpretation could not prepare the request ({exc.code}).",
+            )
             return WorkflowOutcome("unavailable", "none", mode, failure_code=exc.code)
         if not request.source_spans:
+            _progress(
+                progress,
+                "workflow",
+                "succeeded",
+                "No evidence source was available; review remains required.",
+            )
             return WorkflowOutcome(
                 "needs_review",
                 "none",
@@ -328,6 +462,9 @@ class CompiledInterpretationWorkflow:
                 failure_code="missing_evidence",
             )
         if cancelled and cancelled():
+            _progress(
+                progress, "workflow", "skipped", "Interpretation stopped before reading the cache."
+            )
             return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
         key_payload = {
             "request": request.model_dump(mode="json"),
@@ -338,6 +475,12 @@ class CompiledInterpretationWorkflow:
             "max_output_tokens": policy.max_output_tokens,
         }
         key = cache_key(key_payload)
+        _progress(
+            progress,
+            "read_cache",
+            "running",
+            "Checking for a validated interpretation cache entry.",
+        )
         cached = load_cached(db, workspace_id=workspace_id, key=key)
         if cached is not None:
             try:
@@ -347,7 +490,33 @@ class CompiledInterpretationWorkflow:
                 db.rollback()
             else:
                 db.rollback()
-                return self._record(
+                _progress(
+                    progress,
+                    "read_cache",
+                    "succeeded",
+                    "Validated a cached interpretation; no provider call was needed.",
+                )
+                if cancelled and cancelled():
+                    _progress(
+                        progress,
+                        "workflow",
+                        "skipped",
+                        "Interpretation stopped before recording the cached result.",
+                    )
+                    return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
+                _progress(
+                    progress,
+                    "reserve_and_call",
+                    "skipped",
+                    "Provider call skipped because a validated cache result was used.",
+                )
+                _progress(
+                    progress,
+                    "record_proposal_revision",
+                    "running",
+                    "Recording the cached interpretation as a reviewable proposal revision.",
+                )
+                recorded = self._record(
                     db,
                     workspace_id=workspace_id,
                     proposal_id=proposal_id,
@@ -357,13 +526,46 @@ class CompiledInterpretationWorkflow:
                     source="cache",
                     response_model=cached.response_model,
                     source_hashes=expected_hashes,
-                    trace={"cache_hit": True, "cache_key": key},
+                    trace={
+                        "cache_hit": True,
+                        "cache_key": key,
+                        "input_fingerprint": source_fingerprint(request.model_dump(mode="json")),
+                        "stages": _decision_trace_stages(observed_progress),
+                    },
                 )
+                if recorded.status == "unavailable":
+                    _progress(
+                        progress,
+                        "record_proposal_revision",
+                        "failed",
+                        "The cached interpretation could not be recorded; review is unchanged.",
+                    )
+                else:
+                    _progress(
+                        progress,
+                        "record_proposal_revision",
+                        "succeeded",
+                        (
+                            "Recorded the cached interpretation revision; financial application "
+                            "still requires a reviewer."
+                        ),
+                    )
+                return recorded
         else:
             db.rollback()
+        _progress(progress, "read_cache", "succeeded", "No valid cached interpretation was found.")
         if not config.enabled:
+            _progress(
+                progress, "workflow", "failed", "Live interpretation is disabled for this session."
+            )
             return WorkflowOutcome("unavailable", "none", mode, failure_code="disabled")
         if cancelled and cancelled():
+            _progress(
+                progress,
+                "workflow",
+                "skipped",
+                "Interpretation stopped before reserving provider budget.",
+            )
             return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
 
         def reserve(context: AttemptContext) -> uuid.UUID:
@@ -416,7 +618,24 @@ class CompiledInterpretationWorkflow:
 
         provider = self.provider_factory(config)
         try:
+            _progress(
+                progress,
+                "reserve_and_call",
+                "running",
+                "Reserving bounded provider budget and waiting for the provider response.",
+            )
             with _PROVIDER_SLOT:
+                # A disconnected stream can cancel while waiting for the
+                # concurrency slot. Re-check before making a provider call so
+                # cancellation remains a best-effort stop boundary.
+                if cancelled and cancelled():
+                    _progress(
+                        progress,
+                        "workflow",
+                        "skipped",
+                        "Interpretation stopped before the provider call began.",
+                    )
+                    return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
                 outcome = provider.interpret(
                     request,
                     reserve_attempt=reserve,
@@ -425,6 +644,12 @@ class CompiledInterpretationWorkflow:
         finally:
             provider.close()
         if not outcome.ok or outcome.result is None:
+            _progress(
+                progress,
+                "reserve_and_call",
+                "failed",
+                "The provider returned an explicit failure; no proposal revision was recorded.",
+            )
             return WorkflowOutcome(
                 "unavailable",
                 "none",
@@ -434,14 +659,46 @@ class CompiledInterpretationWorkflow:
                 ),
                 trace={"attempts": [item.model_dump(mode="json") for item in outcome.attempts]},
             )
+        _progress(
+            progress,
+            "reserve_and_call",
+            "succeeded",
+            "The provider returned a response with bounded telemetry.",
+        )
+        if cancelled and cancelled():
+            _progress(
+                progress,
+                "workflow",
+                "skipped",
+                "Interpretation stopped before validating and recording the provider result.",
+            )
+            return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
+        _progress(
+            progress,
+            "validate_and_cache",
+            "running",
+            "Validating the structured result and storing only the safe cache representation.",
+        )
         try:
             validate_result(request, outcome.result)
         except ValueError:
+            _progress(
+                progress,
+                "validate_and_cache",
+                "failed",
+                "The provider result failed server-side validation.",
+            )
             return WorkflowOutcome(
                 "unavailable", "none", mode, failure_code="invalid_provider_result"
             )
         response_model = outcome.attempts[-1].response_model
         if not response_model:
+            _progress(
+                progress,
+                "validate_and_cache",
+                "failed",
+                "The provider response did not identify a response model.",
+            )
             return WorkflowOutcome(
                 "unavailable", "none", mode, failure_code="missing_response_model"
             )
@@ -455,7 +712,27 @@ class CompiledInterpretationWorkflow:
             mode=mode,
             result=outcome.result.model_dump(mode="json"),
         )
-        return self._record(
+        _progress(
+            progress,
+            "validate_and_cache",
+            "succeeded",
+            "Validated the structured result and stored its safe cache representation.",
+        )
+        if cancelled and cancelled():
+            _progress(
+                progress,
+                "workflow",
+                "skipped",
+                "Interpretation stopped before recording a proposal revision.",
+            )
+            return WorkflowOutcome("unavailable", "none", mode, failure_code="cancelled")
+        _progress(
+            progress,
+            "record_proposal_revision",
+            "running",
+            "Recording the validated interpretation as a reviewable proposal revision.",
+        )
+        recorded = self._record(
             db,
             workspace_id=workspace_id,
             proposal_id=proposal_id,
@@ -468,9 +745,29 @@ class CompiledInterpretationWorkflow:
             trace={
                 "cache_hit": False,
                 "cache_key": key,
+                "input_fingerprint": source_fingerprint(request.model_dump(mode="json")),
                 "attempts": [item.model_dump(mode="json") for item in outcome.attempts],
+                "stages": _decision_trace_stages(observed_progress),
             },
         )
+        if recorded.status == "unavailable":
+            _progress(
+                progress,
+                "record_proposal_revision",
+                "failed",
+                "The interpretation could not be recorded; review is unchanged.",
+            )
+        else:
+            _progress(
+                progress,
+                "record_proposal_revision",
+                "succeeded",
+                (
+                    "Recorded the reviewable interpretation revision; financial application "
+                    "still requires a reviewer."
+                ),
+            )
+        return recorded
 
     @staticmethod
     def _record(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 import uuid
 from collections.abc import Callable
 
@@ -26,7 +27,7 @@ from reconcile.interpretation.schemas import (
     ReasonCode,
     Usage,
 )
-from reconcile.interpretation.workflow import CompiledInterpretationWorkflow
+from reconcile.interpretation.workflow import CompiledInterpretationWorkflow, WorkflowProgress
 from reconcile.persistence.db import normalize_database_url
 from reconcile.persistence.models import (
     ApplicationGroup,
@@ -34,6 +35,7 @@ from reconcile.persistence.models import (
     InterpretationCall,
     Payment,
     Proposal,
+    ProposalRevision,
     Source,
 )
 from reconcile.persistence.service import ReconcileService
@@ -183,9 +185,81 @@ def test_actual_imported_observations_select_candidate_without_applying(db) -> N
     assert outcome.status == "selected"
     assert outcome.source == "live"
     assert db.get(Proposal, proposal_id).status == "PROPOSED"
+    assert outcome.proposal_revision is not None
+    revision = db.scalar(
+        select(ProposalRevision).where(
+            ProposalRevision.proposal_id == proposal_id,
+            ProposalRevision.revision == outcome.proposal_revision,
+        )
+    )
+    assert revision is not None
+    assert revision.model_trace["schema_version"] == "decision-trace-v1"
+    assert revision.model_trace["source"] == "live"
+    assert revision.model_trace["stages"]
+    assert all(stage["duration_ms"] is None for stage in revision.model_trace["stages"])
+    assert revision.model_trace["stages"][-1]["id"] == "record_proposal_revision"
+    assert revision.model_trace["stages"][-1]["status"] == "completed"
     assert db.scalar(select(ApplicationGroup)) is None
     call = db.scalar(select(InterpretationCall))
     assert call is not None and call.status == "SUCCEEDED"
+
+
+def test_progress_is_emitted_while_provider_is_still_blocked(db) -> None:
+    workspace_id, proposal_id, visitor = imported_review_case(db)
+    provider_started = threading.Event()
+    provider_finished = threading.Event()
+    release_provider = threading.Event()
+    progress_seen = threading.Event()
+    progress: list[WorkflowProgress] = []
+
+    class BlockingProvider(FakeProvider):
+        def interpret(self, request, *, reserve_attempt=None, finalize_attempt=None):
+            provider_started.set()
+            assert release_provider.wait(5)
+            provider_finished.set()
+            return super().interpret(
+                request,
+                reserve_attempt=reserve_attempt,
+                finalize_attempt=finalize_attempt,
+            )
+
+    provider = BlockingProvider(abstain)
+    workflow = CompiledInterpretationWorkflow(lambda _: provider)  # type: ignore[arg-type]
+    result: list[object] = []
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+
+    def on_progress(item: WorkflowProgress) -> None:
+        progress.append(item)
+        if item.stage == "reserve_and_call" and item.status == "running":
+            progress_seen.set()
+
+    def run_workflow() -> None:
+        with factory() as worker_db:
+            result.append(
+                workflow.run(
+                    worker_db,
+                    workspace_id=workspace_id,
+                    session_id=visitor,
+                    proposal_id=proposal_id,
+                    mode="direct",
+                    settings=settings(f"progress-{uuid.uuid4()}"),
+                    progress=on_progress,
+                )
+            )
+
+    thread = threading.Thread(target=run_workflow)
+    thread.start()
+    assert progress_seen.wait(5)
+    assert provider_started.wait(5)
+    assert not provider_finished.is_set()
+    assert any(
+        item.stage == "reserve_and_call" and item.status == "running" for item in progress
+    )
+    release_provider.set()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert result
+    assert db.scalar(select(ApplicationGroup)) is None
 
 
 def test_validated_cache_replays_without_a_second_call(db) -> None:
@@ -214,6 +288,15 @@ def test_validated_cache_replays_without_a_second_call(db) -> None:
     assert first.source == "live"
     assert second.source == "cache"
     assert provider.calls == 1
+    cached_revision = db.scalar(
+        select(ProposalRevision)
+        .where(ProposalRevision.proposal_id == proposal_id)
+        .order_by(ProposalRevision.revision.desc())
+    )
+    assert cached_revision is not None
+    assert cached_revision.model_trace["source"] == "cache"
+    assert cached_revision.model_trace["interpretation"]["cache_hit"] is True
+    assert cached_revision.model_trace["stages"][-1]["status"] == "completed"
 
 
 def test_changed_evidence_invalidates_cache(db) -> None:
