@@ -355,6 +355,21 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
 .decision-summary h2 { margin: 0; color: var(--navy); font-size: 1.13rem; }
 .decision-summary p:not(.eyebrow) { max-width: 650px; margin: 6px 0 0; font-size: .78rem; }
 .decision-summary .decision-reason { color: #36536a; font-weight: 700; }
+.detail-story, .generic-allocation-summary { display: grid; gap: 8px; margin-top: 16px; padding: 13px 14px; background: white; border: 1px solid #cbe0ea; border-radius: 8px; }
+.detail-story { background: #f7fbfd; border-left: 3px solid #73afd1; }
+.detail-story h3 { margin: 0; color: var(--navy); font-size: .9rem; }
+.detail-story p, .generic-allocation-summary p { margin: 0; color: #36536a; font-size: .74rem; }
+.detail-story-lines { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.detail-story-lines div { display: grid; gap: 2px; min-width: 0; padding: 8px 9px; background: var(--soft); border-radius: 6px; }
+.detail-story-lines strong, .generic-allocation-summary strong { color: var(--navy); font-size: .74rem; }
+.detail-story-lines span, .generic-allocation-summary > span { color: var(--muted); font-size: .68rem; }
+.detail-story-evidence { display: grid; gap: 3px; padding-top: 7px; border-top: 1px solid var(--line); }
+.detail-story-evidence > span { color: var(--blue); font-size: .64rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.detail-story-evidence q { font-size: .74rem; }
+.detail-story-record { padding-top: 6px; border-top: 1px solid var(--line); }
+.detail-story-record summary { color: #5c7487; cursor: pointer; font-size: .7rem; font-weight: 700; }
+.detail-story-record ul { display: grid; gap: 3px; margin: 7px 0 0; padding-left: 18px; color: #526d81; font-size: .68rem; }
+.generic-allocation-summary { background: #f8fafb; border-color: var(--line); }
 .decision-summary-lines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
 .decision-summary-lines div { display: grid; gap: 3px; padding: 10px 11px; background: white; border-radius: 7px; }
 .decision-summary-lines span { color: var(--muted); font-size: .68rem; }

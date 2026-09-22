@@ -263,6 +263,46 @@ describe('case study surfaces', () => {
     expect(markup).toContain('human reviewer')
   })
 
+  it('explains the persisted registered split near the decision while retaining raw IDs and exact evidence', () => {
+    const detail = {
+      proposal_id: 'proposal-1', revision: 3, reason: null,
+      payment: { amount: 5400000 },
+      case: { id: 'bundle', version: 'v1', variant: 'original' },
+      cash: [{ invoice_id: 'case-bundle-target-a', amount: 3000000 }, { invoice_id: 'case-bundle-target-b', amount: 2400000 }],
+      credits: [{ credit_note_id: 'case-bundle-credit', invoice_id: 'case-bundle-target-b', amount: 100000 }],
+      evidence: [{ source_id: 'message-1', start: 0, end: 112, quote: 'Apply invoices case-bundle-target-a and case-bundle-target-b credit note case-bundle-credit to case-bundle-target-b.' }],
+      trace: { mode: 'rules-v2-conservative' },
+    } as unknown as ProposalDetail
+    const markup = renderToString(<DecisionSummary detail={detail} status="PROPOSED" cash={[{ invoice_id: 'case-bundle-target-a', amount_mxn: '30000.00' }, { invoice_id: 'case-bundle-target-b', amount_mxn: '24000.00' }]} credits={[{ credit_note_id: 'case-bundle-credit', invoice_id: 'case-bundle-target-b', amount_mxn: '1000.00' }]} canEdit={false} onEdit={() => {}} />)
+
+    expect(markup).toContain('The message supports a split')
+    expect(markup).toContain('Invoice A')
+    expect(markup).toContain('Invoice B')
+    expect(markup).toContain('Linked credit')
+    expect(markup).toContain('case-bundle-target-a')
+    expect(markup).toContain('case-bundle-credit')
+    expect(markup).toContain('Apply invoices case-bundle-target-a and case-bundle-target-b credit note case-bundle-credit to case-bundle-target-b.')
+    expect(markup).toContain('exact-amount decoy')
+  })
+
+  it('does not carry the registered decoy story into a changed variant or correction', () => {
+    const base = {
+      proposal_id: 'proposal-1', revision: 3, reason: null,
+      payment: { amount: 5400000 },
+      cash: [{ invoice_id: 'case-bundle-target-a', amount: 3000000 }, { invoice_id: 'case-bundle-target-b', amount: 2400000 }],
+      credits: [{ credit_note_id: 'case-bundle-credit', invoice_id: 'case-bundle-target-b', amount: 100000 }],
+      evidence: [{ source_id: 'message-1', start: 0, end: 112, quote: 'Apply invoices case-bundle-target-a and case-bundle-target-b credit note case-bundle-credit to case-bundle-target-b.' }],
+    }
+    for (const detail of [
+      { ...base, case: { id: 'bundle', version: 'v1:ambiguous', variant: 'ambiguous' } },
+      { ...base, case: { id: 'bundle', version: 'v1', variant: 'original' }, trace: { mode: 'human-correction' } },
+    ] as unknown as ProposalDetail[]) {
+      const markup = renderToString(<DecisionSummary detail={detail} status="NEEDS_REVIEW" cash={[]} credits={[]} canEdit={false} onEdit={() => {}} />)
+      expect(markup).not.toContain('exact-amount decoy')
+      expect(markup).toContain('Actual proposal lines')
+    }
+  })
+
   it('keeps interpretation available for unresolved work and gives proposed work the reviewer lead', () => {
     expect(shouldShowInterpretation('PROPOSED', false)).toBe(false)
     expect(shouldShowInterpretation('PROPOSED', true)).toBe(true)
