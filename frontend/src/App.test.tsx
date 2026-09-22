@@ -40,6 +40,87 @@ describe('Phase 4 interpretation UI', () => {
     expect(markup).toMatch(/button[^>]+disabled/)
   })
 
+  it('keeps the completed allocation outcome and reviewer action readable', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      busy=""
+      message=""
+      proposalStatus="PROPOSED"
+      proposalRevision={4}
+      cash={[{ invoice_id: '101', amount: 10000 }]}
+      credits={[]}
+      evidence={[{ source_id: 'source-1', start: 0, end: 12, quote: 'Invoice 101' }]}
+      interpretation={{ status: 'selected', source: 'cache', mode: 'direct', reason_code: 'evidence_supported', citations: [{ source_id: 'source-1', start: 0, end: 12, quote: 'Invoice 101' }] }}
+      onSource={() => {}}
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('Proposal update:</strong>')
+    expect(markup).toContain('PROPOSED')
+    expect(markup).toContain('Chosen allocation:</strong>')
+    expect(markup).toContain('Invoice 101')
+    expect(markup).toContain('source-1')
+    expect(markup).toContain('Next reviewer action:</strong>')
+    expect(markup).toContain('Review the selected allocation')
+  })
+
+  it('labels hard-reload data as saved proposal state when model fields are absent', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      busy=""
+      message=""
+      hasSavedInterpretation
+      proposalStatus="PROPOSED"
+      proposalRevision={5}
+      cash={[{ invoice_id: '101', amount: 10000 }]}
+      evidence={[{ source_id: 'source-1', start: 0, end: 12, quote: 'Invoice 101' }]}
+      proposalReason="bounded interpretation: evidence_supported"
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('Saved proposal state')
+    expect(markup).toContain('Saved allocation:')
+    expect(markup).toContain('Saved proposal evidence')
+    expect(markup).not.toContain('Relevant evidence')
+    expect(markup).toContain('Saved proposal reason:')
+    expect(markup).toContain('evidence supported')
+  })
+
+  it('shows the latest observed workflow stage while interpretation is running', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled
+      busy="interpret-hybrid"
+      message=""
+      progress={[
+        { stage: 'load_observations', status: 'succeeded', summary: 'Loaded saved payment evidence.' },
+        { stage: 'reserve_and_call', status: 'running', summary: 'Waiting for the provider response.' },
+      ]}
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('Waiting for the provider response.')
+    expect(markup).toContain('Observed workflow steps')
+  })
+
+  it('holds the completed outcome until the saved proposal refresh finishes', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      busy="interpret-direct"
+      message=""
+      interpretationRefreshPending
+      interpretation={{ status: 'selected', source: 'live', mode: 'direct', candidate_id: 'candidate-1' }}
+      proposalStatus="NEEDS_REVIEW"
+      proposalRevision={2}
+      cash={[{ invoice_id: '101', amount: 10000 }]}
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('Updating saved proposal')
+    expect(markup).toContain('Refreshing the saved proposal result')
+    expect(markup).not.toContain('Chosen allocation')
+    expect(markup).not.toContain('candidate-1')
+  })
+
   it('states why optional interpretation is disabled', () => {
     const markup = renderToString(<InterpretationAction
       enabled={false}
