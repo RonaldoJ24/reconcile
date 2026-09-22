@@ -470,6 +470,8 @@ export function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit
   const proposedCredit = credits.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
   const summary = decisionSummaryCopy(status)
   const balanceState = status === 'PROPOSED' || status === 'NEEDS_REVIEW' ? 'Unchanged' : status === 'APPLIED' ? 'Updated' : status === 'REVERSED' ? 'Restored' : 'Check now'
+  const bundleStory = registeredBundleStory(detail)
+  const effectLabel = status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'
   return <section className={`panel decision-summary decision-summary-${status.toLowerCase()}`} aria-labelledby="decision-summary-heading">
     <div className="decision-summary-top">
       <div>
@@ -478,14 +480,58 @@ export function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit
         <p className="decision-description">{summary.description}</p>
         {reason && <p className="decision-reason">Why: {reason}</p>}
       </div>
-      {canEdit && <button className="button button-secondary" type="button" onClick={onEdit}>Edit allocation</button>}
     </div>
+    {bundleStory ? <BundleDetailStory story={bundleStory} /> : <GenericAllocationSummary status={status} cash={cash} credits={credits} evidenceCount={detail.evidence?.length ?? 0} />}
     <div className="decision-summary-lines">
-      <div><span>Proposed cash</span><strong>{money(proposedCash)}</strong></div>
-      <div><span>Proposed credit</span><strong>{money(proposedCredit)}</strong></div>
+      <div><span>{`${effectLabel} cash`}</span><strong>{money(proposedCash)}</strong></div>
+      <div><span>{`${effectLabel} credit`}</span><strong>{money(proposedCredit)}</strong></div>
       <div><span>Current balances</span><strong>{balanceState}</strong></div>
     </div>
   </section>
+}
+
+type RegisteredBundleStory = {
+  cashA: CashLine
+  cashB: CashLine
+  credit: CreditLine
+  evidence: Evidence[]
+}
+
+function registeredBundleStory(detail: ProposalDetail): RegisteredBundleStory | undefined {
+  const caseInfo = detail.case
+  if (caseInfo?.id !== 'bundle' || caseInfo.version !== 'v1' || caseInfo.variant !== 'original') return undefined
+  if (detail.payment?.amount !== 5_400_000) return undefined
+  if (typeof detail.trace?.mode === 'string' && detail.trace.mode === 'human-correction') return undefined
+  const cashA = detail.cash.find((line) => line.invoice_id === 'case-bundle-target-a' && line.amount === 3_000_000)
+  const cashB = detail.cash.find((line) => line.invoice_id === 'case-bundle-target-b' && line.amount === 2_400_000)
+  const credit = detail.credits.find((line) => line.credit_note_id === 'case-bundle-credit' && line.invoice_id === 'case-bundle-target-b' && line.amount === 100_000)
+  if (!cashA || !cashB || !credit || detail.cash.length !== 2 || detail.credits.length !== 1) return undefined
+  const expectedIds = [cashA.invoice_id, cashB.invoice_id, credit.credit_note_id]
+  if (!expectedIds.every((id) => detail.evidence.some((item) => item.quote.includes(id)))) return undefined
+  const evidence = detail.evidence.filter((item, index, all) => all.findIndex((candidate) => candidate.source_id === item.source_id && candidate.start === item.start && candidate.end === item.end && candidate.quote === item.quote) === index)
+  return { cashA, cashB, credit, evidence }
+}
+
+function BundleDetailStory({ story }: { story: RegisteredBundleStory }) {
+  return <section className="detail-story" aria-labelledby="detail-story-heading">
+    <div><p className="eyebrow">Registered bundle v1 · original message</p><h3 id="detail-story-heading">The message supports a split, not the exact amount match</h3><p>MX$54,000 in cash is assigned to Invoice A and Invoice B. A linked MX$1,000 credit reduces Invoice B; the exact-amount decoy stays untouched.</p></div>
+    <div className="detail-story-lines">
+      <div><strong>Invoice A</strong><span>Cash · {money(story.cashA.amount)}</span></div>
+      <div><strong>Invoice B</strong><span>Cash · {money(story.cashB.amount)}</span></div>
+      <div><strong>Linked credit</strong><span>Invoice B · {money(story.credit.amount)}</span></div>
+    </div>
+    {story.evidence.map((item, index) => <div className="detail-story-evidence" key={`${item.source_id}-${item.start}-${item.end}-${index}`}><span>Exact source evidence</span><q>{item.quote}</q></div>)}
+    <details className="detail-story-record"><summary>Show technical line IDs</summary><ul><li>Invoice A: <span className="mono">{story.cashA.invoice_id}</span></li><li>Invoice B: <span className="mono">{story.cashB.invoice_id}</span></li><li>Credit note: <span className="mono">{story.credit.credit_note_id}</span> → <span className="mono">{story.credit.invoice_id}</span></li></ul></details>
+  </section>
+}
+
+function GenericAllocationSummary({ status, cash, credits, evidenceCount }: { status: string; cash: CashDraft[]; credits: CreditDraft[]; evidenceCount: number }) {
+  const cashTotal = cash.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
+  const creditTotal = credits.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
+  const cashSummary = cash.length ? `${cash.length} cash line${cash.length === 1 ? '' : 's'} · ${money(cashTotal)}` : 'No cash lines'
+  const creditSummary = credits.length ? `${credits.length} credit line${credits.length === 1 ? '' : 's'} · ${money(creditTotal)}` : 'No credit lines'
+  const heading = status === 'APPLIED' ? 'Recorded allocation lines' : status === 'REVERSED' ? 'Reversed allocation lines' : 'Actual proposal lines'
+  return <div className="generic-allocation-summary"><strong>{heading}</strong><p>{cashSummary}; {creditSummary}. Evidence returned: {evidenceCount} citation{evidenceCount === 1 ? '' : 's'}.</p><span>The server data is shown as returned; this summary does not infer support beyond the cited evidence.</span></div>
 }
 
 function decisionReason(value: string) {
@@ -525,8 +571,8 @@ export function shouldShowInterpretation(status: string, hasInterpretation: bool
   return status === 'NEEDS_REVIEW' || hasInterpretation
 }
 
-function CanonicalAllocationLines({ title, lines, kind }: { title: string; lines: (CashLine | CreditLine)[]; kind: 'cash' | 'credit' }) {
-  return <section className="panel lines-card"><div className="panel-heading"><div><h2>{title}</h2><p className="muted">{kind === 'cash' ? 'Cash is separate from credit.' : 'Credit remains explicitly linked to an invoice.'}</p></div><span className="line-total">{lines.length} line{lines.length === 1 ? '' : 's'}</span></div>{lines.length === 0 ? <p className="empty-inline">No {kind} lines returned.</p> : <div className="line-list">{lines.map((line, index) => { const cash = line as CashLine; const credit = line as CreditLine; return <div className="allocation-line" key={index}><div><strong>{kind === 'cash' ? `Invoice ${cash.invoice_id}` : `Credit note ${credit.credit_note_id}`}</strong><span>{kind === 'cash' ? 'Invoice allocation' : `Linked invoice ${credit.invoice_id}`}</span></div><strong>{money(line.amount)}</strong></div> })}</div>}</section>
+function CanonicalAllocationLines({ title, lines, kind, lineLabel }: { title: string; lines: (CashLine | CreditLine)[]; kind: 'cash' | 'credit'; lineLabel?: (line: CashLine | CreditLine) => string }) {
+  return <section className="panel lines-card"><div className="panel-heading"><div><h2>{title}</h2><p className="muted">{kind === 'cash' ? 'Cash is separate from credit.' : 'Credit remains explicitly linked to an invoice.'}</p></div><span className="line-total">{lines.length} line{lines.length === 1 ? '' : 's'}</span></div>{lines.length === 0 ? <p className="empty-inline">No {kind} lines returned.</p> : <div className="line-list">{lines.map((line, index) => { const cash = line as CashLine; const credit = line as CreditLine; const label = lineLabel?.(line) ?? (kind === 'cash' ? `Invoice ${cash.invoice_id}` : `Credit note ${credit.credit_note_id}`); return <div className="allocation-line" key={index}><div><strong>{label}</strong><span>{kind === 'cash' ? <>Invoice allocation · record <span className="mono allocation-record">{cash.invoice_id}</span></> : <>Linked invoice <span className="mono allocation-record">{credit.invoice_id}</span> · credit record <span className="mono allocation-record">{credit.credit_note_id}</span></>}</span></div><strong>{money(line.amount)}</strong></div> })}</div>}</section>
 }
 
 function CanonicalEvidenceSection({ evidence, onSource }: { evidence: Evidence[]; onSource: (sourceId: string) => void }) {
@@ -924,6 +970,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const applicationId = appliedId || detail.application_id || undefined
   const status = detail.status.toUpperCase()
   const effectCopy = allocationEffectCopy(status)
+  const bundleStory = registeredBundleStory(detail)
   const draftError = reviewDraftError(cashDraft, creditDraft)
   const hasUnsavedChanges = !reviewDraftsEqual(cashDraft, creditDraft, persistedCashDraft, persistedCreditDraft)
   const capabilities = detail.capabilities
@@ -1227,8 +1274,8 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
           <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><p className="payment-payer">{payment.payer_name}</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{decisionSummaryCopy(status).label}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
           <div className="proposed-effects-heading"><p className="eyebrow">{effectCopy.eyebrow}</p><h2>{effectCopy.title}</h2><p>{effectCopy.description}</p></div>
           <div className="proposed-lines">
-            <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} cash applications`} lines={cashLines} kind="cash" />
-            <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} credit applications`} lines={creditLines} kind="credit" />
+            <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} cash applications`} lines={cashLines} kind="cash" lineLabel={bundleStory ? (line) => line.invoice_id === bundleStory.cashA.invoice_id ? 'Invoice A' : 'Invoice B' : undefined} />
+            <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} credit applications`} lines={creditLines} kind="credit" lineLabel={bundleStory ? () => 'Linked credit · Invoice B' : undefined} />
           </div>
           <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />
         </div>
