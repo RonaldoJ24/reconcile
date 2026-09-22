@@ -1,5 +1,24 @@
 # Status
 
+## Interpretation review clarity — 2026-09-22
+
+The allocation-detail sidebar now starts level with the decision summary on desktop
+without pushing down the payment, and retains the sequential mobile order. During
+interpretation, the page remains visible and shows the latest observed workflow
+stage; after the stream, it waits for the saved proposal refresh before showing
+the result. The lasting result summarizes the server status/revision, allocation,
+actual citations or saved proposal evidence, reason, and next reviewer action.
+Refresh failures ask the reviewer to verify the saved proposal and do not claim
+stale allocation lines as the new result. Fixed reason codes have plain-language
+explanations. No backend, financial behavior, provider budget, or hosting setting
+changed.
+
+Commits `1fe3116` and `0ce1f7f` on `fix/interpretation-clarity`. Frontend
+typecheck, 51 tests, production build, and diff checks passed. Local browser
+verification at 1280px measured decision and sidebar both at 294px, with payment
+still at 587px; at 390px the page had no horizontal overflow. Live deployment
+and a provider call were not part of this local acceptance.
+
 ## Portfolio continuation — active, 2026-09-16
 
 Worktree `case-study`, branch `feat/reconcile-case-study`, based on `dd18e1c`.
