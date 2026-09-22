@@ -426,7 +426,12 @@ omit empty cash, credit, evidence, and alternative panels. Desktop actions begin
 beside the decision; mobile actions follow the core evidence. A resolved proposal
 does not show an inactive DeepSeek panel. The preview is labeled synthetic.
 
-Validation: 58 frontend tests, TypeScript typecheck, production build, and diff
+After a DeepSeek request, the saved result stays in the top right panel instead
+of moving below the reviewer controls. Resolved results show the saved decision,
+allocation, evidence, and next action in place of inactive mode buttons. The
+observed workflow steps remain available in an expandable record.
+
+Validation: 59 frontend tests, TypeScript typecheck, production build, and diff
 whitespace checks passed. Actual browser inspection covered the bundle and
 insufficient cases at desktop and mobile sizes. This changes presentation only;
 financial rules, provider limits, and application guards are unchanged. It does

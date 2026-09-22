@@ -218,8 +218,8 @@ function interpretationSource(source: Interpretation['source']) {
 }
 
 function interpretationSummary(result: Interpretation) {
-  if (result.status === 'selected') return 'An existing allocation was selected for reviewer review.'
-  if (result.status === 'needs_review') return 'No existing allocation was selected; the proposal remains unresolved.'
+  if (result.status === 'selected') return 'One candidate was selected. Check the saved allocation and cited message before approval.'
+  if (result.status === 'needs_review') return 'No candidate was selected. The payment remains unresolved for a reviewer.'
   return 'Interpretation is unavailable; the current proposal is unchanged.'
 }
 
@@ -1285,7 +1285,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
         </div>
         <section className="panel balances-card current-balances-card"><div className="panel-heading"><div><p className="eyebrow">Current balances</p><h2>Balances and cash today</h2><p className="muted">{currentBalancesDescription(status)}</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
         {detail.alternatives.length > 0 && <AlternativesSection alternatives={detail.alternatives} />}
-        <aside className={`detail-side detail-side-${status.toLowerCase()}`}>
+        <aside className={`detail-side detail-side-${status.toLowerCase()}${showInterpretation ? ' detail-side-with-interpretation' : ''}`}>
           {showInterpretation && <InterpretationAction
             enabled={canInterpret}
             disabledReason={interpretationDisabledReason}
@@ -1413,6 +1413,7 @@ export function InterpretationAction({
   onInterpret: (mode: InterpretationMode) => Promise<void>
 }) {
   const activeMode = busy.startsWith('interpret-') ? busy.slice('interpret-'.length) : ''
+  const showControls = Boolean(activeMode) || (!interpretation && !hasSavedInterpretation) || (interpretation?.status === 'unavailable' && enabled)
   const elapsed = `${(elapsedMs / 1000).toFixed(1)}s`
   const observedProgress = progress.filter((item) => item.stage !== 'workflow')
   const currentProgress = [...observedProgress].reverse().find((item) => item.status === 'running') ?? observedProgress[observedProgress.length - 1]
@@ -1441,17 +1442,17 @@ export function InterpretationAction({
             : undefined
   return <section className="panel interpretation-panel" aria-labelledby="interpretation-heading">
     <div className="panel-heading">
-      <div><p className="eyebrow">Optional interpretation</p><h2 id="interpretation-heading">Review with DeepSeek</h2></div>
+      <div><p className="eyebrow">Optional interpretation</p><h2 id="interpretation-heading">{interpretation && !interpretationRefreshPending ? 'DeepSeek review result' : 'Review with DeepSeek'}</h2></div>
     </div>
-    <p className="interpretation-help" id="interpretation-help">Use this when the deterministic result needs help reading the payment message. Direct reviews the saved evidence and candidates; Hybrid also supplies the existing rank order. The result stays a suggestion for a human reviewer and never applies money.</p>
-    <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
+    {showControls && <p className="interpretation-help" id="interpretation-help">Use this when the deterministic result needs help reading the payment message. Direct reviews the saved evidence and candidates; Hybrid also supplies the existing rank order. The result stays a suggestion for a human reviewer and never applies money.</p>}
+    {showControls && <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
       <button className="button button-secondary" type="button" onClick={() => void onInterpret('direct')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help" title="Review the saved evidence and candidates">
         {busy === 'interpret-direct' ? 'Interpreting direct…' : 'Direct'}
       </button>
       <button className="button button-secondary" type="button" onClick={() => void onInterpret('hybrid')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help" title="Review evidence with the existing rank order as context">
         {busy === 'interpret-hybrid' ? 'Interpreting hybrid…' : 'Hybrid'}
       </button>
-    </div>
+    </div>}
     {activeMode && <div className="interpretation-progress" role="status" aria-live="polite">
       <strong>{activeMode === 'hybrid' ? 'Hybrid interpretation in progress' : 'Direct interpretation in progress'}</strong>
       {interpretationRefreshPending
@@ -1460,16 +1461,15 @@ export function InterpretationAction({
       <span>Elapsed {elapsed}</span>
       {observedProgress.length > 0 && <details><summary>Observed workflow steps</summary><ol>{observedProgress.map((item) => <li key={item.stage} className={`progress-${item.status}`}><span>{progressLabel(item.stage)}</span><span>{item.summary || progressSummary(item)}</span></li>)}</ol></details>}
     </div>}
-    {!enabled && disabledReason && <p className="interpretation-detail interpretation-disabled" role="status">{disabledReason}</p>}
-    {!enabled && interpretation && !interpretationRefreshPending && !interpretationRefreshFailed && <p className="interpretation-detail interpretation-complete">This result is attached to the refreshed proposal. Financial application still requires a reviewer.</p>}
+    {!enabled && disabledReason && !interpretation && !hasSavedInterpretation && <p className="interpretation-detail interpretation-disabled" role="status">{disabledReason}</p>}
     {interpretationRefreshFailed && <p className="interpretation-detail interpretation-refresh-warning" role="status">The interpretation response arrived, but the saved proposal could not be refreshed. Refresh the proposal to confirm its persisted status and allocation before applying.</p>}
     {interpretation && !interpretationRefreshPending && <div className={`interpretation-result interpretation-${interpretation.status}`} role="status" aria-live="polite">
       <div className="interpretation-result-top"><span className={`status-pill status-${interpretation.status}`}>{interpretation.status.replace('_', ' ')}</span><span className="interpretation-source">{interpretationSource(interpretation.source)}</span></div>
       <strong>{interpretationSummary(interpretation)}</strong>
-      {savedStatus && proposalRevision !== undefined && <span className="interpretation-detail"><strong>Proposal update:</strong> {savedStatus} at revision {proposalRevision}.</span>}
+      {savedStatus && proposalRevision !== undefined && <span className="interpretation-detail"><strong>Saved decision:</strong> {decisionSummaryCopy(savedStatus).title}.</span>}
       {interpretation.status === 'selected' && <span className="interpretation-detail"><strong>Chosen allocation:</strong> {interpretationRefreshFailed ? 'Allocation details could not be refreshed; refresh the proposal before applying.' : allocation.length ? allocation.join('; ') : 'The saved proposal contains no cash or credit lines.'}</span>}
       {interpretation.status === 'needs_review' && <span className="interpretation-detail"><strong>Allocation:</strong> unresolved; no existing candidate was selected.</span>}
-      {interpretation.candidate_id && <span className="interpretation-detail">Candidate <span className="mono">{interpretation.candidate_id}</span></span>}
+      {interpretation.candidate_id && <details className="detail-record"><summary>Technical candidate ID</summary><span className="mono">{interpretation.candidate_id}</span></details>}
       {reason && <span className="interpretation-detail">Reason: {reason}</span>}
       {citations.length > 0 && <div className="interpretation-citations"><strong>Relevant evidence</strong><ul>{citations.map((citation, index) => citation.source_id ? <li key={`${citation.source_id}-${citation.start ?? index}-${citation.end ?? index}`}><span><span className="mono">Source {citation.source_id}</span>{citation.quote ? `: “${citation.quote}”` : ''}</span>{onSource && <button className="button button-quiet" type="button" onClick={() => onSource(citation.source_id!)}>Open source</button>}</li> : null)}</ul></div>}
       {nextAction && <span className="interpretation-next"><strong>Next reviewer action:</strong> {nextAction}</span>}
@@ -1478,13 +1478,14 @@ export function InterpretationAction({
     {!interpretation && !interpretationRefreshPending && hasSavedInterpretation && <div className="interpretation-result interpretation-saved" role="status" aria-live="polite">
       <div className="interpretation-result-top"><span className={`status-pill status-${(savedStatus ?? 'review').toLowerCase()}`}>{savedStatus ?? 'Saved proposal'}</span><span className="interpretation-source">Saved proposal state</span></div>
       <strong>Saved interpretation is attached to this proposal.</strong>
-      {savedStatus && proposalRevision !== undefined && <span className="interpretation-detail"><strong>Proposal update:</strong> {savedStatus} at revision {proposalRevision}.</span>}
+      {savedStatus && proposalRevision !== undefined && <span className="interpretation-detail"><strong>Saved decision:</strong> {decisionSummaryCopy(savedStatus).title}.</span>}
       {savedStatus === 'PROPOSED' && <span className="interpretation-detail"><strong>Saved allocation:</strong> {interpretationRefreshFailed ? 'Allocation details could not be refreshed; refresh the proposal before applying.' : allocation.length ? allocation.join('; ') : 'No cash or credit lines are saved.'}</span>}
       {savedStatus === 'NEEDS_REVIEW' && <span className="interpretation-detail"><strong>Saved allocation:</strong> unresolved; no allocation was saved.</span>}
       {savedReason && <span className="interpretation-detail"><strong>Saved proposal reason:</strong> {savedReason}</span>}
       {evidence.length > 0 && <div className="interpretation-citations"><strong>Saved proposal evidence</strong><ul>{evidence.map((item, index) => <li key={`${item.source_id}-${item.start}-${item.end}-${index}`}><span><span className="mono">Source {item.source_id}</span>: “{item.quote}”</span>{onSource && <button className="button button-quiet" type="button" onClick={() => onSource(item.source_id)}>Open source</button>}</li>)}</ul></div>}
       {nextAction && <span className="interpretation-next"><strong>Next reviewer action:</strong> {nextAction}</span>}
     </div>}
+    {!activeMode && !interpretationRefreshPending && observedProgress.length > 0 && <details className="interpretation-history"><summary>What happened during this review</summary><ol>{observedProgress.map((item) => <li key={item.stage}><strong>{progressLabel(item.stage)}</strong><span>{item.summary || progressSummary(item)}</span></li>)}</ol></details>}
   </section>
 }
 
