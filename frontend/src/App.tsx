@@ -464,20 +464,65 @@ function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () =>
   return <div className="error-banner" role="alert"><span>{message}</span><button className="icon-button" onClick={onDismiss} aria-label="Dismiss error">×</button></div>
 }
 
-function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit }: { detail: ProposalDetail; cash: CashDraft[]; credits: CreditDraft[]; status: string; canEdit: boolean; onEdit: () => void }) {
-  const reason = typeof detail.reason === 'string' ? detail.reason : undefined
-  return <section className={`panel decision-summary decision-summary-${status.toLowerCase()}`} aria-labelledby="decision-summary-heading"><div className="decision-summary-top"><div><p className="eyebrow">Decision</p><div className="decision-heading-line"><h2 id="decision-summary-heading">{decisionStateLabel(status)}</h2><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><p className="muted">Server state: <span className="mono">{status}</span>. Review the evidence and balances before taking a financial action.</p>{reason && <p className="decision-reason">Reason: {reason}</p>}</div>{canEdit && <button className="button button-secondary" type="button" onClick={onEdit}>Edit allocation</button>}</div><div className="decision-summary-lines"><div><span>Cash</span><strong>{cash.length} line{cash.length === 1 ? '' : 's'}</strong></div><div><span>Credit</span><strong>{credits.length} line{credits.length === 1 ? '' : 's'}</strong></div><div><span>Case</span><strong>{detail.case?.id ?? 'Manual import'}</strong></div></div></section>
+export function DecisionSummary({ detail, cash, credits, status, canEdit, onEdit }: { detail: ProposalDetail; cash: CashDraft[]; credits: CreditDraft[]; status: string; canEdit: boolean; onEdit: () => void }) {
+  const reason = typeof detail.reason === 'string' ? decisionReason(detail.reason) : undefined
+  const proposedCash = cash.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
+  const proposedCredit = credits.reduce((total, line) => total + mxnToCents(line.amount_mxn), 0)
+  const summary = decisionSummaryCopy(status)
+  const balanceState = status === 'PROPOSED' || status === 'NEEDS_REVIEW' ? 'Unchanged' : status === 'APPLIED' ? 'Updated' : status === 'REVERSED' ? 'Restored' : 'Check now'
+  return <section className={`panel decision-summary decision-summary-${status.toLowerCase()}`} aria-labelledby="decision-summary-heading">
+    <div className="decision-summary-top">
+      <div>
+        <p className="eyebrow">Decision</p>
+        <div className="decision-heading-line"><h2 id="decision-summary-heading">{summary.title}</h2><span className={`status-pill status-${status.toLowerCase()}`}>{summary.label}</span></div>
+        <p className="decision-description">{summary.description}</p>
+        {reason && <p className="decision-reason">Why: {reason}</p>}
+      </div>
+      {canEdit && <button className="button button-secondary" type="button" onClick={onEdit}>Edit allocation</button>}
+    </div>
+    <div className="decision-summary-lines">
+      <div><span>Proposed cash</span><strong>{money(proposedCash)}</strong></div>
+      <div><span>Proposed credit</span><strong>{money(proposedCredit)}</strong></div>
+      <div><span>Current balances</span><strong>{balanceState}</strong></div>
+    </div>
+  </section>
 }
 
-function decisionStateLabel(status: string) {
+function decisionReason(value: string) {
+  const normalized = value.replace(/^bounded interpretation:\s*/i, '')
+  if (normalized === 'rules-v2-conservative') return 'Deterministic rules found a supported allocation.'
+  if (normalized === 'human-correction') return 'A reviewer supplied this allocation.'
+  if (normalized === 'amount_only') return 'The amount matches, but the evidence does not identify the invoice.'
+  if (normalized === 'unsupported_evidence') return 'The available evidence does not support a safe allocation.'
+  return interpretationReason(normalized) ?? readableCode(normalized) ?? value
+}
+
+function decisionSummaryCopy(status: string) {
   switch (status) {
-    case 'NEEDS_REVIEW': return 'Needs review'
-    case 'STALE': return 'Stale revision'
-    case 'APPLIED': return 'Applied allocation'
-    case 'REVERSED': return 'Reversed allocation'
-    case 'PROPOSED': return 'Ready for reviewer approval'
-    default: return status || 'Unknown decision state'
+    case 'NEEDS_REVIEW': return { label: 'Needs review', title: 'No safe allocation selected', description: 'The available evidence does not support one allocation yet. Resolve it manually or add evidence; no balances have changed.' }
+    case 'STALE': return { label: 'Needs refresh', title: 'This proposal needs a fresh review', description: 'The underlying payment or balance changed. Check the current evidence before making a decision.' }
+    case 'APPLIED': return { label: 'Applied internally', title: 'Allocation recorded for review history', description: 'A reviewer approved this internal allocation. It records how the payment was assigned; it does not move money in a bank account.' }
+    case 'REVERSED': return { label: 'Reversed', title: 'Allocation was reversed', description: 'The previous internal allocation was reversed and remains in the audit history.' }
+    case 'PROPOSED': return { label: 'Ready for approval', title: 'Suggested allocation ready for review', description: 'The evidence supports the allocation shown below. A human reviewer must approve it before any internal balances change.' }
+    default: return { label: 'Decision status', title: 'Review the payment allocation', description: 'Inspect the evidence and current balances before taking a financial action.' }
   }
+}
+
+function allocationEffectCopy(status: string) {
+  if (status === 'APPLIED') return { eyebrow: 'Recorded effect', title: 'What this allocation recorded', description: 'This is the internal allocation a reviewer approved. It does not move money in a bank account.' }
+  if (status === 'REVERSED') return { eyebrow: 'Reversed effect', title: 'What this allocation recorded before reversal', description: 'These lines remain available in the audit history after the internal allocation was reversed.' }
+  return { eyebrow: 'Proposed effect', title: 'What this allocation would record', description: 'These are suggestions for the reviewer. Current balances stay unchanged until approval.' }
+}
+
+function currentBalancesDescription(status: string) {
+  if (status === 'APPLIED') return 'Authoritative amounts returned by the server after the internal allocation was recorded.'
+  if (status === 'REVERSED') return 'Authoritative amounts returned by the server after the internal allocation was reversed.'
+  if (status === 'STALE') return 'Authoritative amounts returned by the server; refresh the proposal before taking action.'
+  return 'Authoritative amounts returned by the server. They stay unchanged until a reviewer approves the proposal.'
+}
+
+export function shouldShowInterpretation(status: string, hasInterpretation: boolean) {
+  return status === 'NEEDS_REVIEW' || hasInterpretation
 }
 
 function CanonicalAllocationLines({ title, lines, kind }: { title: string; lines: (CashLine | CreditLine)[]; kind: 'cash' | 'credit' }) {
@@ -517,21 +562,43 @@ export function SourceViewer({ sourceId, source, busy, error, onClose }: { sourc
 export function CasesView({ registry, busy, progress, onOpen }: { registry?: CaseRegistry; busy: string; progress?: string; onOpen: (caseId: string) => Promise<void> }) {
   const cases = registry?.cases ?? []
   const bundled = cases.find((item) => item.id === 'bundle')
+  const registeredBundleStory = registry?.version === 'v1' && bundled?.amount === 5_400_000
   return <>
-    <PageHeading eyebrow="Case study workspace" title="Start with a bundled payment case" description="Walk through one payment, several plausible invoices, the evidence behind each match, and the reviewer decision." />
+    <PageHeading eyebrow="Case study workspace" title="Which invoices does this payment settle?" description="Reconcile turns synthetic payment evidence into an explicit allocation proposal that a human reviewer can approve." />
     <section className="case-hero panel" aria-labelledby="case-hero-heading">
-      <div>
-        <p className="eyebrow">Recommended first step</p>
-        <h2 id="case-hero-heading">See one payment become a reviewable decision</h2>
-        <p className="muted">Open the bundled payment to compare several plausible invoices, inspect its evidence, and decide what a reviewer should do. Nothing is applied automatically.</p>
+      <div className="case-hero-copy">
+        <p className="eyebrow">{registeredBundleStory ? 'Registered demo · bundle v1' : 'Recommended first step'}</p>
+        <h2 id="case-hero-heading">{registeredBundleStory ? 'MX$54,000 arrives with a tempting wrong answer' : bundled ? `${bundled.title} is ready for review` : 'See a payment become a reviewable decision'}</h2>
+        <p className="muted">{registeredBundleStory ? 'An exact-amount invoice is an easy guess, but the payment message supports a split across invoice A and invoice B plus a linked credit.' : bundled ? 'Open the registered bundle to inspect its payment, evidence, proposed allocation, and reviewer controls.' : 'Open a registered case to inspect its payment, evidence, proposed allocation, and reviewer controls.'}</p>
+        <p className="case-hero-note"><strong>Synthetic example.</strong> Processing is real, but a human reviewer approves every allocation. Reconcile does not move bank money.</p>
       </div>
-      <div>{progress && <p className="case-progress" role="status" aria-live="polite">{progress}</p>}<button className="button button-primary" type="button" disabled={!bundled || Boolean(busy)} onClick={() => bundled && void onOpen(bundled.id)}>{busy === 'bundle' ? 'Opening bundled case…' : 'Open bundled payment case'}</button></div>
+      {registeredBundleStory ? <div className="case-ledger" aria-label="Registered bundle v1 payment story">
+        <div className="ledger-label">Incoming payment</div><strong className="ledger-payment">MX$54,000</strong>
+        <div className="ledger-row ledger-temptation"><span>Tempting guess</span><strong>Invoice · MX$54,000</strong><em>Amount only</em></div>
+        <div className="ledger-rule" aria-hidden="true" />
+        <div className="ledger-label">Message-supported split</div>
+        <div className="ledger-row"><span>Invoice A · cash</span><strong>MX$30,000</strong></div>
+        <div className="ledger-row"><span>Invoice B · cash</span><strong>MX$24,000</strong></div>
+        <div className="ledger-row"><span>Invoice B · linked credit</span><strong>MX$1,000</strong></div>
+      </div> : <div className="case-ledger case-ledger-fallback"><div className="ledger-label">Registered payment</div><strong className="ledger-payment">{bundled ? money(bundled.amount) : 'Waiting for a case'}</strong><p>{bundled?.description ?? 'The server did not return a bundled case.'}</p></div>}
+      <div className="case-hero-action">{progress && <p className="case-progress" role="status" aria-live="polite">{progress}</p>}<button className="button button-primary" type="button" aria-describedby="case-hero-action-help" disabled={!bundled || Boolean(busy)} onClick={() => bundled && void onOpen(bundled.id)}>{busy === 'bundle' ? 'Opening bundled case…' : 'Open bundled payment case'}</button><span id="case-hero-action-help">Opens the saved payment, evidence, proposed allocation, and review controls.</span></div>
     </section>
     <section aria-labelledby="case-library-heading">
       <div className="section-heading"><div><p className="eyebrow">Case library</p><h2 id="case-library-heading">Choose a scenario</h2></div><span className="muted">{registry?.version ?? '—'}</span></div>
-      {cases.length === 0 ? <div className="empty-state"><h2>Cases are unavailable</h2><p>The server did not return any case choices. Manual imports remain available.</p></div> : <div className="case-grid">{cases.map((item) => <button className="case-card" key={item.id} type="button" disabled={Boolean(busy)} onClick={() => void onOpen(item.id)}><span className="case-card-top"><span className="case-id mono">{item.id}</span><span className="case-amount">{money(item.amount)}</span></span><strong>{item.title}</strong><span>{item.description}</span><span className="case-card-action">{busy === item.id ? 'Opening…' : 'Open case →'}</span></button>)}</div>}
+      {cases.length === 0 ? <div className="empty-state"><h2>Cases are unavailable</h2><p>The server did not return any case choices. Manual imports remain available.</p></div> : <div className="case-grid">{cases.map((item) => <button className="case-card" key={item.id} type="button" disabled={Boolean(busy)} onClick={() => void onOpen(item.id)}><span className="case-card-top"><span className="case-id mono">{item.id}</span><span className="case-amount">{money(item.amount)}</span></span><strong>{item.title}</strong><span className="case-card-description">{item.description}</span><span className="case-card-judgment"><b>Judgment tested:</b> {caseJudgment(item.id)}</span><span className="case-card-action">{busy === item.id ? 'Opening…' : 'Open case →'}</span></button>)}</div>}
     </section>
   </>
+}
+
+function caseJudgment(id: string) {
+  switch (id) {
+    case 'straightforward': return 'whether one clear reference supports a direct match.'
+    case 'bundle': return 'whether message evidence beats a tempting exact-amount match.'
+    case 'correction': return 'how a reviewer can correct a proposed allocation before approval.'
+    case 'insufficient': return 'whether the system pauses when the evidence cannot support a full match.'
+    case 'adversarial': return 'whether conflicting evidence leads to review instead of a guess.'
+    default: return 'what evidence supports the proposed decision and when review is needed.'
+  }
 }
 
 type ImportResult = ImportValidation | (ImportCommit & { committed: true })
@@ -856,6 +923,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const balances = Object.entries(detail.balances).map(([invoice_id, balance]) => ({ invoice_id, ...balance }))
   const applicationId = appliedId || detail.application_id || undefined
   const status = detail.status.toUpperCase()
+  const effectCopy = allocationEffectCopy(status)
   const draftError = reviewDraftError(cashDraft, creditDraft)
   const hasUnsavedChanges = !reviewDraftsEqual(cashDraft, creditDraft, persistedCashDraft, persistedCreditDraft)
   const capabilities = detail.capabilities
@@ -885,6 +953,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
                 : hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.'
                   : variantBusy || reliabilityBusy ? 'Wait for the current case lab request to finish before requesting interpretation.'
                     : undefined
+  const showInterpretation = shouldShowInterpretation(status, Boolean(interpretation) || Boolean(detail.interpretation))
   const comparisonStale = Boolean(detail.comparison && !comparisonMatchesDetail(detail, detail.comparison))
   const comparison = hasUnsavedChanges || comparisonStale ? undefined : detail.comparison
   const comparisonDisabledReason = hasUnsavedChanges
@@ -1150,22 +1219,23 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
 
   return <>
     <button className="back-link" onClick={onBack}>← Back to review queue</button>
-    <PageHeading eyebrow="Allocation detail" title="Allocation detail" description={<span className="detail-page-meta">{payment.payer_name} · proposal <span className="mono">{id}</span> · revision {detail.revision} · {status}</span>} />
+    <PageHeading eyebrow="Allocation detail" title="Review this payment allocation" description={<span className="detail-page-meta">{payment.payer_name} · {money(payment.amount)} incoming · <details className="detail-record"><summary>Technical record</summary><span>Proposal <span className="mono">{id}</span> · revision {detail.revision} · server status <span className="mono">{status}</span></span></details></span>} />
     <section className="detail-grid">
       <div className="detail-main">
         <DecisionSummary detail={detail} cash={persistedCashDraft} credits={persistedCreditDraft} status={status} onEdit={() => setEditing(true)} canEdit={canCorrect && !financialActionBusy} />
         <div className="allocation-overview">
-          <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
+          <section className="panel payment-card"><div className="panel-heading"><div><p className="eyebrow">Incoming payment</p><p className="payment-payer">{payment.payer_name}</p><h2>{money(payment.amount)}</h2></div><span className={`status-pill status-${status.toLowerCase()}`}>{decisionSummaryCopy(status).label}</span></div><dl className="data-list"><Data label="Currency" value="MXN" /><Data label="Booked" value={formatDateTime(payment.booking_date)} /><Data label="Source account" value={payment.source_account_id} mono /><Data label="Transaction" value={payment.transaction_id} mono /></dl></section>
+          <div className="proposed-effects-heading"><p className="eyebrow">{effectCopy.eyebrow}</p><h2>{effectCopy.title}</h2><p>{effectCopy.description}</p></div>
           <div className="proposed-lines">
-            <CanonicalAllocationLines title="Cash applications" lines={cashLines} kind="cash" />
-            <CanonicalAllocationLines title="Credit applications" lines={creditLines} kind="credit" />
+            <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} cash applications`} lines={cashLines} kind="cash" />
+            <CanonicalAllocationLines title={`${status === 'APPLIED' ? 'Recorded' : status === 'REVERSED' ? 'Reversed' : 'Proposed'} credit applications`} lines={creditLines} kind="credit" />
           </div>
           <CanonicalEvidenceSection evidence={detail.evidence} onSource={inspectSource} />
         </div>
-        <section className="panel balances-card current-balances-card"><div className="panel-heading"><div><p className="eyebrow">Current state</p><h2>Balances and cash</h2><p className="muted">Authoritative amounts returned by the server.</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
+        <section className="panel balances-card current-balances-card"><div className="panel-heading"><div><p className="eyebrow">Current balances</p><h2>Balances and cash today</h2><p className="muted">{currentBalancesDescription(status)}</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
         <AlternativesSection alternatives={detail.alternatives} />
-        <aside className="detail-side">
-          {(status === 'NEEDS_REVIEW' || interpretation || interpretationDisabledReason) && <InterpretationAction
+        <aside className={`detail-side detail-side-${status.toLowerCase()}`}>
+          {showInterpretation && <InterpretationAction
             enabled={canInterpret}
             disabledReason={interpretationDisabledReason}
             interpretation={interpretation}
@@ -1322,12 +1392,12 @@ export function InterpretationAction({
     <div className="panel-heading">
       <div><p className="eyebrow">Optional interpretation</p><h2 id="interpretation-heading">Review with DeepSeek</h2></div>
     </div>
-    <p className="interpretation-help" id="interpretation-help">Direct reviews the saved payment evidence and candidates. Hybrid also supplies the existing rank order as context. DeepSeek never applies money; review and application remain separate.</p>
+    <p className="interpretation-help" id="interpretation-help">Use this when the deterministic result needs help reading the payment message. Direct reviews the saved evidence and candidates; Hybrid also supplies the existing rank order. The result stays a suggestion for a human reviewer and never applies money.</p>
     <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
-      <button className="button button-secondary" type="button" onClick={() => void onInterpret('direct')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help">
+      <button className="button button-secondary" type="button" onClick={() => void onInterpret('direct')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help" title="Review the saved evidence and candidates">
         {busy === 'interpret-direct' ? 'Interpreting direct…' : 'Direct'}
       </button>
-      <button className="button button-secondary" type="button" onClick={() => void onInterpret('hybrid')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help">
+      <button className="button button-secondary" type="button" onClick={() => void onInterpret('hybrid')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help" title="Review evidence with the existing rank order as context">
         {busy === 'interpret-hybrid' ? 'Interpreting hybrid…' : 'Hybrid'}
       </button>
     </div>
@@ -1426,7 +1496,7 @@ export function ApplyConfirmation({ detail, cash, credits, balances, busy, onCan
 }
 function AlternativesSection({ alternatives }: { alternatives: string[][] }) { return <section className="panel alternatives-card"><div className="panel-heading"><div><h2>Alternatives</h2><p className="muted">Plausible alternatives remain visible for review.</p></div></div>{alternatives.length === 0 ? <p className="empty-inline">No alternatives returned.</p> : <ul className="alternative-list">{alternatives.map((alternative, index) => <li key={index}><strong>{alternative.join(' → ')}</strong><span>Returned as an equally feasible combination.</span></li>)}</ul>}</section> }
 function ExportCard() { return <section className="panel export-card"><p className="eyebrow">History</p><h2>Export applications</h2><p className="muted">Download active and historical applications as RFC 4180 CSV.</p><a className="button button-secondary full-width" href={exportUrl()} download>Download CSV</a></section> }
-function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: React.ReactNode }) { return <div className="page-heading"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div> }
+function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: React.ReactNode }) { return <div className="page-heading"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><div className="page-heading-description">{description}</div></div> }
 function Data({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div><dt>{label}</dt><dd className={mono ? 'mono' : ''}>{value}</dd></div> }
 function Balance({ label, value }: { label: string; value?: number }) { return <div className="balance"><span>{label}</span><strong>{money(value)}</strong></div> }
 function EmptyState({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) { return <div className="empty-state"><span className="empty-symbol" aria-hidden="true">○</span><h2>{title}</h2><p>{body}</p>{action}</div> }
