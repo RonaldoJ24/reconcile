@@ -282,7 +282,7 @@ describe('case study surfaces', () => {
     expect(markup).toContain('case-bundle-target-a')
     expect(markup).toContain('case-bundle-credit')
     expect(markup).toContain('Apply invoices case-bundle-target-a and case-bundle-target-b credit note case-bundle-credit to case-bundle-target-b.')
-    expect(markup).toContain('exact-amount decoy')
+    expect(markup).toContain('leaves out the exact-amount invoice')
   })
 
   it('does not carry the registered decoy story into a changed variant or correction', () => {
@@ -299,8 +299,24 @@ describe('case study surfaces', () => {
     ] as unknown as ProposalDetail[]) {
       const markup = renderToString(<DecisionSummary detail={detail} status="NEEDS_REVIEW" cash={[]} credits={[]} canEdit={false} onEdit={() => {}} />)
       expect(markup).not.toContain('exact-amount decoy')
-      expect(markup).toContain('Actual proposal lines')
+      expect(markup).toContain('No safe allocation selected')
+      expect(markup).not.toContain('Proposed cash')
     }
+  })
+
+  it('explains why the registered insufficient case cannot be allocated', () => {
+    const detail = {
+      payment: { amount: 1000000 },
+      case: { id: 'insufficient', version: 'v1', variant: 'original' },
+      reason: 'unrecognized_source_text',
+      cash: [], credits: [], evidence: [],
+    } as unknown as ProposalDetail
+    const markup = renderToString(<DecisionSummary detail={detail} status="NEEDS_REVIEW" cash={[]} credits={[]} canEdit={false} onEdit={() => {}} />)
+
+    expect(markup).toContain('Two invoices fit; the message picks neither')
+    expect(markup).toContain('balances unchanged')
+    expect(markup).not.toContain('unrecognized source text')
+    expect(markup).not.toContain('Proposed cash')
   })
 
   it('keeps interpretation available for unresolved work and gives proposed work the reviewer lead', () => {

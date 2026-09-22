@@ -413,3 +413,22 @@ recovery. The final trace normalization passed all six workflow PostgreSQL tests
 in 121.13 seconds, plus Ruff/mypy/diff checks. Deployment follows this acceptance;
 exact evidence and the subsequent deployment are recorded in
 `reports/portfolio-v2/flow-audit-2026-09-22.md` and the associated pull request.
+
+## Demo story and reviewer view — 2026-09-22
+
+The Cases entry point now walks through the registered bundle as a payment
+decision: the tempting exact-amount invoice, the message-supported split, the
+linked credit, and the required human approval. The allocation detail repeats
+that story only when the persisted case, amounts, lines, and source evidence
+match the registered original; changed variants and corrections use the actual
+server result. Unresolved cases explain why no allocation was proposed and
+omit empty cash, credit, evidence, and alternative panels. Desktop actions begin
+beside the decision; mobile actions follow the core evidence. A resolved proposal
+does not show an inactive DeepSeek panel. The preview is labeled synthetic.
+
+Validation: 58 frontend tests, TypeScript typecheck, production build, and diff
+whitespace checks passed. Actual browser inspection covered the bundle and
+insufficient cases at desktop and mobile sizes. This changes presentation only;
+financial rules, provider limits, and application guards are unchanged. It does
+not claim production matching accuracy or customer savings. The branch is ready
+for review and has not been deployed to the hosted preview.
