@@ -368,3 +368,29 @@ were retained in the owner's visual-review output directory. This was a visual
 acceptance pass, not a new financial end-to-end suite or live-provider benchmark.
 The owner authorized deployment to the existing Render Free preview; deployment
 identity and hosted verification are recorded on the associated pull request.
+
+## Flow audit and interpretation progress — 2026-09-22
+
+Based on `2370497`, Direct/Hybrid now stream observed workflow stages and elapsed
+time, clear obsolete results on a new attempt, and abort/discard obsolete work
+when leaving a proposal. New revisions retain live/cache provenance and completed
+stages in the existing decision history. DeepSeek eligibility, case opening and
+import completion have explicit status text. A structured CSRF rejection refreshes
+the session and retries once, resolving the reproduced cross-tab failure.
+
+Prompt v2 omits redundant model-visible bookkeeping while preserving candidates,
+amounts and citations; the full request still controls validation and cache identity.
+The nine-invoice regression now measures 6,102 bytes Direct / 6,847 Hybrid under
+the unchanged 8,000-byte ceiling. Spending caps and explicit financial approval
+remain unchanged. Cancellation preserves usage accounting and cannot guarantee
+an already-running provider HTTP request stops.
+
+Validation: 1,104 offline backend tests, nine prompt/provider tests, six workflow
+PostgreSQL tests, two route/auth PostgreSQL tests, 47 frontend tests, Ruff, mypy,
+TypeScript and production build. Actual desktop/mobile inspection covered streamed
+stub progress, larger-session Direct/Hybrid, cache replay, persisted traces,
+navigation cancellation, imports, correction, approval/reversal and cross-tab
+recovery. The final trace normalization passed all six workflow PostgreSQL tests
+in 121.13 seconds, plus Ruff/mypy/diff checks. Deployment follows this acceptance;
+exact evidence and the subsequent deployment are recorded in
+`reports/portfolio-v2/flow-audit-2026-09-22.md` and the associated pull request.

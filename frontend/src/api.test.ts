@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, applyCaseVariant, applyProposal, compareProposal, createSession, getEvaluation, getSource, runReliabilityCheck } from './api'
+import { ApiError, applyCaseVariant, applyProposal, compareProposal, createSession, getEvaluation, getSource, runReliabilityCheck, streamInterpretProposal } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -93,5 +93,110 @@ describe('API transport boundary', () => {
       method: 'POST',
       body: JSON.stringify({ expected_revision: 2, experiment: 'invalid_citation' }),
     }))
+  })
+
+  it('refreshes the session once for a proven CSRF rejection and retries the same mutation', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-old' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'csrf_required', message: 'CSRF token required' } }), { status: 403 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-new' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'APPLIED' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createSession()
+    await expect(applyProposal('proposal-1', { expected_revision: 1 })).resolves.toMatchObject({ status: 'APPLIED' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    const firstRetry = new Headers(fetchMock.mock.calls[1][1].headers)
+    const secondRetry = new Headers(fetchMock.mock.calls[3][1].headers)
+    expect(firstRetry.get('X-CSRF-Token')).toBe('csrf-old')
+    expect(secondRetry.get('X-CSRF-Token')).toBe('csrf-new')
+    expect(fetchMock.mock.calls[3][1].body).toBe(JSON.stringify({ expected_revision: 1 }))
+  })
+
+  it('parses chunked progress events and returns the existing interpretation response', async () => {
+    const response = JSON.stringify({
+      proposal_id: 'proposal-1', revision: 2, status: 'NEEDS_REVIEW',
+      interpretation: { status: 'needs_review', source: 'none', mode: 'direct' },
+    })
+    const chunks = [
+      'event: progress\ndata: {"stage":{"stage":"reserve_and_call","status":"running","summary":"Wait',
+      'ing"}}\n\n' + `event: complete\ndata: ${response}\n\n`,
+    ]
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder()
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-stream' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createSession()
+    const progress: string[] = []
+    await expect(streamInterpretProposal('proposal-1', 'direct', (item) => progress.push(item.summary))).resolves.toMatchObject({
+      proposal_id: 'proposal-1', revision: 2,
+    })
+    expect(progress).toEqual(['Waiting'])
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/proposals/proposal-1/interpret/stream')
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).get('X-CSRF-Token')).toBe('csrf-stream')
+  })
+
+  it('refreshes a stale CSRF token once before retrying the interpretation stream', async () => {
+    const response = JSON.stringify({
+      proposal_id: 'proposal-1', revision: 3, status: 'NEEDS_REVIEW',
+      interpretation: { status: 'needs_review', source: 'none', mode: 'hybrid' },
+    })
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`event: complete\ndata: ${response}\n\n`))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-old' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'csrf_required', message: 'CSRF token required' } }), { status: 403 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-new' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createSession()
+    await expect(streamInterpretProposal('proposal-1', 'hybrid', () => {})).resolves.toMatchObject({ revision: 3 })
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(new Headers(fetchMock.mock.calls[1][1].headers).get('X-CSRF-Token')).toBe('csrf-old')
+    expect(new Headers(fetchMock.mock.calls[3][1].headers).get('X-CSRF-Token')).toBe('csrf-new')
+    expect(fetchMock.mock.calls[3][1].body).toBe(JSON.stringify({ mode: 'hybrid' }))
+  })
+
+  it('rejects an incomplete stream after preserving progress received before the disconnect', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('event: progress\ndata: {"stage":{"stage":"reserve_and_call","status":"running"}}\n\n'))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'local', csrf_token: 'csrf-incomplete' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createSession()
+    const progress: string[] = []
+    await expect(streamInterpretProposal('proposal-1', 'direct', (item) => progress.push(item.stage))).rejects.toMatchObject({ code: 'stream_incomplete' })
+    expect(progress).toEqual(['reserve_and_call'])
+  })
+
+  it('propagates an aborted stream request without retrying or re-executing it', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('The operation was aborted.', 'AbortError'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(streamInterpretProposal('proposal-1', 'direct', () => {}, controller.signal)).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

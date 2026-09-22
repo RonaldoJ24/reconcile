@@ -11,7 +11,7 @@ import {
   getEvaluation,
   getProposal,
   getSource,
-  interpretProposal,
+  streamInterpretProposal,
   listCases,
   listImports,
   listProposals,
@@ -43,6 +43,7 @@ import type {
   EvaluationResponse,
   Interpretation,
   InterpretationMode,
+  InterpretationProgress,
   JobState,
   Mode,
   ProposalDetail,
@@ -242,6 +243,7 @@ function App() {
   const [proposals, setProposals] = useState<ProposalSummary[]>([])
   const [imports, setImports] = useState<ImportSummary[]>([])
   const [caseBusy, setCaseBusy] = useState('')
+  const [caseProgress, setCaseProgress] = useState('')
   const [caseError, setCaseError] = useState('')
   const [startup, setStartup] = useState(true)
   const [error, setError] = useState('')
@@ -325,13 +327,32 @@ function App() {
   const openCase = async (caseId: string) => {
     if (caseBusy) return
     setCaseBusy(caseId)
+    setCaseProgress('Preparing the payment evidence…')
     setCaseError('')
     setError('')
     try {
       const opened: CaseOpen = await openCaseRequest(caseId)
       if (opened.jobs.length > 0) {
-        await runJobsUntilSettled(runJobOnce, () => {}, async () => {})
+        await runJobsUntilSettled(
+          runJobOnce,
+          (job) => {
+            const state = job.status.toUpperCase()
+            setCaseProgress(
+              state === 'RUNNING'
+                ? 'Matching the payment to the available invoices…'
+                : state === 'PENDING'
+                  ? 'Matching work is queued…'
+                  : state === 'SUCCEEDED'
+                    ? 'Matching complete; loading the review result…'
+                    : state === 'FAILED'
+                      ? 'Matching could not complete; checking the saved review state…'
+                      : 'Checking the payment result…',
+            )
+          },
+          async () => {},
+        )
       }
+      setCaseProgress('Loading the review result…')
       const nextProposals = await listProposals()
       setProposals(nextProposals)
       const proposal = nextProposals.find((item) => item.payment_id === opened.payment_id)
@@ -341,6 +362,7 @@ function App() {
       setCaseError(errorText(cause))
     } finally {
       setCaseBusy('')
+      setCaseProgress('')
     }
   }
 
@@ -393,7 +415,7 @@ function App() {
         <main id="main-content" className="main-content" tabIndex={-1}>
           <div className="content-wrap">
             {(error || caseError) && <ErrorBanner message={error || caseError} onDismiss={() => { setError(''); setCaseError('') }} />}
-            {screen === 'cases' && <CasesView registry={caseRegistry} busy={caseBusy} onOpen={openCase} />}
+            {screen === 'cases' && <CasesView registry={caseRegistry} busy={caseBusy} progress={caseProgress} onOpen={openCase} />}
             {screen === 'imports' && <ImportsView mode={mode} imports={imports} onError={setError} onRefresh={refresh} />}
             {screen === 'queue' && <QueueView proposals={proposals} onOpen={openDetail} onRefresh={refresh} onError={setError} />}
             {screen === 'evaluation' && <><PageHeading eyebrow="Evaluation" title="Evaluation" description="What the preserved report measured." /><EvaluationView evaluation={evaluation} loading={evaluationLoading} error={evaluationError} onRetry={retryEvaluation} /></>}
@@ -467,7 +489,7 @@ export function SourceViewer({ sourceId, source, busy, error, onClose }: { sourc
   return <dialog className="source-dialog" ref={dialogRef} aria-labelledby="source-viewer-heading" onCancel={(event) => { event.preventDefault(); onClose() }}><div className="source-dialog-heading"><div><p className="eyebrow">Source record</p><h2 id="source-viewer-heading">{source?.kind ?? 'Source'} content</h2><p className="source-id">Source <span className="mono">{sourceId}</span></p></div><button className="icon-button" type="button" aria-label="Close source" onClick={onClose}>×</button></div>{busy && <p role="status">Loading authenticated source…</p>}{error && <p className="draft-status draft-error" role="alert">{error}</p>}{source && <><div className="source-content-block"><p className="eyebrow">Source content</p><pre className="source-content">{source.raw_text ?? source.text ?? JSON.stringify(source.rows, null, 2)}</pre></div><details className="source-provenance"><summary>Source provenance</summary><dl className="source-meta"><Data label="Source ID" value={source.source_id} mono /><Data label="Version" value={source.version === undefined ? 'Not returned' : String(source.version)} /><Data label="SHA-256" value={source.sha256} mono /><Data label="Bytes" value={String(source.bytes)} /></dl><details className="trace-raw"><summary>Exact source metadata</summary><pre>{JSON.stringify({ version: source.version ?? null, metadata: source.metadata, row_locators: source.row_locators, issues: source.issues }, null, 2)}</pre></details></details></>}<div className="confirmation-actions"><button className="button button-secondary" type="button" onClick={onClose}>Close source</button></div></dialog>
 }
 
-export function CasesView({ registry, busy, onOpen }: { registry?: CaseRegistry; busy: string; onOpen: (caseId: string) => Promise<void> }) {
+export function CasesView({ registry, busy, progress, onOpen }: { registry?: CaseRegistry; busy: string; progress?: string; onOpen: (caseId: string) => Promise<void> }) {
   const cases = registry?.cases ?? []
   const bundled = cases.find((item) => item.id === 'bundle')
   return <>
@@ -478,7 +500,7 @@ export function CasesView({ registry, busy, onOpen }: { registry?: CaseRegistry;
         <h2 id="case-hero-heading">See one payment become a reviewable decision</h2>
         <p className="muted">Open the bundled payment to compare several plausible invoices, inspect its evidence, and decide what a reviewer should do. Nothing is applied automatically.</p>
       </div>
-      <button className="button button-primary" type="button" disabled={!bundled || Boolean(busy)} onClick={() => bundled && void onOpen(bundled.id)}>{busy === 'bundle' ? 'Opening bundled case…' : 'Open bundled payment case'}</button>
+      <div>{progress && <p className="case-progress" role="status" aria-live="polite">{progress}</p>}<button className="button button-primary" type="button" disabled={!bundled || Boolean(busy)} onClick={() => bundled && void onOpen(bundled.id)}>{busy === 'bundle' ? 'Opening bundled case…' : 'Open bundled payment case'}</button></div>
     </section>
     <section aria-labelledby="case-library-heading">
       <div className="section-heading"><div><p className="eyebrow">Case library</p><h2 id="case-library-heading">Choose a scenario</h2></div><span className="muted">{registry?.version ?? '—'}</span></div>
@@ -658,7 +680,17 @@ function ValidationResult({ result, onCommit, busy, job }: { result: ImportResul
   const issues = isValidation ? result.sources.flatMap((source) => source.issues) : []
   const committed = 'committed' in result && result.committed
   const batchId = result.batch_id
-  return <section className="panel validation-panel" aria-live="polite"><div className="panel-heading"><div><p className="eyebrow">Validation result</p><h2>{batchId ? `Batch ${batchId}` : 'Preview complete'}</h2></div><span className={`status-pill ${committed ? 'status-success' : issues.length ? 'status-review' : 'status-success'}`}>{committed ? 'Committed' : issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'}` : 'Ready to commit'}</span></div>{isValidation && <div className="count-grid"><Count label="Accepted rows" value={result.accepted} tone="good" /><Count label="Rejected rows" value={result.rejected} tone={result.rejected ? 'warn' : 'neutral'} /></div>}{issues.length > 0 && <IssueTable issues={issues} />}{batchId && <div className="validation-actions">{committed ? <span className="muted">Accepted rows are committed. Matching jobs are being processed below.</span> : <><button className="button button-primary" onClick={() => void onCommit()} disabled={Boolean(busy)}>{busy === 'commit' ? 'Committing…' : 'Commit accepted rows'}</button>{issues.length > 0 && <span className="muted">Rejected rows stay out of the commit; accepted rows can still be committed.</span>}</>}</div>}{job && <div className="job-status"><span className="status-pill">Job {job.status}</span><span className="muted">The matching worker response is shown as returned; no timing is inferred.</span></div>}</section>
+  const jobState = job?.status.toUpperCase()
+  const matchingText = jobState === 'SUCCEEDED'
+    ? 'Matching finished. The result is shown below.'
+    : jobState === 'FAILED'
+      ? 'Matching did not complete. Review the saved review state below.'
+      : jobState === 'RUNNING'
+        ? 'Matching is in progress; the saved review state will appear when it finishes.'
+        : jobState === 'PENDING'
+          ? 'Matching is queued; the saved review state will appear when it finishes.'
+          : 'Matching status is not available yet; refresh to check the saved review state.'
+  return <section className="panel validation-panel" aria-live="polite"><div className="panel-heading"><div><p className="eyebrow">Validation result</p><h2>{batchId ? `Batch ${batchId}` : 'Preview complete'}</h2></div><span className={`status-pill ${committed ? 'status-success' : issues.length ? 'status-review' : 'status-success'}`}>{committed ? 'Committed' : issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'}` : 'Ready to commit'}</span></div>{isValidation && <div className="count-grid"><Count label="Accepted rows" value={result.accepted} tone="good" /><Count label="Rejected rows" value={result.rejected} tone={result.rejected ? 'warn' : 'neutral'} /></div>}{issues.length > 0 && <IssueTable issues={issues} />}{batchId && <div className="validation-actions">{committed ? <span className="muted">{matchingText}</span> : <><button className="button button-primary" onClick={() => void onCommit()} disabled={Boolean(busy)}>{busy === 'commit' ? 'Committing…' : 'Commit accepted rows'}</button>{issues.length > 0 && <span className="muted">Rejected rows stay out of the commit; accepted rows can still be committed.</span>}</>}</div>}{job && <div className="job-status"><span className="status-pill">Job {job.status}</span><span className="muted">The matching worker response is shown as returned; no timing is inferred.</span></div>}</section>
 }
 
 function Count({ label, value, tone }: { label: string; value?: number; tone: string }) { return <div className={`count-card ${tone}`}><span>{label}</span><strong>{value ?? '—'}</strong></div> }
@@ -683,6 +715,9 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const [appliedId, setAppliedId] = useState('')
   const [interpretation, setInterpretation] = useState<Interpretation>()
   const [interpretationMessage, setInterpretationMessage] = useState('')
+  const [interpretationProgress, setInterpretationProgress] = useState<InterpretationProgress[]>([])
+  const [interpretationStartedAt, setInterpretationStartedAt] = useState<number>()
+  const [interpretationElapsedMs, setInterpretationElapsedMs] = useState(0)
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [sourceRequest, setSourceRequest] = useState<string>()
   const [sourceRecord, setSourceRecord] = useState<SourceRecord>()
@@ -702,8 +737,12 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const sourceRequestVersion = useRef(0)
   const comparisonGeneration = useRef(0)
   const reliabilityGeneration = useRef(0)
+  const detailGeneration = useRef(0)
+  const interpretationGeneration = useRef(0)
+  const interpretationAbort = useRef<AbortController | undefined>(undefined)
 
   const load = useCallback(async (preserveInterpretation = false) => {
+    const generation = ++detailGeneration.current
     comparisonGeneration.current += 1
     reliabilityGeneration.current += 1
     setComparisonError('')
@@ -713,10 +752,11 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
     setReliabilityError('')
     setReliabilityResult(undefined)
     setReliabilityBusy(false)
-    if (!id) { setLoading(false); return }
+    if (!id) { setLoading(false); return undefined }
     setLoading(true)
     try {
       const result = await getProposal(id)
+      if (detailGeneration.current !== generation) return result
       setDetail(result)
       setAppliedId(result.application_id ?? '')
       const nextCashDraft = result.cash.map(cashLineToDraft)
@@ -729,10 +769,46 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
       applyAttemptRef.current = undefined
       setEditing(false)
       if (!preserveInterpretation) setInterpretation(result.interpretation ?? undefined)
-    } catch (cause) { onError(errorText(cause)) } finally { setLoading(false) }
+      return result
+    } catch (cause) {
+      if (detailGeneration.current === generation) onError(errorText(cause))
+      return undefined
+    } finally {
+      if (detailGeneration.current === generation) setLoading(false)
+    }
   }, [id, onError])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    interpretationAbort.current?.abort()
+    interpretationGeneration.current += 1
+    detailGeneration.current += 1
+    setBusy('')
+    setInterpretation(undefined)
+    setInterpretationMessage('')
+    setInterpretationProgress([])
+    setInterpretationStartedAt(undefined)
+    setInterpretationElapsedMs(0)
+    void load()
+    return () => {
+      detailGeneration.current += 1
+      interpretationGeneration.current += 1
+      interpretationAbort.current?.abort()
+      interpretationAbort.current = undefined
+      setBusy('')
+      setInterpretation(undefined)
+      setInterpretationMessage('')
+      setInterpretationProgress([])
+      setInterpretationStartedAt(undefined)
+    }
+  }, [id, load])
+
+  useEffect(() => {
+    if (interpretationStartedAt === undefined) return
+    const update = () => setInterpretationElapsedMs(Math.max(0, performance.now() - interpretationStartedAt))
+    update()
+    const timer = window.setInterval(update, 250)
+    return () => window.clearInterval(timer)
+  }, [interpretationStartedAt])
 
   if (loading) return <div className="loading-card" role="status">Loading allocation detail…</div>
   if (!detail) return <EmptyState title="Allocation unavailable" body="The server did not return this proposal." action={<button className="button button-secondary" onClick={onBack}>Back to queue</button>} />
@@ -754,10 +830,24 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const canReverse = status === 'APPLIED' && (capabilities?.reverse ?? sessionCapabilities?.reverse ?? true)
   const interpretationEnabled = capabilities?.interpret ?? sessionCapabilities?.interpret ?? false
   const canInterpret = status === 'NEEDS_REVIEW' && !hasUnsavedChanges && interpretationEnabled && !variantBusy && !reliabilityBusy
-  const interpretationDisabledReason = status === 'NEEDS_REVIEW' && (capabilities?.interpret === false || (capabilities?.interpret === undefined && sessionCapabilities?.interpret === false))
-    ? 'Live interpretation is disabled for this session.'
-    : status === 'NEEDS_REVIEW' && hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.'
-      : status === 'NEEDS_REVIEW' && (variantBusy || reliabilityBusy) ? 'Wait for the current case lab request to finish before requesting interpretation.' : undefined
+  const provenance = typeof detail.trace?.mode === 'string' ? detail.trace.mode : detail.decision_trace?.source
+  const interpretationDisabledReason = status === 'APPLIED'
+    ? 'DeepSeek is unavailable because this allocation is already applied. Review details remain available for reversal.'
+    : status === 'REVERSED'
+      ? 'DeepSeek is unavailable because this allocation has been reversed. The financial history remains immutable.'
+      : status === 'PROPOSED' && provenance === 'rules-v2-conservative'
+        ? 'DeepSeek was not needed because the deterministic rules resolved this proposal. A reviewer must still apply it.'
+        : status === 'PROPOSED' && provenance === 'human-correction'
+          ? 'DeepSeek is unavailable for this revision because a reviewer supplied the allocation.'
+          : status === 'PROPOSED' && typeof provenance === 'string' && provenance.startsWith('llm-')
+            ? 'DeepSeek is unavailable because this revision already contains an interpretation result.'
+            : status !== 'NEEDS_REVIEW'
+              ? 'DeepSeek is available only for proposals that still need review.'
+              : capabilities?.interpret === false || (capabilities?.interpret === undefined && sessionCapabilities?.interpret === false)
+                ? 'Live interpretation is disabled for this session.'
+                : hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.'
+                  : variantBusy || reliabilityBusy ? 'Wait for the current case lab request to finish before requesting interpretation.'
+                    : undefined
   const comparisonStale = Boolean(detail.comparison && !comparisonMatchesDetail(detail, detail.comparison))
   const comparison = hasUnsavedChanges || comparisonStale ? undefined : detail.comparison
   const comparisonDisabledReason = hasUnsavedChanges
@@ -946,21 +1036,44 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   }
 
   const interpret = async (requestedMode: InterpretationMode) => {
+    interpretationAbort.current?.abort()
+    const generation = ++interpretationGeneration.current
+    const controller = new AbortController()
+    interpretationAbort.current = controller
     setBusy(`interpret-${requestedMode}`)
+    setInterpretation(undefined)
     setInterpretationMessage('')
+    setInterpretationProgress([])
+    setInterpretationStartedAt(performance.now())
+    setInterpretationElapsedMs(0)
     onError('')
     try {
-      const result = await interpretProposal(id, requestedMode)
+      const result = await streamInterpretProposal(
+        id,
+        requestedMode,
+        (progress) => {
+          if (interpretationGeneration.current !== generation) return
+          setInterpretationProgress((current) => [...current.filter((item) => item.stage !== progress.stage), progress])
+        },
+        controller.signal,
+      )
+      if (interpretationGeneration.current !== generation) return
       setInterpretation(result.interpretation)
       try {
         await load(true)
+        if (interpretationGeneration.current !== generation) return
         await onRefresh()
+        if (interpretationGeneration.current !== generation) return
       } catch (refreshCause) {
+        if (interpretationGeneration.current !== generation) return
         onError(errorText(refreshCause))
       }
     } catch (cause) {
+      if (interpretationGeneration.current !== generation) return
       const message = cause instanceof ApiError
         ? cause.message
+        : cause instanceof DOMException && cause.name === 'AbortError'
+          ? 'Interpretation stopped before the result was received. Refresh the proposal to confirm its saved state.'
         : cause instanceof Error ? cause.message : 'Interpretation request failed.'
       setInterpretation({
         status: 'unavailable',
@@ -971,12 +1084,19 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
       setInterpretationMessage(message)
       try {
         await load(true)
+        if (interpretationGeneration.current !== generation) return
         await onRefresh()
+        if (interpretationGeneration.current !== generation) return
       } catch (refreshCause) {
+        if (interpretationGeneration.current !== generation) return
         onError(errorText(refreshCause))
       }
     } finally {
-      setBusy('')
+      if (interpretationGeneration.current === generation) {
+        setBusy('')
+        setInterpretationStartedAt(undefined)
+        if (interpretationAbort.current === controller) interpretationAbort.current = undefined
+      }
     }
   }
 
@@ -997,7 +1117,7 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
         <section className="panel balances-card current-balances-card"><div className="panel-heading"><div><p className="eyebrow">Current state</p><h2>Balances and cash</h2><p className="muted">Authoritative amounts returned by the server.</p></div></div><div className="balance-grid"><Balance label="Unapplied cash" value={detail.unapplied_cash} /><Balance label="Payment" value={payment.amount} /></div>{balances.length > 0 && <div className="table-wrap"><table><caption>Remaining balances</caption><thead><tr><th>Invoice</th><th>Opening</th><th>Cash used</th><th>Credit used</th><th>Remaining</th></tr></thead><tbody>{balances.map((balance) => <tr key={balance.invoice_id}><td className="mono">{balance.invoice_id}</td><td>{money(balance.opening_amount)}</td><td>{money(balance.cash_applied)}</td><td>{money(balance.credit_applied)}</td><td>{money(balance.remaining_amount)}</td></tr>)}</tbody></table></div>}</section>
         <AlternativesSection alternatives={detail.alternatives} />
         <aside className="detail-side">
-          {(status === 'NEEDS_REVIEW' || interpretation) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} onInterpret={interpret} />}
+          {(status === 'NEEDS_REVIEW' || interpretation || interpretationDisabledReason) && <InterpretationAction enabled={canInterpret} disabledReason={interpretationDisabledReason} interpretation={interpretation} message={interpretationMessage} busy={busy} progress={interpretationProgress} elapsedMs={interpretationElapsedMs} onInterpret={interpret} />}
           <section className="panel action-panel">
             <div className="panel-heading"><div><p className="eyebrow">Review action</p><h2>Confirm or correct</h2></div></div>
             <label>Reviewer name<input value={reviewer} onChange={(e) => setReviewer(e.target.value)} required placeholder="Your name" disabled={financialActionBusy || (!canCorrect && !canReverse && !canApply)} /></label>
@@ -1068,6 +1188,8 @@ export function InterpretationAction({
   interpretation,
   message,
   busy,
+  progress = [],
+  elapsedMs = 0,
   onInterpret,
 }: {
   enabled: boolean
@@ -1075,13 +1197,17 @@ export function InterpretationAction({
   interpretation?: Interpretation
   message: string
   busy: string
+  progress?: InterpretationProgress[]
+  elapsedMs?: number
   onInterpret: (mode: InterpretationMode) => Promise<void>
 }) {
+  const activeMode = busy.startsWith('interpret-') ? busy.slice('interpret-'.length) : ''
+  const elapsed = `${(elapsedMs / 1000).toFixed(1)}s`
   return <section className="panel interpretation-panel" aria-labelledby="interpretation-heading">
     <div className="panel-heading">
       <div><p className="eyebrow">Optional interpretation</p><h2 id="interpretation-heading">Review with DeepSeek</h2></div>
     </div>
-    <p className="interpretation-help" id="interpretation-help">This is a bounded interpretation of the existing evidence and candidates. DeepSeek never applies money; review and application remain separate.</p>
+    <p className="interpretation-help" id="interpretation-help">Direct reviews the saved payment evidence and candidates. Hybrid also supplies the existing rank order as context. DeepSeek never applies money; review and application remain separate.</p>
     <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
       <button className="button button-secondary" type="button" onClick={() => void onInterpret('direct')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help">
         {busy === 'interpret-direct' ? 'Interpreting direct…' : 'Direct'}
@@ -1090,6 +1216,7 @@ export function InterpretationAction({
         {busy === 'interpret-hybrid' ? 'Interpreting hybrid…' : 'Hybrid'}
       </button>
     </div>
+    {activeMode && <div className="interpretation-progress" role="status" aria-live="polite"><strong>{activeMode === 'hybrid' ? 'Hybrid interpretation in progress' : 'Direct interpretation in progress'}</strong><span>Elapsed {elapsed}</span>{progress.filter((item) => item.stage !== 'workflow').length > 0 && <ol>{progress.filter((item) => item.stage !== 'workflow').map((item) => <li key={item.stage} className={`progress-${item.status}`}><span>{progressLabel(item.stage)}</span><span>{progressSummary(item)}</span></li>)}</ol>}</div>}
     {!enabled && disabledReason && <p className="interpretation-detail interpretation-disabled" role="status">{disabledReason}</p>}
     {!enabled && interpretation && <p className="interpretation-detail interpretation-complete">This result is attached to the refreshed proposal. Financial application still requires a reviewer.</p>}
     {interpretation && <div className={`interpretation-result interpretation-${interpretation.status}`} role="status" aria-live="polite">
@@ -1100,6 +1227,33 @@ export function InterpretationAction({
       {interpretation.failure_code && !message && <span className="interpretation-detail">Failure code: <span className="mono">{interpretation.failure_code}</span></span>}
     </div>}
   </section>
+}
+
+function progressLabel(stage: string) {
+  switch (stage) {
+    case 'load_observations': return 'Preparing payment evidence'
+    case 'enumerate_candidates': return 'Preparing possible matches'
+    case 'rank_if_hybrid': return 'Checking optional rank context'
+    case 'compile_and_validate': return 'Checking the request'
+    case 'read_cache': return 'Checking for a saved result'
+    case 'reserve_and_call': return 'Waiting for DeepSeek'
+    case 'validate_and_cache': return 'Checking the proposed match'
+    case 'record_proposal_revision': return 'Preparing the review result'
+    case 'workflow': return 'Workflow'
+    default: return 'Working'
+  }
+}
+
+function progressSummary(progress: InterpretationProgress) {
+  if (progress.status === 'failed') return 'Needs attention before a result can be shown.'
+  if (progress.status === 'skipped') return 'Not needed for this request.'
+  if (progress.status === 'running') {
+    if (progress.stage === 'reserve_and_call') return 'Waiting for the provider response.'
+    if (progress.stage === 'record_proposal_revision') return 'Preparing the review result.'
+    return 'In progress.'
+  }
+  if (progress.stage === 'record_proposal_revision') return 'Ready for your review.'
+  return 'Done.'
 }
 
 export function toCents(value: string): number {

@@ -17,7 +17,7 @@ from pydantic import (
     model_validator,
 )
 
-PROMPT_VERSION = "reconcile-interpretation-prompt-v1"
+PROMPT_VERSION = "reconcile-interpretation-prompt-v2"
 SCHEMA_VERSION = "reconcile-interpretation-schema-v1"
 
 

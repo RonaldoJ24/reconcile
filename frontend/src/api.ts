@@ -4,6 +4,7 @@ import type {
   ImportCommit,
   InterpretationMode,
   InterpretationResponse,
+  InterpretationProgress,
   JobState,
   CorrectResponse,
   ApplyResponse,
@@ -23,6 +24,7 @@ import type {
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 let csrfToken = ''
+let sessionRefresh: Promise<Session> | undefined
 
 export class ApiError extends Error {
   status: number
@@ -52,7 +54,19 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+function responseError(response: Response, body: unknown): ApiError {
+  const error = body && typeof body === 'object' && 'error' in body
+    ? (body as { error?: { code?: string; message?: string; fields?: unknown[] } }).error
+    : undefined
+  const message = error?.message ?? (typeof body === 'string' ? body : response.statusText || 'Request failed')
+  return new ApiError(response.status, message, error?.code, error?.fields)
+}
+
+function isCsrfError(error: ApiError) {
+  return error.status === 403 && error.code === 'csrf_required'
+}
+
+async function request<T>(path: string, init: RequestInit = {}, retryCsrf = true): Promise<T> {
   const headers = new Headers(init.headers)
   if (!(init.body instanceof FormData) && init.body !== undefined) {
     headers.set('Content-Type', 'application/json')
@@ -62,19 +76,27 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(endpoint(path), { ...init, headers, credentials: 'include' })
   const body = await readBody(response)
   if (!response.ok) {
-    const error = body && typeof body === 'object' && 'error' in body
-      ? (body as { error?: { code?: string; message?: string; fields?: unknown[] } }).error
-      : undefined
-    const message = error?.message ?? (typeof body === 'string' ? body : response.statusText || 'Request failed')
-    throw new ApiError(response.status, message, error?.code, error?.fields)
+    const error = responseError(response, body)
+    if (retryCsrf && method !== 'GET' && isCsrfError(error)) {
+      await refreshSessionOnce()
+      return request<T>(path, init, false)
+    }
+    throw error
   }
   return body as T
 }
 
 export async function createSession(): Promise<Session> {
-  const session = await request<Session>('/api/v1/session', { method: 'POST', body: '{}' })
+  const session = await request<Session>('/api/v1/session', { method: 'POST', body: '{}' }, false)
   csrfToken = session.csrf_token
   return session
+}
+
+function refreshSessionOnce() {
+  if (!sessionRefresh) {
+    sessionRefresh = createSession().finally(() => { sessionRefresh = undefined })
+  }
+  return sessionRefresh
 }
 
 export function getCsrfToken() {
@@ -138,6 +160,91 @@ export function interpretProposal(id: string, mode: InterpretationMode) {
     method: 'POST',
     body: JSON.stringify({ mode }),
   })
+}
+
+export async function streamInterpretProposal(
+  id: string,
+  mode: InterpretationMode,
+  onProgress: (progress: InterpretationProgress) => void,
+  signal?: AbortSignal,
+  retryCsrf = true,
+): Promise<InterpretationResponse> {
+  const path = `/api/v1/proposals/${encodeURIComponent(id)}/interpret/stream`
+  const body = JSON.stringify({ mode })
+  const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'text/event-stream' })
+  if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  const response = await fetch(endpoint(path), {
+    method: 'POST',
+    body,
+    signal,
+    headers,
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const error = responseError(response, await readBody(response))
+    if (retryCsrf && isCsrfError(error)) {
+      await refreshSessionOnce()
+      return streamInterpretProposal(id, mode, onProgress, signal, false)
+    }
+    throw error
+  }
+  if (!response.body) throw new ApiError(502, 'Interpretation stream returned no body.', 'stream_empty')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let completed: InterpretationResponse | undefined
+  const consume = (block: string) => {
+    let event = 'message'
+    const data: string[] = []
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim()
+      else if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
+    }
+    if (!data.length) return
+    let payload: unknown
+    try {
+      payload = JSON.parse(data.join('\n')) as unknown
+    } catch {
+      throw new ApiError(502, 'Interpretation stream contained invalid data.', 'stream_invalid')
+    }
+    if (event === 'progress') {
+      if (payload && typeof payload === 'object' && 'stage' in payload) {
+        const stage = (payload as { stage?: InterpretationProgress }).stage
+        if (stage && typeof stage === 'object') onProgress(stage)
+      }
+    } else if (event === 'error') {
+      const error = payload && typeof payload === 'object' && 'error' in payload
+        ? (payload as { error?: { code?: string; message?: string; fields?: unknown[] } }).error
+        : undefined
+      throw new ApiError(502, error?.message ?? 'Interpretation stream failed.', error?.code, error?.fields)
+    } else if (event === 'complete') {
+      completed = payload as InterpretationResponse
+    }
+  }
+  try {
+    while (!completed) {
+      const next = await reader.read()
+      buffer += decoder.decode(next.value, { stream: !next.done })
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary >= 0) {
+        consume(buffer.slice(0, boundary))
+        buffer = buffer.slice(boundary + 2)
+        boundary = buffer.indexOf('\n\n')
+      }
+      if (next.done) break
+    }
+    if (buffer.trim()) consume(buffer)
+    if (!completed) throw new ApiError(502, 'Interpretation stream ended before a result.', 'stream_incomplete')
+    return completed
+  } finally {
+    try {
+      await reader.cancel()
+    } catch {
+      // The stream may already be closed or aborted.
+    }
+    reader.releaseLock()
+  }
 }
 
 export function validateImport(form: FormData) {

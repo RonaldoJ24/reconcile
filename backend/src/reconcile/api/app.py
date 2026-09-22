@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import hashlib
 import io
 import json
 import os
+import queue
 import secrets
+import threading
+import time
 import uuid
 from collections.abc import AsyncIterator, Generator
 from contextlib import asynccontextmanager
@@ -15,7 +19,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
@@ -55,7 +59,7 @@ from reconcile.interpretation.schemas import (
     ReasonCode,
     validate_result,
 )
-from reconcile.interpretation.workflow import compile_workflow
+from reconcile.interpretation.workflow import WorkflowProgress, compile_workflow
 from reconcile.jobs.lifecycle import LifecycleConsumer
 from reconcile.jobs.queue import run_once
 from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY
@@ -95,6 +99,13 @@ SESSION_COOKIE = "reconcile_session"
 LOCAL_SESSION_TTL = timedelta(hours=8)
 PREVIEW_SESSION_TTL = timedelta(hours=24)
 INTERPRETATION_WORKFLOW = compile_workflow()
+INTERPRETATION_STREAM_TIMEOUT_SECONDS = 60.0
+
+
+def _sse(event: str, payload: dict[str, object]) -> str:
+    return (
+        f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=True, separators=(',', ':'))}\n\n"
+    )
 
 
 def _sha(value: str) -> str:
@@ -135,7 +146,10 @@ def _require_mutation(request: Request, db: Session) -> tuple[DbSession, Workspa
     record, workspace = _session(request, db)
     csrf = request.headers.get("X-CSRF-Token")
     if not csrf or not secrets.compare_digest(record.csrf_hash, _sha(csrf)):
-        raise HTTPException(403, "CSRF token required")
+        raise HTTPException(
+            403,
+            detail={"code": "csrf_required", "message": "CSRF token required"},
+        )
     origin = request.headers.get("Origin")
     if origin:
         expected = str(request.base_url).rstrip("/")
@@ -1669,13 +1683,17 @@ def create_app() -> FastAPI:
             raise HTTPException(403, "provider invite is required")
         if workspace.mode == "preview":
             enforce_database_admission(db)
+        workspace_id = workspace.id
+        session_id = record.id
+        mode = body.mode
+        db.rollback()
         try:
             outcome = INTERPRETATION_WORKFLOW.run(
                 db,
-                workspace_id=workspace.id,
-                session_id=record.id,
+                workspace_id=workspace_id,
+                session_id=session_id,
                 proposal_id=proposal_id,
-                mode=body.mode,
+                mode=mode,
             )
         except ServiceError as exc:
             raise _error(exc)
@@ -1687,7 +1705,7 @@ def create_app() -> FastAPI:
         proposal = db.scalar(
             select(Proposal).where(
                 Proposal.id == proposal_id,
-                Proposal.workspace_id == workspace.id,
+                Proposal.workspace_id == workspace_id,
             )
         )
         if proposal is None:
@@ -1698,6 +1716,140 @@ def create_app() -> FastAPI:
             "status": proposal.status,
             "interpretation": outcome.api_dict(),
         }
+
+    @app.post("/api/v1/proposals/{proposal_id}/interpret/stream")
+    def interpret_proposal_stream(
+        proposal_id: uuid.UUID,
+        body: InterpretationRequestBody,
+        request: Request,
+        db: Session = Depends(_db),
+    ) -> StreamingResponse:
+        record, workspace = _require_mutation(request, db)
+        if not _effective_provider_access(record, workspace):
+            raise HTTPException(403, "provider invite is required")
+        if workspace.mode == "preview":
+            enforce_database_admission(db)
+
+        # Admission/authentication uses this session. Snapshot only primitive IDs
+        # before handing work to a fresh worker session, then release that
+        # transaction so the streaming request never shares ORM state.
+        workspace_id = workspace.id
+        session_id = record.id
+        mode = body.mode
+        db.rollback()
+
+        events: queue.Queue[tuple[str, dict[str, object]]] = queue.Queue(maxsize=64)
+        cancelled = threading.Event()
+
+        def publish(progress: WorkflowProgress) -> None:
+            payload: dict[str, object] = {
+                "proposal_id": str(proposal_id),
+                "mode": mode,
+                "stage": progress.api_dict(),
+            }
+            try:
+                events.put_nowait(("progress", payload))
+            except queue.Full:
+                cancelled.set()
+
+        def publish_error(code: str, message: str) -> None:
+            try:
+                events.put_nowait(("error", {"error": {"code": code, "message": message}}))
+            except queue.Full:
+                cancelled.set()
+
+        def worker() -> None:
+            try:
+                events.put_nowait(
+                    (
+                        "progress",
+                        {
+                            "proposal_id": str(proposal_id),
+                            "mode": mode,
+                            "stage": {
+                                "stage": "workflow",
+                                "status": "running",
+                                "summary": "Starting the interpretation workflow.",
+                            },
+                        },
+                    )
+                )
+                with SessionLocal() as worker_db:
+                    outcome = INTERPRETATION_WORKFLOW.run(
+                        worker_db,
+                        workspace_id=workspace_id,
+                        session_id=session_id,
+                        proposal_id=proposal_id,
+                        mode=mode,
+                        cancelled=cancelled.is_set,
+                        progress=publish,
+                    )
+                    proposal = worker_db.scalar(
+                        select(Proposal).where(
+                            Proposal.id == proposal_id,
+                            Proposal.workspace_id == workspace_id,
+                        )
+                    )
+                    if proposal is None:
+                        publish_error("not_found", "proposal not found")
+                        return
+                    events.put_nowait(
+                        (
+                            "complete",
+                            {
+                                "proposal_id": str(proposal.id),
+                                "revision": proposal.current_revision,
+                                "status": proposal.status,
+                                "interpretation": outcome.api_dict(),
+                            },
+                        )
+                    )
+            except ServiceError as exc:
+                publish_error(exc.code, exc.message)
+            except Exception:
+                publish_error("interpretation_unavailable", "Interpretation workflow unavailable.")
+
+        threading.Thread(target=worker, name="reconcile-interpretation-stream", daemon=True).start()
+
+        async def stream() -> AsyncIterator[bytes]:
+            deadline = time.monotonic() + INTERPRETATION_STREAM_TIMEOUT_SECONDS
+            try:
+                while True:
+                    if await request.is_disconnected():
+                        return
+                    if time.monotonic() >= deadline:
+                        yield _sse(
+                            "error",
+                            {
+                                "error": {
+                                    "code": "interpretation_timeout",
+                                    "message": (
+                                        "Interpretation stream timed out; refresh to see its "
+                                        "saved state."
+                                    ),
+                                }
+                            },
+                        ).encode()
+                        return
+                    try:
+                        event, payload = await asyncio.to_thread(events.get, True, 0.25)
+                    except queue.Empty:
+                        continue
+                    yield _sse(event, payload).encode()
+                    if event in {"complete", "error"}:
+                        return
+            finally:
+                cancelled.set()
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.post("/api/v1/proposals/{proposal_id}/apply")
     def apply_proposal(

@@ -72,15 +72,47 @@ def _safe_json(value: Any) -> str:
 
 def _request_payload(request: InterpretationRequest) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "workspace_id": request.workspace_id,
+        "mode": request.mode,
         "decision_timestamp": request.decision_timestamp.isoformat(),
-        "payment": request.payment.model_dump(mode="json"),
-        "invoices": [invoice.model_dump(mode="json") for invoice in request.invoices],
+        "payment": request.payment.model_dump(
+            mode="json",
+            include={"amount_centavos", "currency", "booking_date", "payer_name", "reference"},
+            exclude_none=True,
+        ),
+        "invoices": [
+            invoice.model_dump(
+                mode="json",
+                include={
+                    "invoice_id",
+                    "outstanding_amount_centavos",
+                    "currency",
+                    "customer_id",
+                    "customer_name",
+                    "issued_date",
+                    "due_date",
+                    "balance_as_of",
+                },
+                exclude_none=True,
+            )
+            for invoice in request.invoices
+        ],
         "candidates": [candidate.model_dump(mode="json") for candidate in request.candidates],
-        "credits": [credit.model_dump(mode="json") for credit in request.credits],
+        "credits": [
+            credit.model_dump(
+                mode="json",
+                include={
+                    "credit_note_id",
+                    "invoice_id",
+                    "available_amount_centavos",
+                    "currency",
+                    "customer_id",
+                    "balance_as_of",
+                },
+                exclude_none=True,
+            )
+            for credit in request.credits
+        ],
         "sources": [],
-        "prompt_version": request.prompt_version,
-        "schema_version": request.schema_version,
     }
     if request.mode == "hybrid":
         payload["rank_context"] = [
@@ -94,8 +126,6 @@ def _request_payload(request: InterpretationRequest) -> dict[str, Any]:
                 "source_id": span.source_id,
                 "start": span.start,
                 "end": span.end,
-                "source_hash": span.source_hash,
-                "source_version": span.source_version,
                 "content": f"__RECONCILE_SOURCE_{index}__",
                 "citation_template": {
                     "source_id": span.source_id,

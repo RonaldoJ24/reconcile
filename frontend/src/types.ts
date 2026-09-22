@@ -29,6 +29,12 @@ export type InterpretationResponse = {
   interpretation: Interpretation
 }
 
+export type InterpretationProgress = {
+  stage: string
+  status: 'running' | 'succeeded' | 'skipped' | 'failed' | string
+  summary: string
+}
+
 export type Capabilities = {
   interpret: boolean
   correct: boolean
