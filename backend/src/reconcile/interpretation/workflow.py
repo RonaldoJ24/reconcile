@@ -26,6 +26,7 @@ from .budget import Usage as BudgetUsage
 from .budget import finalize_attempt as finalize_budget_attempt
 from .budget import reserve_attempt as reserve_budget_attempt
 from .cache import cache_key, load_cached, source_fingerprint, store_cached
+from .prompt import TEMPERATURE
 from .provider import AttemptContext, AttemptEvent, DeepSeekProvider
 from .schemas import (
     PROMPT_VERSION,
@@ -450,6 +451,7 @@ class CompiledInterpretationWorkflow:
             "base_url": "https://api.deepseek.com",
             "thinking": "disabled",
             "max_output_tokens": policy.max_output_tokens,
+            "temperature": TEMPERATURE,
         }
         key = cache_key(key_payload)
         _progress(

@@ -12,6 +12,7 @@ import httpx
 
 from .prompt import (
     MAX_OUTPUT_TOKENS,
+    TEMPERATURE,
     CompiledPrompt,
     PromptCompilationError,
     PromptTooLarge,
@@ -137,6 +138,7 @@ class DeepSeekProvider:
             "response_format": {"type": "json_object"},
             "stream": False,
             "max_tokens": MAX_OUTPUT_TOKENS,
+            "temperature": TEMPERATURE,
         }
 
     @staticmethod
