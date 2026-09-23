@@ -51,10 +51,31 @@ An existing quote plus valid arithmetic does **not** prove semantic support; tha
 requires separate evaluation and human review. The historical development smoke
 observed real calls but was not a benchmark of interpretation quality.
 
-Live calls are disabled during this continuation. Exact-input recordings require
-source, scenario, model, prompt, schema/parser and artifact provenance; missing
-provenance means Unavailable. Fixtures used to test validators are labeled test
-data and cannot masquerade as provider execution. Unknown usage/cost stays unknown.
+Live calls run on the hosted preview within the public daily, monthly and session
+budgets. Exact-input recordings require source, scenario, model, prompt,
+schema/parser and artifact provenance; missing provenance means Unavailable.
+Fixtures used to test validators are labeled test data and cannot masquerade as
+provider execution. Unknown usage/cost stays unknown.
+
+## What the first live demo taught (2026-09-23)
+
+The interpretation step first looked useless for a reason unrelated to the model.
+Retrieval only surfaced invoices named by their exact identifier or matching the
+payment amount exactly, so for "la 1432 y la 33" the model never saw F-1432 or
+F-1433. It could only choose the exact-amount decoy or abstain. Interpretation
+also loaded every open invoice in the visitor's workspace, which could mix another
+synthetic customer's invoices into the request. Retrieval is now shared and
+case-scoped, and it recalls invoices whose folio ends with a digit run from the
+evidence, still capped at ten.
+
+With the right candidate present, the first live call still abstained. The prompt
+listed what the model must not do but not when to select, and it ran at the
+provider's default sampling temperature. Prompt v3 states a decision order and runs
+at temperature 0. On the four AI-eligible development cases it then chose the
+note's split, the named installment, abstention for the ambiguous payment, and the
+bank reference's invoice over the injected instruction. Those four observations
+came after a revision made in response to one of them, so they show the pipeline
+works end to end; they are not an accuracy measurement.
 
 ## Recommendation, validation and approval
 

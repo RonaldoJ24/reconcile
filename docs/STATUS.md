@@ -1,5 +1,46 @@
 # Status
 
+## Release 1: presentable demo — 2026-09-23
+
+Merged and deployed #39–#43; #38 was closed and superseded by #42.
+#39 shares one case-scoped retrieval between matching and interpretation, and
+adds folio-fragment recall. Interpretation used to load every open invoice in
+the workspace. #40 adds five synthetic Mexican receivables cases and keeps the
+original fixtures as the regression group. #41 caches and warms the verified
+shadow ranker. #42 makes the UI reviewer-first: case pages show inputs only,
+explanations come from reason codes, the detail API returns remittance notes,
+there is one AI action, and a remembered engineering view holds the rest.
+#43 gives the interpreter explicit decision rules at temperature 0 (prompt v3,
+byte bound 9,000).
+
+Checks: ruff, strict mypy, and `uv run pytest -m 'not postgres'` (1,110 passed).
+The PostgreSQL suite ran on the new isolated Neon branch `test-release1`; the
+preview's `main` branch was untouched. All 68 passed at #42, in 15m38s, and the
+7 interpretation workflow tests passed at #43. Frontend typecheck, 58 tests and
+the build passed. Playwright ran against a local preview-mode server on the
+test branch: 26 passed and 6 skipped, the skips needing real-backend flags. The
+real comparison spec passed. The real five-case walkthrough timed out locally
+at about 20 s per case open over the laptop-to-Neon link, and has not yet run
+against the hosted preview.
+
+Deploys: `dep-daq3jslg1s2s73du2f2g` (df2f857) and `dep-daq3nel9fdbs7380b1fg`
+(2c208da), which is live. On the hosted preview, the first case's shadow ranker
+stage took 200 ms after deploy, against 19,383 ms before (single observations).
+Live DeepSeek on 2026-09-23 made five calls, about 6k input and 0.6k output
+tokens; the billed cost was not observed. The first call, with prompt v2,
+abstained on the abbreviated case. With v3, one call per case:
+- abbreviated reference: F-1432 and F-1433, with NC-88 credited to F-1433
+- partial payment: F-2207
+- ambiguous payment: abstained
+- hidden instruction: F-5520
+
+These are development observations, not an evaluation.
+
+Limits: there is no held-out evaluation yet, and the interpreter cannot cite the
+bank reference. Next: the owner writes the held-out realistic cases, then the
+v2 protocol runs once within the approved US$2 cap. After that come the landing
+page and the public repository, following a secret scan.
+
 ## Interpretation review clarity — 2026-09-22
 
 The allocation-detail sidebar now starts level with the decision summary on desktop
