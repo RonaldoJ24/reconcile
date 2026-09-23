@@ -376,6 +376,7 @@ class CompiledInterpretationWorkflow:
         settings: InterpretationSettings | None = None,
         cancelled: Callable[[], bool] | None = None,
         progress: ProgressCallback | None = None,
+        policy: BudgetPolicy | None = None,
     ) -> WorkflowOutcome:
         observed_progress: list[WorkflowProgress] = []
         caller_progress = progress
@@ -390,7 +391,9 @@ class CompiledInterpretationWorkflow:
 
         progress = observe
         config = settings or interpretation_settings()
-        policy = BudgetPolicy(
+        # Visitors always get the settings-derived policy. Only an explicit caller,
+        # such as the pre-registered evaluation run, supplies its own bounded policy.
+        policy = policy or BudgetPolicy(
             day_microdollars=config.day_microdollars,
             month_microdollars=config.month_microdollars,
             execution_microdollars=config.execution_microdollars,
