@@ -13,15 +13,20 @@ there is one AI action, and a remembered engineering view holds the rest.
 #43 gives the interpreter explicit decision rules at temperature 0 (prompt v3,
 byte bound 9,000).
 
-Checks: ruff, strict mypy, and `uv run pytest -m 'not postgres'` (1,110 passed).
+Checks: ruff, strict mypy, and `uv run pytest -m 'not postgres'` (1,110 passed at
+#42).
 The PostgreSQL suite ran on the new isolated Neon branch `test-release1`; the
 preview's `main` branch was untouched. All 68 passed at #42, in 15m38s, and the
 7 interpretation workflow tests passed at #43. Frontend typecheck, 58 tests and
 the build passed. Playwright ran against a local preview-mode server on the
 test branch: 26 passed and 6 skipped, the skips needing real-backend flags. The
 real comparison spec passed. The real five-case walkthrough timed out locally
-at about 20 s per case open over the laptop-to-Neon link, and has not yet run
-against the hosted preview.
+at about 20 s per case open over the laptop-to-Neon link. Against the hosted
+preview (`2c208da`) with the real-backend flags, the full suite then passed 32 of
+32 on desktop and mobile, after the two selector fixes in #44.
+
+At `main` `1a632ed` (after #43 and #44), ruff and strict mypy passed, with 1,111
+offline tests and 68 PostgreSQL tests passing on `test-release1`.
 
 Deploys: `dep-daq3jslg1s2s73du2f2g` (df2f857) and `dep-daq3nel9fdbs7380b1fg`
 (2c208da), which is live. On the hosted preview, the first case's shadow ranker
@@ -38,8 +43,10 @@ These are development observations, not an evaluation.
 
 Limits: there is no held-out evaluation yet, and the interpreter cannot cite the
 bank reference. Next: the owner writes the held-out realistic cases, then the
-v2 protocol runs once within the approved US$2 cap. After that come the landing
-page and the public repository, following a secret scan.
+v2 protocol runs once within the approved US$2 cap. The repository was made
+public after a clean secret scan: the release scan found nothing in 175 tracked
+text files, and a pattern scan found nothing in 155 revisions. The landing page
+is live at https://ronaldoj24.github.io/reconcile/.
 
 ## Interpretation review clarity — 2026-09-22
 
