@@ -13,8 +13,13 @@ from sqlalchemy.orm import Session
 from reconcile.config import InterpretationSettings, interpretation_settings
 from reconcile.ml.artifact import ArtifactError
 from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY, rank_candidates
-from reconcile.persistence.models import CreditNote, ImportBatch, Invoice, Payment, Proposal, Source
-from reconcile.persistence.service import ReconcileService, ServiceError, _shadow_group
+from reconcile.persistence.models import ImportBatch, Payment, Proposal, Source
+from reconcile.persistence.service import (
+    ReconcileService,
+    ServiceError,
+    _shadow_group,
+    retrieve_observations,
+)
 
 from .budget import BudgetPolicy, RateCard
 from .budget import Usage as BudgetUsage
@@ -162,38 +167,6 @@ class CompiledInterpretationWorkflow:
         )
         if payment is None:
             raise ServiceError("not_found", "payment not found", 404)
-        invoices = list(
-            db.scalars(
-                select(Invoice)
-                .join(Source, Invoice.source_id == Source.id)
-                .join(ImportBatch, Source.batch_id == ImportBatch.id)
-                .where(
-                    Invoice.workspace_id == workspace_id,
-                    Invoice.outstanding_amount > 0,
-                    Invoice.conflicted.is_(False),
-                    Source.status != "REJECTED_CONFLICT",
-                    Source.status != "SUPERSEDED",
-                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
-                )
-                .order_by(Invoice.invoice_id)
-            )
-        )
-        credits = list(
-            db.scalars(
-                select(CreditNote)
-                .join(Source, CreditNote.source_id == Source.id)
-                .join(ImportBatch, Source.batch_id == ImportBatch.id)
-                .where(
-                    CreditNote.workspace_id == workspace_id,
-                    CreditNote.available_amount > 0,
-                    CreditNote.conflicted.is_(False),
-                    Source.status != "REJECTED_CONFLICT",
-                    Source.status != "SUPERSEDED",
-                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
-                )
-                .order_by(CreditNote.credit_note_id)
-            )
-        )
         messages = list(
             db.scalars(
                 select(Source)
@@ -217,6 +190,13 @@ class CompiledInterpretationWorkflow:
         evidence = {
             str(item.id): item.raw_bytes.decode("utf-8") for item in relevant if item.raw_bytes
         }
+        payment_source = db.scalar(select(Source).where(Source.id == payment.source_id))
+        if payment_source is None:
+            raise ServiceError("stale_source", "payment source is unavailable")
+        # Interpretation sees the same case-scoped, bounded observations as matching.
+        invoices, credits = retrieve_observations(
+            db, workspace_id, payment, evidence, payment_source.source_metadata.get("case_id")
+        )
         _progress(
             progress,
             "load_observations",
@@ -226,9 +206,6 @@ class CompiledInterpretationWorkflow:
                 f"observations, and {len(relevant)} evidence sources."
             ),
         )
-        payment_source = db.scalar(select(Source).where(Source.id == payment.source_id))
-        if payment_source is None:
-            raise ServiceError("stale_source", "payment source is unavailable")
         from reconcile.domain.matching import propose
         from reconcile.persistence.service import _credit_fact, _invoice_fact, _payment_fact
 
