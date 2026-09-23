@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
+from reconcile.api.cases import get_case
 from reconcile.config import InterpretationSettings
 from reconcile.ingest.parsers import parse_batch, parse_message_context
 from reconcile.interpretation.provider import (
@@ -392,3 +393,82 @@ def test_cancellation_before_provider_call_has_no_attempt(db) -> None:
         db.scalar(select(InterpretationCall).where(InterpretationCall.workspace_id == workspace_id))
         is None
     )
+
+
+def _open_registered_case(db, service: ReconcileService, workspace_id: uuid.UUID, case_id: str):
+    packet = get_case(case_id)
+    assert packet is not None
+    batch = service.validate_import(workspace_id, packet.parse(), "local")
+    for source in service.sources_for_batch(workspace_id, batch.id):
+        if source.batch_id == batch.id:
+            source.source_metadata = {**source.source_metadata, "case_id": case_id}
+    db.commit()
+    service.commit_import(workspace_id, batch.id)
+    payment = db.scalar(
+        select(Payment).where(
+            Payment.workspace_id == workspace_id,
+            Payment.transaction_id == packet.payment_transaction_id,
+        )
+    )
+    assert payment is not None
+    return service.process_match(workspace_id, payment.id)
+
+
+def test_abbreviated_reference_reaches_the_message_supported_split(db) -> None:
+    service = ReconcileService(db)
+    workspace = service.create_workspace()
+    # Another case in the same workspace must not leak into this request.
+    _open_registered_case(db, service, workspace.id, "partial-installment")
+    proposal = _open_registered_case(db, service, workspace.id, "spei-shorthand")
+    assert proposal.status == "NEEDS_REVIEW"
+    requests: list[InterpretationRequest] = []
+
+    def select_message_split(request: InterpretationRequest) -> InterpretationResult:
+        requests.append(request)
+        candidate = next(
+            item for item in request.candidates if item.invoice_ids == ("F-1432", "F-1433")
+        )
+        source = request.source_spans[0]
+        return InterpretationResult(
+            decision=Decision.SELECT,
+            candidate_id=candidate.candidate_id,
+            reason_code=ReasonCode.EVIDENCE_SUPPORTED,
+            citations=[
+                Citation(
+                    source_id=source.source_id,
+                    start=source.start,
+                    end=source.end,
+                    quote=source.content[source.start : source.end],
+                )
+            ],
+        )
+
+    provider = FakeProvider(select_message_split)
+    workflow = CompiledInterpretationWorkflow(lambda _: provider)  # type: ignore[arg-type]
+    outcome = workflow.run(
+        db,
+        workspace_id=workspace.id,
+        session_id=uuid.uuid4(),
+        proposal_id=proposal.id,
+        mode="direct",
+        settings=settings(f"shorthand-{uuid.uuid4()}"),
+    )
+
+    assert outcome.status == "selected"
+    assert {item.invoice_id for item in requests[0].invoices} == {"F-1432", "F-1433", "F-1436"}
+    assert db.get(Proposal, proposal.id).status == "PROPOSED"
+    revision = db.scalar(
+        select(ProposalRevision).where(
+            ProposalRevision.proposal_id == proposal.id,
+            ProposalRevision.revision == outcome.proposal_revision,
+        )
+    )
+    assert revision is not None
+    assert sorted((line["invoice_id"], line["amount"]) for line in revision.cash_lines) == [
+        ("F-1432", 3_000_000),
+        ("F-1433", 2_400_000),
+    ]
+    assert revision.credit_lines == [
+        {"credit_note_id": "NC-88", "invoice_id": "F-1433", "amount": 100_000}
+    ]
+    assert db.scalar(select(ApplicationGroup)) is None
