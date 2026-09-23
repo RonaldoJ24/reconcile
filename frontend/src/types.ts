@@ -56,6 +56,8 @@ export type CaseSummary = {
   title: string
   description: string
   amount: number
+  group?: string
+  reference?: string
 }
 
 export type CaseRegistry = {
@@ -152,6 +154,11 @@ export type InvoiceBalance = {
   cash_applied: number
   credit_applied: number
   remaining_amount: number
+}
+
+export type RemittanceNote = {
+  source_id: string
+  text: string
 }
 
 export type Evidence = {
@@ -287,6 +294,7 @@ export type ProposalDetail = {
   capabilities?: Partial<Capabilities>
   active_engine?: string
   case?: { id: string; version: string; variant?: CaseVariant } | null
+  messages?: RemittanceNote[]
   decision_trace?: DecisionTrace | null
   comparison?: Comparison | null
   model_trace?: Record<string, unknown> | null

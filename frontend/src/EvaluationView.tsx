@@ -41,6 +41,19 @@ function HistoricalSplit({ split, rows }: { split: string; rows: EvaluationHisto
   </section>
 }
 
+// Summarizes the preserved final-split rows in plain language; numbers come from the report.
+export function HistoricalTakeaway({ rows }: { rows: EvaluationHistoricalRow[] }) {
+  const final = rows.filter((row) => row.split === 'final')
+  const rules = final.find((row) => row.method.startsWith('rules'))
+  const ranker = final.find((row) => row.method.startsWith('ranker'))
+  if (!rules && !ranker) return null
+  const line = (label: string, row: EvaluationHistoricalRow) => `${label} proposed an allocation in ${row.proposals} of ${row.groups} cases; ${row.correct_proposals_per_v1_labels} were right (${formatEvaluationPercent(row.precision)}).`
+  return <div className="evaluation-takeaway">
+    {rules && <p><strong>{line('The rules', rules)}</strong></p>}
+    {ranker && <p>{line('The trained ranker', ranker)} It had no way to abstain when the evidence was insufficient, so it guessed on every case. It stays in shadow mode and never decides.</p>}
+  </div>
+}
+
 export function EvaluationView({ evaluation, loading = false, error = null, onRetry }: { evaluation?: EvaluationResponse | null; loading?: boolean; error?: string | null; onRetry?: () => void }) {
   const splits = evaluation ? Array.from(new Set(evaluation.historical.map((row) => row.split))) : []
   return <div className="evaluation-view">
@@ -55,10 +68,10 @@ export function EvaluationView({ evaluation, loading = false, error = null, onRe
       {loading ? <p className="empty-inline" role="status">Loading current engine status…</p> : evaluation ? <>
         <p className="evaluation-active">Active engine: <strong>{evaluation.active_engine}</strong></p>
         <div className="evaluation-v2" aria-label="Version two evaluation status">
-          <strong>V2 evaluation: {evaluationStatusLabel(evaluation.v2.status)}</strong>
-          <span>Independent domain review: {evaluationStatusLabel(evaluation.v2.independent_domain_review)}</span>
-          <span>Provider calls in this continuation: {evaluation.v2.provider_calls_this_continuation}</span>
-          <span>Final access in this continuation: {evaluation.v2.final_access_this_continuation ? 'Yes' : 'No'}</span>
+          <strong>New evaluation (v2): {evaluationStatusLabel(evaluation.v2.status)}</strong>
+          <span>Independent accountant review: {evaluationStatusLabel(evaluation.v2.independent_domain_review)}</span>
+          <span>Live DeepSeek calls counted in v2: {evaluation.v2.provider_calls_this_continuation}</span>
+          <span>Held-out final set opened: {evaluation.v2.final_access_this_continuation ? 'Yes' : 'No'}</span>
         </div>
       </> : <p className="empty-inline">Current engine status is unavailable from the server.</p>}
     </section>
@@ -71,6 +84,7 @@ export function EvaluationView({ evaluation, loading = false, error = null, onRe
         {evaluation && <span className="status-pill">{evaluation.schema_version}</span>}
       </div>
       {loading ? <p className="empty-inline" role="status">Loading evaluation summary…</p> : error ? <div className="evaluation-error"><p className="error-banner" role="alert">Evaluation unavailable: {error}</p>{onRetry && <button className="button button-secondary" type="button" onClick={onRetry}>Retry evaluation</button>}</div> : !evaluation ? <p className="empty-inline">Evaluation summary is unavailable from the server.</p> : <>
+        <HistoricalTakeaway rows={evaluation.historical} />
         {evaluation.historical.length === 0 ? <p className="empty-inline">No historical rows were returned.</p> : <div className="evaluation-splits">{splits.map((split) => <HistoricalSplit key={split} split={split} rows={evaluation.historical.filter((row) => row.split === split)} />)}</div>}
         <p className="evaluation-disclaimer">Correctness uses the preserved v1 label definition; it does not establish independent semantic support.</p>
         <details className="evaluation-provenance">
