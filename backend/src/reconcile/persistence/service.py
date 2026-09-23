@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import re
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from time import perf_counter
 from typing import Any
@@ -174,6 +176,166 @@ def _revision_from_result(
 
 def _identifier_mentioned(identifier: str, text: str) -> bool:
     return _mentions(identifier, text)
+
+
+MAX_RETRIEVED_INVOICES = 10
+# Customers abbreviate folios in short bank references ("PAGO FACT 1432 Y 33"), so
+# digit runs that end an invoice folio widen recall. Recall never proposes on its
+# own: the rules still require an explicit identifier, and an interpretation must
+# select a validated candidate that a reviewer approves. Amounts such as
+# "$54,000.00" are excluded because their digits touch "$", "," or ".".
+_FOLIO_FRAGMENT_RE = re.compile(r"(?<![\d$.,])\d{2,10}(?!\d|[.,]\d)")
+_MAX_FOLIO_FRAGMENTS = 8
+
+
+def _folio_fragments(text: str) -> tuple[str, ...]:
+    fragments: dict[str, None] = {}
+    for match in _FOLIO_FRAGMENT_RE.finditer(text):
+        fragments.setdefault(match.group(0), None)
+        if len(fragments) == _MAX_FOLIO_FRAGMENTS:
+            break
+    return tuple(fragments)
+
+
+def _folio_match_length(invoice_id: str, fragments: tuple[str, ...]) -> int:
+    runs = re.findall(r"\d+", invoice_id)
+    if not runs:
+        return 0
+    folio = runs[-1]
+    return max((len(fragment) for fragment in fragments if folio.endswith(fragment)), default=0)
+
+
+def retrieve_observations(
+    session: Session,
+    workspace_id: uuid.UUID,
+    payment: Payment,
+    evidence: Mapping[str, str],
+    case_id: str | None,
+) -> tuple[list[Invoice], list[CreditNote]]:
+    """Retrieve the bounded invoices and credits shared by matching and interpretation.
+
+    Invoices are taken in order of explicit identifier mentions, exact payment
+    amount, then folio fragments, within the registered case when there is one.
+    """
+
+    def scoped_source_ids(kind: str) -> set[uuid.UUID]:
+        rows = session.scalars(
+            select(Source)
+            .join(ImportBatch, Source.batch_id == ImportBatch.id)
+            .where(
+                Source.workspace_id == workspace_id,
+                Source.kind == kind,
+                Source.status != "REJECTED_CONFLICT",
+                Source.status != "SUPERSEDED",
+                or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
+            )
+        )
+        if case_id is None:
+            return {source.id for source in rows}
+        return {source.id for source in rows if source.source_metadata.get("case_id") == case_id}
+
+    all_text = " ".join((payment.reference, *evidence.values())).lower()
+    invoice_filters = [
+        Invoice.workspace_id == workspace_id,
+        Invoice.outstanding_amount > 0,
+        Invoice.balance_as_of <= payment.booking_date,
+        Invoice.currency == payment.currency,
+        Invoice.conflicted.is_(False),
+    ]
+    if payment.customer_id is not None:
+        invoice_filters.append(Invoice.customer_id == payment.customer_id)
+    if case_id is not None:
+        invoice_filters.append(Invoice.source_id.in_(scoped_source_ids("invoice")))
+
+    # PostgreSQL performs the broad containment filter; the domain boundary matcher
+    # below rejects substrings before they can become evidence.
+    mentioned_rows = list(
+        session.scalars(
+            select(Invoice)
+            .where(
+                *invoice_filters,
+                func.strpos(literal(all_text), func.lower(Invoice.invoice_id)) > 0,
+            )
+            .order_by(Invoice.invoice_id)
+            .limit(40)
+        )
+    )
+    invoices = [
+        row for row in mentioned_rows if _identifier_mentioned(row.invoice_id, all_text)
+    ][:MAX_RETRIEVED_INVOICES]
+    invoice_keys = {(row.customer_id, row.invoice_id) for row in invoices}
+
+    def add(rows: Iterable[Invoice]) -> None:
+        for row in rows:
+            if len(invoices) == MAX_RETRIEVED_INVOICES:
+                return
+            key = (row.customer_id, row.invoice_id)
+            if key not in invoice_keys:
+                invoices.append(row)
+                invoice_keys.add(key)
+
+    if len(invoices) < MAX_RETRIEVED_INVOICES:
+        add(
+            session.scalars(
+                select(Invoice)
+                .where(*invoice_filters, Invoice.outstanding_amount == payment.amount)
+                .order_by(Invoice.invoice_id)
+                .limit(MAX_RETRIEVED_INVOICES)
+            )
+        )
+    fragments = _folio_fragments(all_text)
+    if fragments and len(invoices) < MAX_RETRIEVED_INVOICES:
+        recalled = [
+            row
+            for row in session.scalars(
+                select(Invoice)
+                .where(
+                    *invoice_filters,
+                    or_(*(Invoice.invoice_id.contains(fragment) for fragment in fragments)),
+                )
+                .order_by(Invoice.invoice_id)
+                .limit(40)
+            )
+            if _folio_match_length(row.invoice_id, fragments)
+        ]
+        recalled.sort(
+            key=lambda row: (
+                -_folio_match_length(row.invoice_id, fragments),
+                abs((row.due_date - payment.booking_date).days),
+                row.invoice_id,
+            )
+        )
+        add(recalled)
+
+    selected_invoice_ids = {row.invoice_id for row in invoices}
+    if not selected_invoice_ids:
+        return invoices, []
+    credit_filters = [
+        CreditNote.workspace_id == workspace_id,
+        CreditNote.available_amount > 0,
+        CreditNote.balance_as_of <= payment.booking_date,
+        CreditNote.currency == payment.currency,
+        CreditNote.conflicted.is_(False),
+        CreditNote.invoice_id.in_(selected_invoice_ids),
+    ]
+    if payment.customer_id is not None:
+        credit_filters.append(CreditNote.customer_id == payment.customer_id)
+    if case_id is not None:
+        credit_filters.append(CreditNote.source_id.in_(scoped_source_ids("credit")))
+    credits = [
+        row
+        for row in session.scalars(
+            select(CreditNote)
+            .where(
+                *credit_filters,
+                func.strpos(literal(all_text), func.lower(CreditNote.credit_note_id)) > 0,
+            )
+            .order_by(CreditNote.credit_note_id)
+            .limit(10)
+        )
+        if _identifier_mentioned(row.credit_note_id, all_text)
+    ]
+    return invoices, credits
 
 
 def _shadow_group(
@@ -1149,103 +1311,8 @@ class ReconcileService:
         if payment_source is None:
             raise ServiceError("stale_source", "payment source is unavailable")
         case_id = payment_source.source_metadata.get("case_id")
-
-        def scoped_source_ids(kind: str) -> set[uuid.UUID]:
-            rows = self.session.scalars(
-                select(Source)
-                .join(ImportBatch, Source.batch_id == ImportBatch.id)
-                .where(
-                    Source.workspace_id == workspace_id,
-                    Source.kind == kind,
-                    Source.status != "REJECTED_CONFLICT",
-                    Source.status != "SUPERSEDED",
-                    or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
-                )
-            )
-            if case_id is None:
-                return {source.id for source in rows}
-            return {
-                source.id
-                for source in rows
-                if source.source_metadata.get("case_id") == case_id
-            }
-
-        invoice_source_ids = scoped_source_ids("invoice")
-        credit_source_ids = scoped_source_ids("credit")
-        all_text = " ".join((payment.reference, *evidence.values())).lower()
-        invoice_filters = [
-            Invoice.workspace_id == workspace_id,
-            Invoice.outstanding_amount > 0,
-            Invoice.balance_as_of <= payment.booking_date,
-            Invoice.currency == payment.currency,
-            Invoice.conflicted.is_(False),
-        ]
-        if payment.customer_id is not None:
-            invoice_filters.append(Invoice.customer_id == payment.customer_id)
-        if case_id is not None:
-            invoice_filters.append(Invoice.source_id.in_(invoice_source_ids))
-
-        # PostgreSQL performs the broad containment filter; the domain boundary matcher
-        # below rejects substrings before they can become evidence.
-        mentioned_rows = list(
-            self.session.scalars(
-                select(Invoice)
-                .where(
-                    *invoice_filters,
-                    func.strpos(literal(all_text), func.lower(Invoice.invoice_id)) > 0,
-                )
-                .order_by(Invoice.invoice_id)
-                .limit(40)
-            )
-        )
-        invoices = [
-            row for row in mentioned_rows if _identifier_mentioned(row.invoice_id, all_text)
-        ][:10]
-        invoice_keys = {(row.customer_id, row.invoice_id) for row in invoices}
-        if len(invoices) < 10:
-            exact_rows = self.session.scalars(
-                select(Invoice)
-                .where(*invoice_filters, Invoice.outstanding_amount == payment.amount)
-                .order_by(Invoice.invoice_id)
-                .limit(10)
-            )
-            for row in exact_rows:
-                key = (row.customer_id, row.invoice_id)
-                if key not in invoice_keys:
-                    invoices.append(row)
-                    invoice_keys.add(key)
-                if len(invoices) == 10:
-                    break
-
-        selected_invoice_ids = {row.invoice_id for row in invoices}
-        credit_filters = [
-            CreditNote.workspace_id == workspace_id,
-            CreditNote.available_amount > 0,
-            CreditNote.balance_as_of <= payment.booking_date,
-            CreditNote.currency == payment.currency,
-            CreditNote.conflicted.is_(False),
-            CreditNote.invoice_id.in_(selected_invoice_ids),
-        ]
-        if payment.customer_id is not None:
-            credit_filters.append(CreditNote.customer_id == payment.customer_id)
-        if case_id is not None:
-            credit_filters.append(CreditNote.source_id.in_(credit_source_ids))
-        credits = (
-            [
-                row
-                for row in self.session.scalars(
-                    select(CreditNote)
-                    .where(
-                        *credit_filters,
-                        func.strpos(literal(all_text), func.lower(CreditNote.credit_note_id)) > 0,
-                    )
-                    .order_by(CreditNote.credit_note_id)
-                    .limit(10)
-                )
-                if _identifier_mentioned(row.credit_note_id, all_text)
-            ]
-            if selected_invoice_ids
-            else []
+        invoices, credits = retrieve_observations(
+            self.session, workspace_id, payment, evidence, case_id
         )
         rules_started = perf_counter()
         result = propose(

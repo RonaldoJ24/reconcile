@@ -2205,3 +2205,88 @@ def test_contested_balance_race_has_one_winner(db_engine, race_number: int) -> N
         assert len(active) == 1
         assert sum(row.amount for row in active) == amount
         assert active[0].payment_id in {payments[0].id, payments[1].id}
+
+
+def test_folio_fragments_widen_candidates_without_letting_rules_propose(
+    session, monkeypatch
+) -> None:
+    from reconcile.domain.matching import propose
+    from reconcile.persistence.service import (
+        _credit_fact,
+        _invoice_fact,
+        _payment_fact,
+        _shadow_group,
+        retrieve_observations,
+    )
+
+    api, client = _api_client(session, monkeypatch)
+    try:
+        bank = (
+            b"source_account_id,transaction_id,booking_date,payer_name,reference,amount,currency\n"
+            b"frag-account,frag-payment,2026-09-15,Comercial Norte,PAGO FACT 1432 Y 33,"
+            b"55000.00,MXN\n"
+        )
+        invoices = (
+            b"customer_id,customer_name,invoice_id,issued_date,due_date,balance_as_of,"
+            b"outstanding_amount,currency\n"
+            b"frag-customer,Comercial Norte,F-1432,2026-08-01,2026-09-10,2026-09-15,"
+            b"30000.00,MXN\n"
+            b"frag-customer,Comercial Norte,F-1433,2026-08-02,2026-09-11,2026-09-15,"
+            b"25000.00,MXN\n"
+            b"frag-customer,Comercial Norte,F-1436,2026-08-05,2026-09-14,2026-09-15,"
+            b"55000.00,MXN\n"
+            b"frag-customer,Comercial Norte,F-2001,2026-08-05,2026-09-14,2026-09-15,"
+            b"12000.00,MXN\n"
+        )
+        validated = client.post(
+            "/api/v1/imports/validate",
+            files={
+                "bank": ("bank.csv", bank, "text/csv"),
+                "invoices": ("invoices.csv", invoices, "text/csv"),
+                "message": ("message.txt", b"Pago de la 1432 y la 33.", "text/plain"),
+            },
+            data={
+                "message_time": "2026-09-15T12:00:00+00:00",
+                "payment_source_account_id": "frag-account",
+                "payment_transaction_id": "frag-payment",
+            },
+        )
+        assert validated.status_code == 200, validated.text
+        batch_id = validated.json()["batch_id"]
+        assert client.post(f"/api/v1/imports/{batch_id}/commit").status_code == 200
+        _run_all_jobs(client)
+
+        payment = session.scalar(select(Payment).where(Payment.transaction_id == "frag-payment"))
+        assert payment is not None
+        proposal = session.scalar(select(Proposal).where(Proposal.payment_id == payment.id))
+        assert proposal is not None and proposal.status == "NEEDS_REVIEW"
+
+        evidence = {
+            str(source.id): source.raw_bytes.decode()
+            for source in session.scalars(
+                select(Source).where(
+                    Source.workspace_id == payment.workspace_id, Source.kind == "message"
+                )
+            )
+        }
+        found, credits = retrieve_observations(
+            session, payment.workspace_id, payment, evidence, None
+        )
+        assert [row.invoice_id for row in found] == ["F-1436", "F-1432", "F-1433"]
+        assert credits == []
+
+        rules = propose(
+            _payment_fact(payment),
+            [_invoice_fact(row) for row in found],
+            [_credit_fact(row) for row in credits],
+            evidence,
+        )
+        group = _shadow_group(payment, found, credits, evidence, rules)
+        allocations = [
+            sorted((line["invoice_id"], line["amount"]) for line in candidate["cash"])
+            for candidate in group["candidates"]
+        ]
+        assert [("F-1432", 3_000_000), ("F-1433", 2_500_000)] in allocations
+        assert [("F-1436", 5_500_000)] in allocations
+    finally:
+        api.dependency_overrides.clear()
