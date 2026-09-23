@@ -6,6 +6,7 @@ import hashlib
 import json
 import pickle
 import re
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -154,6 +155,41 @@ def load_artifact(path: Path | str | None = None) -> LoadedArtifact:
     except (OSError, pickle.PickleError, EOFError, ImportError, AttributeError) as exc:
         raise ArtifactError("verified model could not be deserialized") from exc
     return LoadedArtifact(model, metadata)
+
+
+_CACHE_LOCK = threading.Lock()
+_CACHED: tuple[tuple[tuple[str, int, int], ...], LoadedArtifact] | None = None
+
+
+def load_cached_artifact() -> LoadedArtifact:
+    """Reuse the verified built-in artifact while its files are unchanged.
+
+    Importing scikit-learn and unpickling the model took about 19 s on the first
+    hosted request after a restart. Every load still runs the full digest check;
+    the cache key changes whenever either file's path, size or mtime changes.
+    """
+
+    global _CACHED
+    paths = artifact_paths(_fixed_root())
+    try:
+        key = tuple((str(path), path.stat().st_size, path.stat().st_mtime_ns) for path in paths)
+    except OSError as exc:
+        raise ArtifactError("verified ranker artifact is not installed") from exc
+    with _CACHE_LOCK:
+        if _CACHED is not None and _CACHED[0] == key:
+            return _CACHED[1]
+        loaded = load_artifact()
+        _CACHED = (key, loaded)
+        return loaded
+
+
+def warm_artifact_cache() -> None:
+    """Load the artifact off the request path; a missing artifact stays a request-time error."""
+
+    try:
+        load_cached_artifact()
+    except ArtifactError:
+        return
 
 
 save_model_artifact = save_artifact
