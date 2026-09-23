@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from reconcile.api.cases import CASES
+from reconcile.api.cases import CASES, LIBRARY_CASES
 from reconcile.domain.matching import propose
 from reconcile.domain.types import CreditFact, InvoiceFact, PaymentFact, ProposalStatus
 from reconcile.persistence.service import _hash, _stable_trace_identity
@@ -50,6 +50,11 @@ def _facts(packet):
 
 def test_registered_packets_round_trip_through_the_parser() -> None:
     assert [packet.case_id for packet in CASES] == [
+        "spei-shorthand",
+        "partial-installment",
+        "unclear-reference",
+        "clean-reference",
+        "hidden-instruction",
         "straightforward",
         "bundle",
         "correction",
@@ -57,11 +62,32 @@ def test_registered_packets_round_trip_through_the_parser() -> None:
         "adversarial",
     ]
     for packet in CASES:
+        for profile in ("local", "preview"):
+            parsed = packet.parse(profile=profile)
+            assert parsed.bank.accepted_count == 1
+            assert parsed.invoices.accepted_count >= 1
+            assert not parsed.bank.issues and not parsed.invoices.issues
+            assert parsed.message is not None
+        if packet.group == "regression":
+            assert parsed.bank.rows[0]["reference"] == "—"
+
+
+def test_library_cases_look_like_mexican_receivables() -> None:
+    library = [packet for packet in CASES if packet.group == "library"]
+    assert [packet.case_id for packet in library] == [
+        packet.case_id for packet in LIBRARY_CASES
+    ]
+    customers = set()
+    for packet in library:
         parsed = packet.parse()
-        assert parsed.bank.accepted_count == 1
-        assert parsed.invoices.accepted_count >= 1
-        assert parsed.bank.rows[0]["reference"] == "—"
-        assert parsed.message is not None
+        # SPEI concept fields are short; realistic references must fit them.
+        assert len(parsed.bank.rows[0]["reference"]) <= 40
+        assert parsed.bank.rows[0]["currency"] == "MXN"
+        customer_ids = {row["customer_id"] for row in parsed.invoices.rows}
+        assert len(customer_ids) == 1
+        assert not customer_ids & customers
+        customers |= customer_ids
+        assert all(row["invoice_id"].startswith("F-") for row in parsed.invoices.rows)
 
 
 def test_registered_variants_are_server_owned_and_parseable() -> None:
@@ -78,6 +104,11 @@ def test_registered_variants_are_server_owned_and_parseable() -> None:
 
 def test_registered_packets_use_the_ordinary_conservative_engine() -> None:
     expected = {
+        "spei-shorthand": ProposalStatus.NEEDS_REVIEW,
+        "partial-installment": ProposalStatus.NEEDS_REVIEW,
+        "unclear-reference": ProposalStatus.NEEDS_REVIEW,
+        "clean-reference": ProposalStatus.PROPOSED,
+        "hidden-instruction": ProposalStatus.NEEDS_REVIEW,
         "straightforward": ProposalStatus.PROPOSED,
         "bundle": ProposalStatus.PROPOSED,
         "correction": ProposalStatus.NEEDS_REVIEW,
@@ -88,6 +119,12 @@ def test_registered_packets_use_the_ordinary_conservative_engine() -> None:
         payment, invoices, credits, evidence = _facts(packet)
         result = propose(payment, invoices, credits, evidence)
         assert result.status == expected[packet.case_id]
+    hidden = next(packet for packet in CASES if packet.case_id == "hidden-instruction")
+    assert propose(*_facts(hidden)).reason == "prompt-like instruction"
+    clean = next(packet for packet in CASES if packet.case_id == "clean-reference")
+    assert [(line.invoice_id, line.amount) for line in propose(*_facts(clean)).cash] == [
+        ("F-4410", 845_000)
+    ]
 
 
 def test_trace_fingerprint_omits_workspace_owned_identifiers() -> None:

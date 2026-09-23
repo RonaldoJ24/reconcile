@@ -981,12 +981,18 @@ def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch
         assert listing.status_code == 200
         cases = listing.json()["cases"]
         assert [item["id"] for item in cases] == [
+            "spei-shorthand",
+            "partial-installment",
+            "unclear-reference",
+            "clean-reference",
+            "hidden-instruction",
             "straightforward",
             "bundle",
             "correction",
             "insufficient",
             "adversarial",
         ]
+        assert [item["group"] for item in cases] == ["library"] * 5 + ["regression"] * 5
         opened = {
             case_id: _open_case(client, case_id)
             for case_id in [item["id"] for item in cases]
@@ -997,6 +1003,11 @@ def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch
         _run_all_jobs(client)
 
         expected_status = {
+            "spei-shorthand": "NEEDS_REVIEW",
+            "partial-installment": "NEEDS_REVIEW",
+            "unclear-reference": "NEEDS_REVIEW",
+            "clean-reference": "PROPOSED",
+            "hidden-instruction": "NEEDS_REVIEW",
             "straightforward": "PROPOSED",
             "bundle": "PROPOSED",
             "correction": "NEEDS_REVIEW",
