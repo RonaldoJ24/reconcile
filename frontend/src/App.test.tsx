@@ -1,9 +1,9 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App, { ApplyConfirmation, CasesView, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, toCents } from './App'
+import App, { ApplyConfirmation, CasesView, DecisionSummary, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, shouldShowInterpretation, toCents } from './App'
 import { centsToMxn, mxnToCents } from './money'
 import { interpretProposal } from './api'
-import type { Comparison, DecisionTrace, SourceRecord } from './types'
+import type { Comparison, DecisionTrace, ProposalDetail, SourceRecord } from './types'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -17,12 +17,13 @@ describe('Phase 4 interpretation UI', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('exposes separate direct and hybrid actions', () => {
+  it('leads with one AI reading action and keeps hybrid as a secondary option', () => {
     const markup = renderToString(<InterpretationAction enabled busy="" message="" onInterpret={async () => {}} />)
 
-    expect(markup).toContain('>Direct<')
-    expect(markup).toContain('>Hybrid<')
+    expect(markup).toContain('>Read with AI<')
+    expect(markup).toContain('>With ranking context<')
     expect(markup).toContain('never applies money')
+    expect(markup).toContain('must quote the note')
   })
 
   it('keeps a selected result visible after the proposal refreshes', () => {
@@ -36,8 +37,10 @@ describe('Phase 4 interpretation UI', () => {
 
     expect(markup).toContain('Validated cache')
     expect(markup).toContain('candidate-1')
-    expect(markup).toContain('Financial application still requires a reviewer.')
-    expect(markup).toMatch(/button[^>]+disabled/)
+    expect(markup).toContain('What the AI read')
+    expect(markup).toContain('Next reviewer action:')
+    expect(markup).not.toContain('>Read with AI<')
+    expect(markup).not.toContain('>With ranking context<')
   })
 
   it('keeps the completed allocation outcome and reviewer action readable', () => {
@@ -55,8 +58,8 @@ describe('Phase 4 interpretation UI', () => {
       onInterpret={async () => {}}
     />)
 
-    expect(markup).toContain('Proposal update:</strong>')
-    expect(markup).toContain('PROPOSED')
+    expect(markup).toContain('Saved decision:</strong>')
+    expect(markup).toContain('Suggested allocation ready for review')
     expect(markup).toContain('Chosen allocation:</strong>')
     expect(markup).toContain('Invoice 101')
     expect(markup).toContain('source-1')
@@ -102,6 +105,23 @@ describe('Phase 4 interpretation UI', () => {
     expect(markup).toContain('Observed workflow steps')
   })
 
+  it('keeps observed review steps available after the result arrives', () => {
+    const markup = renderToString(<InterpretationAction
+      enabled={false}
+      busy=""
+      message=""
+      interpretation={{ status: 'selected', source: 'live', mode: 'direct' }}
+      proposalStatus="PROPOSED"
+      proposalRevision={3}
+      progress={[{ stage: 'reserve_and_call', status: 'succeeded', summary: 'Provider response received.' }]}
+      onInterpret={async () => {}}
+    />)
+
+    expect(markup).toContain('What happened during this review')
+    expect(markup).toContain('Provider response received.')
+    expect(markup).toContain('What the AI read')
+  })
+
   it('holds the completed outcome until the saved proposal refresh finishes', () => {
     const markup = renderToString(<InterpretationAction
       enabled={false}
@@ -130,7 +150,7 @@ describe('Phase 4 interpretation UI', () => {
       onInterpret={async () => {}}
     />)
 
-    expect(markup).toContain('Optional interpretation')
+    expect(markup).toContain('AI reading · DeepSeek')
     expect(markup).toContain('Live interpretation is disabled for this session.')
   })
 
@@ -194,21 +214,109 @@ describe('case study surfaces', () => {
     expect(formatDateTime('2026-01-15')).toBe('2026-01-15')
   })
 
-  it('renders every server supplied case and the bundled entry point', () => {
+  it('leads with a library case, shows its reference, and keeps regression fixtures folded', () => {
     const markup = renderToString(<CasesView
       registry={{ version: 'v1', cases: [
-        { id: 'straightforward', title: 'Straightforward', description: 'One match', amount: 10000 },
-        { id: 'bundle', title: 'Bundled', description: 'Several matches', amount: 20000 },
-        { id: 'correction', title: 'Correction', description: 'Review a correction', amount: 30000 },
-        { id: 'insufficient', title: 'Insufficient', description: 'Short payment', amount: 40000 },
-        { id: 'adversarial', title: 'Adversarial', description: 'Conflicting evidence', amount: 50000 },
+        { id: 'spei-shorthand', title: 'Abbreviated bank reference', description: 'The reference abbreviates two invoices.', amount: 5400000, group: 'library', reference: 'PAGO FACT 1432 Y 33 MENOS NC-88' },
+        { id: 'partial-installment', title: 'Partial payment', description: 'A first installment.', amount: 1600000, group: 'library', reference: 'ABONO 1 DE 3 FACT 2207' },
+        { id: 'clean-reference', title: 'Clean reference', description: 'One exact invoice number.', amount: 845000, group: 'library', reference: 'FACTURA F-4410' },
+        { id: 'straightforward', title: 'Straightforward', description: 'One match', amount: 10000, group: 'regression', reference: '—' },
+        { id: 'bundle', title: 'Bundled', description: 'Several matches', amount: 20000, group: 'regression', reference: '—' },
       ] }}
       busy=""
       onOpen={async () => {}}
     />)
 
-    expect(markup.match(/class="case-card"/g)).toHaveLength(5)
-    expect(markup).toContain('Open bundled payment case')
+    expect(markup).toContain('Start here')
+    expect(markup).toContain('Abbreviated bank reference')
+    expect(markup).toContain('PAGO FACT 1432 Y 33 MENOS NC-88')
+    expect(markup).toContain('Open this payment')
+    expect(markup).toContain('How Reconcile decides')
+    expect(markup).toContain('More payments to try')
+    expect(markup.match(/class="case-card"/g)).toHaveLength(4)
+    expect(markup).toContain('Regression fixtures (2)')
+    expect(markup.indexOf('Regression fixtures')).toBeGreaterThan(markup.indexOf('Partial payment'))
+  })
+
+  it('never states an allocation on the case page before the server runs the case', () => {
+    const markup = renderToString(<CasesView
+      registry={{ version: 'v1', cases: [
+        { id: 'spei-shorthand', title: 'Abbreviated bank reference', description: 'Inputs only.', amount: 5400000, group: 'library', reference: 'PAGO FACT 1432 Y 33 MENOS NC-88' },
+      ] }}
+      busy=""
+      onOpen={async () => {}}
+    />)
+
+    expect(markup).not.toContain('MX$30,000')
+    expect(markup).not.toContain('MX$24,000')
+    expect(markup).not.toContain('Tempting guess')
+    expect(markup).not.toContain('Message-supported split')
+  })
+
+  it('falls back to every server case when no library group is returned', () => {
+    const markup = renderToString(<CasesView
+      registry={{ version: 'v2', cases: [
+        { id: 'bundle', title: 'Server bundle', description: 'A different registered example', amount: 1200000 },
+        { id: 'other', title: 'Other case', description: 'Second example', amount: 300000 },
+      ] }}
+      busy=""
+      onOpen={async () => {}}
+    />)
+
+    expect(markup).toContain('Server bundle')
+    expect(markup).toContain('A different registered example')
+    expect(markup).toContain('Other case')
+    expect(markup).not.toContain('Regression fixtures')
+  })
+
+  it('explains a rules proposal in plain language and separates proposed effects from balances', () => {
+    const detail = { proposal_id: 'proposal-1', revision: 3, reason: null, case: null, trace: { mode: 'rules-v2-conservative' } } as unknown as ProposalDetail
+    const markup = renderToString(<DecisionSummary
+      detail={detail}
+      status="PROPOSED"
+      cash={[{ invoice_id: '101', amount_mxn: '30000.00' }]}
+      credits={[{ credit_note_id: '103', invoice_id: '102', amount_mxn: '1000.00' }]}
+    />)
+
+    expect(markup).toContain('The rules matched an exact invoice number')
+    expect(markup).toContain('deterministic rules')
+    expect(markup).toContain('Proposed cash')
+    expect(markup).toContain('Proposed credit')
+    expect(markup).toContain('Unchanged until approval')
+  })
+
+  it('explains an AI proposal as checked by code and still awaiting approval', () => {
+    const detail = { reason: 'bounded interpretation: evidence_supported', trace: { mode: 'llm-direct' } } as unknown as ProposalDetail
+    const markup = renderToString(<DecisionSummary detail={detail} status="PROPOSED" cash={[{ invoice_id: 'F-1432', amount_mxn: '30000.00' }]} credits={[]} />)
+
+    expect(markup).toContain('DeepSeek proposed this allocation')
+    expect(markup).toContain('DeepSeek, checked by code')
+    expect(markup).toContain('Nothing is recorded until you approve')
+  })
+
+  it('explains unresolved work from the server reason code, not the case identifier', () => {
+    const cases: Array<[string, string]> = [
+      ['unrecognized source text', 'The rules can&#x27;t read this reference'],
+      ['unrecognized_source_text', 'The rules can&#x27;t read this reference'],
+      ['prompt-like instruction', 'Held: the note contains instructions for an AI system'],
+      ['no explicit invoice reference', 'No invoice number was given'],
+      ['bounded interpretation: ambiguous', 'The AI couldn&#x27;t tell which invoice was paid'],
+    ]
+    for (const [reason, title] of cases) {
+      for (const caseInfo of [null, { id: 'insufficient', version: 'v1', variant: 'original' }]) {
+        const detail = { reason, case: caseInfo, cash: [], credits: [], evidence: [] } as unknown as ProposalDetail
+        const markup = renderToString(<DecisionSummary detail={detail} status="NEEDS_REVIEW" cash={[]} credits={[]} />)
+        expect(markup).toContain(title)
+        expect(markup).toContain('No balance has changed')
+        expect(markup).not.toContain('Proposed cash')
+      }
+    }
+  })
+
+  it('keeps interpretation available for unresolved work and gives proposed work the reviewer lead', () => {
+    expect(shouldShowInterpretation('PROPOSED', false)).toBe(false)
+    expect(shouldShowInterpretation('PROPOSED', true)).toBe(true)
+    expect(shouldShowInterpretation('NEEDS_REVIEW', false)).toBe(true)
   })
 
   it('shows server provenance, stage evidence, and unknown timing without fabricating values', () => {

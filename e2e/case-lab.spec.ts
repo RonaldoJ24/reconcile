@@ -1,6 +1,16 @@
 import { expect, test } from '@playwright/test'
 import path from 'node:path'
 
+const openEngineeringView = async (page: import('@playwright/test').Page) => {
+  const details = page.locator('details.engineering-details')
+  await expect(details).toBeVisible()
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
+}
+const revealRegressionCases = async (page: import('@playwright/test').Page) => {
+  const details = page.locator('details.regression-cases')
+  if (await details.count() && !(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
+}
+
 const caseId = 'bundle'
 const proposalId = 'proposal-case-lab'
 const sourceId = 'source-case-lab'
@@ -141,9 +151,10 @@ test.describe('case lab controls', () => {
   test('changes a registered variant and runs a review-only reliability check', async ({ page }) => {
     const state = await mockCaseLabApi(page)
     await page.goto('/#cases')
-    await expect(page.getByRole('button', { name: 'Open bundled payment case' })).toBeEnabled()
-    await page.getByRole('button', { name: 'Open bundled payment case' }).click()
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+    await expect(page.locator('[data-case-id="bundle"]')).toBeEnabled()
+    await page.locator('[data-case-id="bundle"]').click()
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible()
+    await openEngineeringView(page)
 
     const variantPanel = page.getByRole('region', { name: 'Change message variant' })
     await expect(variantPanel).toContainText('Current: Original message')
@@ -177,8 +188,9 @@ test.describe('case lab controls', () => {
   test('blocks financial actions and comparison while a case lab request is in flight', async ({ page }) => {
     const state = await mockCaseLabApi(page, { delayVariant: true, delayReliability: true })
     await page.goto('/#cases')
-    await page.getByRole('button', { name: 'Open bundled payment case' }).click()
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+    await page.locator('[data-case-id="bundle"]').click()
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible()
+    await openEngineeringView(page)
 
     const variantPanel = page.getByRole('region', { name: 'Change message variant' })
     await variantPanel.getByLabel('Variant').selectOption('prompt_like')
@@ -232,9 +244,11 @@ test.describe('real case lab', () => {
     }
 
     await page.goto('/#cases')
-    await expect(page.locator('.case-card')).toHaveCount(5, { timeout: 90_000 })
-    await page.getByRole('button', { name: 'Open bundled payment case' }).click()
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible({ timeout: 90_000 })
+    await expect(page.locator('button[data-case-id]')).toHaveCount(10, { timeout: 90_000 })
+    await revealRegressionCases(page)
+    await page.locator('[data-case-id="bundle"]').click()
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible({ timeout: 90_000 })
+    await openEngineeringView(page)
     realProposalId = decodeURIComponent(new URL(page.url()).hash.replace('#proposal/', ''))
     expect(realProposalId).not.toBe(proposalId)
     await page.getByRole('button', { name: 'Compare methods' }).click()
@@ -255,7 +269,7 @@ test.describe('real case lab', () => {
       await expectNoHorizontalOverflow()
     }
     await page.reload()
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible({ timeout: 90_000 })
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible({ timeout: 90_000 })
     await expect(page.getByRole('region', { name: 'Change message variant' })).toContainText('Current: Prompt-like message')
     const originalPanel = page.getByRole('region', { name: 'Change message variant' })
     await originalPanel.getByLabel('Variant').selectOption('original')
@@ -274,12 +288,12 @@ test.describe('real case lab', () => {
     await page.getByLabel('Reviewer name').fill('Case lab reviewer')
     const applyResponse = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith('/apply'))
     await page.getByRole('button', { name: 'Apply allocation' }).click()
-    const confirmation = page.getByRole('dialog', { name: 'Apply persisted allocation?' })
+    const confirmation = page.getByRole('dialog', { name: 'Record this allocation?' })
     await expect(confirmation).toBeVisible()
     await confirmation.getByRole('button', { name: 'Confirm and apply' }).click()
     const applyBody = await (await applyResponse).json() as { application_id?: string }
     expect(applyBody.application_id).toBeTruthy()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED', { timeout: 90_000 })
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Recorded', { timeout: 90_000 })
 
     const appliedVariant = page.getByRole('region', { name: 'Change message variant' })
     await expect(appliedVariant.getByRole('button', { name: 'Change case variant' })).toBeDisabled()
@@ -302,7 +316,7 @@ test.describe('real case lab', () => {
 
     await page.getByLabel('Reversal reason').fill('Case lab reversal')
     await page.getByRole('button', { name: 'Reverse application' }).click()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('REVERSED', { timeout: 90_000 })
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Reversed', { timeout: 90_000 })
     await expect(appliedVariant.getByRole('button', { name: 'Change case variant' })).toBeDisabled()
     await expectNoHorizontalOverflow()
     await page.screenshot({ path: qualityDemoPath(`real-case-lab-${test.info().project.name}.png`), fullPage: true })

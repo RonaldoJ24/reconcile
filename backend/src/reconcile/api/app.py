@@ -21,7 +21,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from reconcile.api.cases import get_case, list_cases
@@ -279,6 +279,37 @@ def _case_state(
             state["active_source_id"] = str(active_source_id)
         return state
     return None
+
+
+def _payment_messages(
+    db: Session, workspace_id: uuid.UUID, payment: Payment
+) -> list[dict[str, str]]:
+    """Return the active remittance notes linked to a payment, bounded for display."""
+
+    notes: list[dict[str, str]] = []
+    for source in db.scalars(
+        select(Source)
+        .join(ImportBatch, Source.batch_id == ImportBatch.id)
+        .where(
+            Source.workspace_id == workspace_id,
+            Source.kind == "message",
+            or_(ImportBatch.status == "COMMITTED", Source.status == "COMMITTED"),
+            Source.status != "REJECTED_CONFLICT",
+            Source.status != "SUPERSEDED",
+        )
+        .order_by(Source.created_at, Source.id)
+    ):
+        metadata = source.source_metadata
+        if (
+            metadata.get("payment_source_account_id") == payment.source_account_id
+            and metadata.get("payment_transaction_id") == payment.transaction_id
+            and source.raw_bytes
+        ):
+            text = source.raw_bytes.decode("utf-8", errors="replace")
+            notes.append({"source_id": str(source.id), "text": text[:2_000]})
+        if len(notes) == 5:
+            break
+    return notes
 
 
 def _case_for_payment(
@@ -1332,6 +1363,7 @@ def create_app() -> FastAPI:
             "unapplied_cash": payment.amount - int(payment_used_cash),
             "application_id": (str(latest_application_id) if latest_application_id else None),
             "case": _case_for_payment(db, workspace.id, payment.source_id),
+            "messages": _payment_messages(db, workspace.id, payment),
             "capabilities": _capabilities(record, workspace, proposal, latest_application),
             "decision_trace": decision_trace,
             "comparison": (

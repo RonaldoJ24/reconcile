@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 import path from 'node:path'
 
+const openEngineeringView = async (page: import('@playwright/test').Page) => {
+  const details = page.locator('details.engineering-details')
+  await expect(details).toBeVisible()
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
+}
+
 const fixture = (name: string) => path.join(__dirname, 'fixtures', name)
 const expectNoHorizontalOverflow = async (page: import('@playwright/test').Page) => {
   const size = await page.evaluate(() => ({
@@ -42,7 +48,7 @@ test.describe('fresh import through reviewed application', () => {
     await expect(proposal).toBeVisible()
     await proposal.click()
 
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible()
     await expectNoHorizontalOverflow(page)
     await page.locator('.read-only-action').getByRole('button', { name: 'Edit allocation' }).click()
     await page.getByLabel('Reviewer name').fill('E2E reviewer')
@@ -85,7 +91,7 @@ test.describe('fresh import through reviewed application', () => {
     expect(firstPayload.cash?.[0]?.amount).toBe(10_000)
     const firstDetail = await (await firstPersisted).json() as { cash?: Array<{ amount?: number }> }
     expect(firstDetail.cash?.[0]?.amount).toBe(10_000)
-    await expect(page.locator('.page-heading').getByText(/revision 2/i)).toBeVisible()
+    await expect(page.locator('.page-heading .detail-record').getByText(/revision 2/i)).toBeAttached()
 
     await page.locator('.read-only-action').getByRole('button', { name: 'Edit allocation' }).click()
     await cashAmount.fill('100.00')
@@ -96,10 +102,10 @@ test.describe('fresh import through reviewed application', () => {
     expect(secondPayload.cash?.[0]?.amount).toBe(10_000)
     const secondDetail = await (await secondPersisted).json() as { cash?: Array<{ amount?: number }> }
     expect(secondDetail.cash?.[0]?.amount).toBe(10_000)
-    await expect(page.locator('.page-heading').getByText(/revision 3/i)).toBeVisible()
+    await expect(page.locator('.page-heading .detail-record').getByText(/revision 3/i)).toBeAttached()
 
     await page.getByRole('button', { name: 'Apply allocation' }).click()
-    const confirmation = page.getByRole('dialog', { name: 'Apply persisted allocation?' })
+    const confirmation = page.getByRole('dialog', { name: 'Record this allocation?' })
     await expect(confirmation).toBeVisible()
     await expect(confirmation).toContainText('Review revision 3')
     await expect(confirmation).toContainText('100.00 MXN')
@@ -107,7 +113,7 @@ test.describe('fresh import through reviewed application', () => {
     await expect(confirmation).toContainText('does not move money in a bank account')
     await page.screenshot({ path: path.join(__dirname, '..', 'output', 'quality-demo', `confirmation-${test.info().project.name}.png`), fullPage: true })
     await confirmation.getByRole('button', { name: 'Confirm and apply' }).click()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Recorded')
     await expect(page.getByRole('button', { name: 'Applied', exact: true })).toBeDisabled()
     const balances = page.getByRole('table', { name: 'Remaining balances' })
     await expect(balances.locator('tbody tr').filter({ hasText: '101' })).toContainText('29,900.00')
@@ -118,11 +124,12 @@ test.describe('fresh import through reviewed application', () => {
     await page.getByRole('button', { name: 'Review queue' }).click()
     await expect(page.locator('.proposal-card').first()).toBeVisible()
     await page.locator('.proposal-card').first().click()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Recorded')
     const reloadedBalances = page.getByRole('table', { name: 'Remaining balances' })
     await expect(reloadedBalances.locator('tbody tr').filter({ hasText: '101' })).toContainText('29,900.00')
     await expect(reloadedBalances.locator('tbody tr').filter({ hasText: '102' })).toContainText('0.00')
 
+    await openEngineeringView(page)
     const download = page.waitForEvent('download')
     await page.getByRole('link', { name: 'Download CSV' }).click()
     await expect((await download).suggestedFilename()).toMatch(/\.csv$/)
@@ -130,7 +137,7 @@ test.describe('fresh import through reviewed application', () => {
     await page.getByLabel('Reviewer name').fill('E2E reversal reviewer')
     await page.getByLabel('Reversal reason').fill('E2E reversal check')
     await page.getByRole('button', { name: 'Reverse application' }).click()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('REVERSED')
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Reversed')
     const reversedBalances = page.getByRole('table', { name: 'Remaining balances' })
     await expect(reversedBalances.locator('tbody tr').filter({ hasText: '101' })).toContainText('30,000.00')
     await expect(reversedBalances.locator('tbody tr').filter({ hasText: '102' })).toContainText('25,000.00')
