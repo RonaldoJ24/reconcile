@@ -7,6 +7,8 @@ const openEngineeringView = async (page: import('@playwright/test').Page) => {
   if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
 }
 const revealRegressionCases = async (page: import('@playwright/test').Page) => {
+  // Wait for the case list to render before deciding whether the fold exists.
+  await expect(page.locator('button[data-case-id]').first()).toBeVisible()
   const details = page.locator('details.regression-cases')
   if (await details.count() && !(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
 }
@@ -213,6 +215,8 @@ test.describe('case study workspace', () => {
     await page.screenshot({ path: qualityDemoPath(`real-case-list-${test.info().project.name}.png`), fullPage: true })
 
     for (const scenario of cases) {
+      // Returning to Cases re-renders the folded regression list.
+      await revealRegressionCases(page)
       const card = page.locator(`[data-case-id="${scenario.id}"]`)
       const firstOpen = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/v1/cases/${scenario.id}/open`)
       await card.click()

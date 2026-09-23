@@ -7,6 +7,8 @@ const openEngineeringView = async (page: import('@playwright/test').Page) => {
   if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
 }
 const revealRegressionCases = async (page: import('@playwright/test').Page) => {
+  // Wait for the case list to render before deciding whether the fold exists.
+  await expect(page.locator('button[data-case-id]').first()).toBeVisible()
   const details = page.locator('details.regression-cases')
   if (await details.count() && !(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
 }

@@ -42,7 +42,7 @@ test.describe('fresh import through reviewed application', () => {
 
     await page.getByRole('button', { name: 'Commit accepted rows' }).click()
     await expect(page.getByText(/Job (SUCCEEDED|IDLE)/)).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('button', { name: 'Review queue' }).click()
+    await page.getByRole('navigation').getByRole('button', { name: /^Review queue/ }).click()
     await expect(page.getByRole('heading', { name: 'Review queue' })).toBeVisible()
     const proposal = page.locator('.proposal-card').first()
     await expect(proposal).toBeVisible()
@@ -121,7 +121,7 @@ test.describe('fresh import through reviewed application', () => {
     await page.screenshot({ path: path.join(__dirname, '..', 'output', 'quality-demo', `applied-${test.info().project.name}.png`), fullPage: true })
 
     await page.reload()
-    await page.getByRole('button', { name: 'Review queue' }).click()
+    await page.getByRole('navigation').getByRole('button', { name: /^Review queue/ }).click()
     await expect(page.locator('.proposal-card').first()).toBeVisible()
     await page.locator('.proposal-card').first().click()
     await expect(page.locator('.payment-card .status-pill')).toHaveText('Recorded')
