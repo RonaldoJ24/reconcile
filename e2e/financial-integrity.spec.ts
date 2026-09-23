@@ -85,7 +85,7 @@ async function mockApi(page: import('@playwright/test').Page, uncertainFirstAppl
 
 async function openProposal(page: import('@playwright/test').Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Review queue' }).click()
+  await page.getByRole('navigation').getByRole('button', { name: /^Review queue/ }).click()
   await page.locator('.proposal-card').first().click()
   await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible()
 }
