@@ -62,7 +62,8 @@ from reconcile.interpretation.schemas import (
 from reconcile.interpretation.workflow import WorkflowProgress, compile_workflow
 from reconcile.jobs.lifecycle import LifecycleConsumer
 from reconcile.jobs.queue import run_once
-from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY
+from reconcile.ml.artifact import warm_artifact_cache
+from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY, runtime_mode
 from reconcile.persistence.db import SessionLocal, readiness, session_scope
 from reconcile.persistence.maintenance import (
     cleanup_expired_preview_workspaces,
@@ -600,6 +601,11 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         consumer: LifecycleConsumer | None = None
+        if runtime_mode() == "shadow":
+            # The first case of a woken preview otherwise waits on this import.
+            threading.Thread(
+                target=warm_artifact_cache, name="reconcile-ranker-warmup", daemon=True
+            ).start()
         if server_mode() == "preview":
             with SessionLocal() as maintenance_session:
                 cleanup_expired_preview_workspaces(maintenance_session)

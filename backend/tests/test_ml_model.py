@@ -252,3 +252,33 @@ def test_rules_unmapped_and_needs_review_cases_abstain() -> None:
     assert 0.0 in scores[group["group_id"]]
     report = evaluate_rules([group], _targets([group]))
     assert report["proposal"]["proposals"] == 0
+
+
+def test_cached_artifact_reuses_verified_model_until_files_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from reconcile.ml.artifact import load_cached_artifact, warm_artifact_cache
+
+    train_groups = [_group(f"cache-{index}") for index in range(4)]
+    result = train_models(
+        train_groups, _targets(train_groups), train_groups, _targets(train_groups)
+    )
+    root = tmp_path / "ranker-ml-v1"
+    monkeypatch.setattr(artifact_module, "ARTIFACT_DIR", root)
+    save_artifact(
+        result.models[result.selected_model],
+        {"model_id": "toy-ranker", "model_version": "test", "seed": 20260914},
+    )
+
+    first = load_cached_artifact()
+    assert load_cached_artifact() is first
+
+    model_path = root / "model.pkl"
+    model_path.write_bytes(model_path.read_bytes() + b"tampered")
+    with pytest.raises(ArtifactError, match="digest"):
+        load_cached_artifact()
+
+    monkeypatch.setattr(artifact_module, "ARTIFACT_DIR", tmp_path / "missing")
+    warm_artifact_cache()
+    with pytest.raises(ArtifactError, match="not installed"):
+        load_cached_artifact()

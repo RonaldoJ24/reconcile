@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from time import perf_counter_ns
 from typing import Any
 
-from .artifact import ArtifactError, LoadedArtifact, load_artifact
+from .artifact import ArtifactError, LoadedArtifact, load_cached_artifact
 from .features import candidate_features, score_classifier
 
 ACTIVE_RULES_IDENTITY = "rules-v2-conservative"
@@ -62,7 +62,7 @@ def rank_candidates(
     if (trace["mode"] != "shadow" and not force) or not candidates:
         return trace
 
-    loaded = artifact or load_artifact()
+    loaded = artifact or load_cached_artifact()
     started = perf_counter_ns()
     values = _raw_scores(
         loaded.model, [candidate_features(group, candidate) for candidate in candidates]
