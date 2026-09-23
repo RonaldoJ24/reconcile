@@ -22,6 +22,8 @@ class CasePacket:
     # "library" cases are the realistic walkthrough; "regression" cases are the
     # original fixtures kept for the existing end-to-end and integration checks.
     group: str = "regression"
+    # The bank reference is input evidence shown before a case is opened.
+    reference: str = "—"
 
     def parse(self, profile: str = "local") -> ParsedBatch:
         context = (
@@ -177,6 +179,7 @@ def _mx_packet(
         payment_source_account_id=account,
         payment_transaction_id=transaction,
         group="library",
+        reference=reference,
     )
 
 
@@ -340,6 +343,7 @@ def list_cases() -> list[dict[str, object]]:
             "description": case.description,
             "amount": case.amount,
             "group": case.group,
+            "reference": case.reference,
         }
         for case in CASES
     ]

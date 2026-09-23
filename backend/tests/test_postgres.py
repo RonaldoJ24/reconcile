@@ -993,6 +993,8 @@ def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch
             "adversarial",
         ]
         assert [item["group"] for item in cases] == ["library"] * 5 + ["regression"] * 5
+        assert cases[0]["reference"] == "PAGO FACT 1432 Y 33 MENOS NC-88"
+        assert cases[-1]["reference"] == "—"
         opened = {
             case_id: _open_case(client, case_id)
             for case_id in [item["id"] for item in cases]
@@ -1025,6 +1027,8 @@ def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch
             detail = detail_response.json()
             details[case_id] = detail
             assert detail["status"] == expected_status[case_id]
+            assert len(detail["messages"]) == 1
+            assert detail["messages"][0]["text"]
             assert detail["case"] == {"id": case_id, "version": "v1", "variant": "original"}
             assert detail["decision_trace"]["source"] == "rules"
             assert any(
@@ -1032,6 +1036,7 @@ def test_registered_cases_open_and_run_through_the_real_api(session, monkeypatch
                 for stage in detail["decision_trace"]["stages"]
             )
 
+        assert details["spei-shorthand"]["messages"][0]["text"].startswith("Buen día.")
         bundle = details["bundle"]
         assert bundle["payment"]["amount"] == 5_400_000
         assert {row["invoice_id"] for row in bundle["cash"]} == {
