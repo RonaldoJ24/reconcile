@@ -1,6 +1,16 @@
 import { expect, test } from '@playwright/test'
 import path from 'node:path'
 
+const openEngineeringView = async (page: import('@playwright/test').Page) => {
+  const details = page.locator('details.engineering-details')
+  await expect(details).toBeVisible()
+  if (!(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
+}
+const revealRegressionCases = async (page: import('@playwright/test').Page) => {
+  const details = page.locator('details.regression-cases')
+  if (await details.count() && !(await details.evaluate((element) => (element as HTMLDetailsElement).open))) await details.locator(':scope > summary').click()
+}
+
 const proposalId = 'proposal-comparison'
 const token = 'b'.repeat(64)
 const sourceId = 'source-comparison'
@@ -129,9 +139,10 @@ test.describe('comparison and evaluation', () => {
   test('compares the persisted revision without exposing financial actions', async ({ page }) => {
     const state = await mockApi(page, { delayCompare: true })
     await page.goto('/#cases')
-    await expect(page.getByRole('button', { name: 'Open bundled payment case' })).toBeEnabled()
-    await page.getByRole('button', { name: 'Open bundled payment case' }).click()
+    await expect(page.locator('[data-case-id="bundle"]')).toBeEnabled()
+    await page.locator('[data-case-id="bundle"]').click()
     await expect(page).toHaveURL(/#proposal\/proposal-comparison$/)
+    await openEngineeringView(page)
 
     const panel = page.getByRole('region', { name: 'Review-only observations' })
     await expect(panel.getByRole('button', { name: 'Compare methods' })).toBeEnabled()
@@ -161,7 +172,7 @@ test.describe('comparison and evaluation', () => {
     await expect(page).toHaveURL(/#evaluation$/)
     await expect(page.getByRole('alert')).toContainText('Packaged evaluation temporarily unavailable.')
     await page.getByRole('button', { name: 'Retry evaluation' }).click()
-    await expect(page.getByRole('columnheader', { name: 'Abstained on underdetermined cases' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Abstained on underdetermined cases', includeHidden: true })).toBeAttached()
     await expect(page.getByText('Active engine: rules-v2-conservative')).toBeVisible()
     await expect(page.getByText('Not evaluated')).toBeVisible()
     expect(state.earlyEvaluationRequests()).toBe(0)
@@ -173,7 +184,7 @@ test.describe('comparison and evaluation', () => {
     await page.goto('/#cases')
     await page.getByRole('button', { name: 'Evaluation' }).click()
     await expect(page).toHaveURL(/#evaluation$/)
-    await expect(page.getByRole('columnheader', { name: 'Abstained on underdetermined cases' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'Abstained on underdetermined cases', includeHidden: true })).toBeAttached()
   })
 
   test('real backend persists comparison observations and serves the packaged evaluation', async ({ page }) => {
@@ -181,9 +192,11 @@ test.describe('comparison and evaluation', () => {
     test.setTimeout(240_000)
 
     await page.goto('/#cases')
-    await expect(page.locator('.case-card')).toHaveCount(5, { timeout: 90_000 })
-    await page.getByRole('button', { name: 'Open bundled payment case' }).click()
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible({ timeout: 90_000 })
+    await expect(page.locator('button[data-case-id]')).toHaveCount(10, { timeout: 90_000 })
+    await revealRegressionCases(page)
+    await page.locator('[data-case-id="bundle"]').click()
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible({ timeout: 90_000 })
+    await openEngineeringView(page)
     const panel = page.getByRole('region', { name: 'Review-only observations' })
     await panel.getByRole('button', { name: 'Compare methods' }).click()
     await expect(panel.locator('.comparison-method')).toHaveCount(5)
@@ -192,7 +205,7 @@ test.describe('comparison and evaluation', () => {
     await expect(panel.locator('article').filter({ hasText: 'direct' })).toContainText('Unavailable')
     await expect(panel.locator('article').filter({ hasText: 'hybrid' })).toContainText('Unavailable')
     await page.reload()
-    await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible({ timeout: 90_000 })
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible({ timeout: 90_000 })
     const persistedPanel = page.getByRole('region', { name: 'Review-only observations' })
     await expect(persistedPanel.locator('.comparison-method')).toHaveCount(5)
     await expect(persistedPanel).toContainText('Raw score (not confidence)')

@@ -87,7 +87,7 @@ async function openProposal(page: import('@playwright/test').Page) {
   await page.goto('/')
   await page.getByRole('button', { name: 'Review queue' }).click()
   await page.locator('.proposal-card').first().click()
-  await expect(page.getByRole('heading', { name: 'Allocation detail' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible()
 }
 
 test.describe('financial interaction integrity', () => {
@@ -113,9 +113,9 @@ test.describe('financial interaction integrity', () => {
     await expect(page.getByText(/Unsaved changes/)).toHaveCount(0)
     await expect(apply).toBeEnabled()
     await apply.click()
-    await expect(page.getByRole('dialog', { name: 'Apply persisted allocation?' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Record this allocation?' })).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog', { name: 'Apply persisted allocation?' })).toBeHidden()
+    await expect(page.getByRole('dialog', { name: 'Record this allocation?' })).toBeHidden()
   })
 
   test('retries uncertain apply with one key and keeps reviewer usable for reversal', async ({ page }) => {
@@ -123,7 +123,7 @@ test.describe('financial interaction integrity', () => {
     await openProposal(page)
     await page.getByLabel('Reviewer name').fill('Initial reviewer')
     await page.getByRole('button', { name: 'Apply allocation' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Apply persisted allocation?' })
+    const dialog = page.getByRole('dialog', { name: 'Record this allocation?' })
     await expect(dialog).toBeVisible()
     await expect(dialog).toContainText('Review revision 1')
     await expect(dialog).toContainText('Projected invoice balances')
@@ -133,7 +133,7 @@ test.describe('financial interaction integrity', () => {
     await expect(page.locator('.error-banner')).toBeVisible()
     await expect(dialog).toBeVisible()
     await dialog.getByRole('button', { name: 'Confirm and apply' }).click()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Recorded')
     expect(applyKeys).toHaveLength(2)
     expect(applyKeys[0]).toBe(applyKeys[1])
 
@@ -142,7 +142,7 @@ test.describe('financial interaction integrity', () => {
     await reviewer.fill('Reversal reviewer')
     await page.getByLabel('Reversal reason').fill('Mock reversal')
     await page.getByRole('button', { name: 'Reverse application' }).click()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('REVERSED')
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Reversed')
   })
 
   test('keeps the confirmation modal open when Escape is pressed during apply', async ({ page }) => {
@@ -160,7 +160,7 @@ test.describe('financial interaction integrity', () => {
     await openProposal(page)
     await page.getByLabel('Reviewer name').fill('Busy apply reviewer')
     await page.getByRole('button', { name: 'Apply allocation' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Apply persisted allocation?' })
+    const dialog = page.getByRole('dialog', { name: 'Record this allocation?' })
     const applyRequest = page.waitForRequest((request) => request.url().endsWith(`/api/v1/proposals/${proposalId}/apply`) && request.method() === 'POST')
     await dialog.getByRole('button', { name: 'Confirm and apply' }).click()
     await applyRequest
@@ -168,7 +168,7 @@ test.describe('financial interaction integrity', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toBeVisible()
     await releaseApply?.()
-    await expect(page.locator('.payment-card .status-pill')).toHaveText('APPLIED')
+    await expect(page.locator('.payment-card .status-pill')).toHaveText('Recorded')
   })
 
   test('does not let stale validation restore commit and invalidates a successful result on input change', async ({ page }) => {
