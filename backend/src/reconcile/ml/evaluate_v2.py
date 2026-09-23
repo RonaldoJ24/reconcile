@@ -502,6 +502,39 @@ def _validate_labels_against_inputs(
                     )
 
 
+def _verify_provider_observation(
+    result: JsonRow,
+    recording: Any,
+    *,
+    input_row: JsonRow,
+    identity: JsonRow,
+    context: str,
+) -> None:
+    """Re-derive a provider observation from its recording and require an exact match."""
+
+    from reconcile.ml.eval_v2_recordings import (
+        RecordingVerificationError,
+        observation_from_recording,
+    )
+
+    try:
+        derived = observation_from_recording(recording, input_row=input_row, identity=identity)
+    except RecordingVerificationError as exc:
+        raise EvaluationValidationError(f"{context} recording is not authentic: {exc}") from exc
+    if str(result.get("status", "")).upper() != derived["status"]:
+        raise EvaluationValidationError(f"{context} status differs from its recording")
+    if result.get("candidate_id") != derived["candidate_id"]:
+        raise EvaluationValidationError(f"{context} candidate differs from its recording")
+    allocation = result.get("allocation")
+    if derived["allocation"] is None:
+        if allocation is not None:
+            raise EvaluationValidationError(f"{context} allocation differs from its recording")
+    elif not isinstance(allocation, Mapping) or not allocation_matches(
+        derived["allocation"], allocation
+    ):
+        raise EvaluationValidationError(f"{context} allocation differs from its recording")
+
+
 def _validate_observation(
     result: JsonRow,
     *,
@@ -509,6 +542,8 @@ def _validate_observation(
     method_name: str | None = None,
     ranker_timing: bool = False,
     allow_unmaterialized: bool = False,
+    input_row: JsonRow | None = None,
+    provider_identity: JsonRow | None = None,
 ) -> None:
     status = result.get("status")
     statuses = {
@@ -544,9 +579,14 @@ def _validate_observation(
         raise EvaluationValidationError(f"{context} must time features+predict")
     provider_method = str(method_name or result.get("method", "")).strip().lower()
     if provider_method in {"direct", "hybrid", "provider-direct", "provider-hybrid"}:
-        if status.upper() != "UNAVAILABLE":
-            raise EvaluationValidationError(
-                "Direct/Hybrid observations are unavailable until an authentic loader exists"
+        recording = result.get("recording")
+        if status.upper() != "UNAVAILABLE" or recording is not None:
+            if provider_identity is None or input_row is None:
+                raise EvaluationValidationError(
+                    "Direct/Hybrid observations are unavailable until an authentic loader exists"
+                )
+            _verify_provider_observation(
+                result, recording, input_row=input_row, identity=provider_identity, context=context
             )
     _observation_citation(result)
     if status.upper() == "PROPOSED":
@@ -734,16 +774,19 @@ def _check_fingerprints(
     *,
     ranker_timing: bool = False,
     allow_unmaterialized: bool = False,
+    provider_identity: JsonRow | None = None,
 ) -> None:
     for (case_id, method), result in join.results.items():
+        input_row = join.inputs[case_id]
         _validate_observation(
             result,
             context=f"result {case_id}/{method}",
             method_name=method,
             ranker_timing=ranker_timing,
             allow_unmaterialized=allow_unmaterialized,
+            input_row=input_row,
+            provider_identity=provider_identity,
         )
-        input_row = join.inputs[case_id]
         expected_input = fingerprint_value(dict(input_row))
         expected_candidates = fingerprint_value(input_row.get("candidates", []))
         expected_evidence = fingerprint_value(input_row.get("evidence", []))
@@ -791,8 +834,13 @@ def evaluate_observations(
     method: str | None = None,
     require_lineage: bool = True,
     ranker_timing: bool = False,
+    provider_identity: JsonRow | None = None,
 ) -> JsonObject:
-    """Evaluate recorded observations without executing any method."""
+    """Evaluate recorded observations without executing any method.
+
+    Direct/Hybrid observations need ``provider_identity`` (the frozen run's
+    identity) and are re-derived from their embedded recordings.
+    """
 
     join = validate_join(
         inputs,
@@ -802,7 +850,7 @@ def evaluate_observations(
         method=method,
         require_lineage=require_lineage,
     )
-    _check_fingerprints(join, ranker_timing=ranker_timing)
+    _check_fingerprints(join, ranker_timing=ranker_timing, provider_identity=provider_identity)
     for label in join.labels.values():
         _label_answerable(label)
     if len(join.methods) != 1:
