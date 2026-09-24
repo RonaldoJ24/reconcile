@@ -24,3 +24,13 @@ Regenerate deterministically from the repository root with:
 PYTHONPATH=backend/src python3 -m reconcile.ml.data --output data/generated/ml-v1
 PYTHONPATH=backend/src python3 -m reconcile.ml.data --output data/generated/ml-v1 --validate
 ```
+
+## Evaluation v2 cases
+
+`eval-v2/cases.jsonl` and `eval-v2/labels.jsonl` hold the 180 synthetic cases that
+Claude subagents wrote blind for the pre-registered v2 run, with inputs and labels
+in separate files. Labels follow accounting truth, including allocations the system
+cannot represent. They are AI-written, not independently reviewed, and now public,
+so they are development data for any later change. Results, run outputs and
+deviations are in [`reports/eval-v2/`](../reports/eval-v2/README.md). Runtime code
+never loads these files, and `.dockerignore` keeps `data/` out of the image.
