@@ -53,6 +53,12 @@ for byte.
 **Checks.** Ruff and strict mypy passed. The offline suite passed 1,113 tests.
 Frontend typecheck, 59 tests and the build passed. The PostgreSQL suite passed 69 tests on `test-release1` in 17m42s.
 
+**Deployed.** #47 merged as `b8fd7f0`, and deploy `dep-daq781p42hec738itjd0` is
+live. Health returned 200, and `/api/v1/evaluation` serves v2 as complete with six
+result rows. The hosted Playwright suite ran with real-backend flags and passed 32
+of 32 on desktop and mobile, after its real evaluation assertions were updated for
+v2 (they still expected "Not evaluated"). The landing page shows the results.
+
 **Deviations.** There were three authors, two Opus and one Sonnet continuation.
 The continuation author read the other authors' inputs, not their labels, for
 uniqueness. The c096–c180 batch skipped its self-check. An unregistered merge check
