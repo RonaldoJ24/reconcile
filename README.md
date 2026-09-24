@@ -23,7 +23,7 @@ a pre-registered run, resolved more (48%) but made 13 wrong proposals to GPT-6 L
 
 ![How often a proposal was right across all cases: DeepSeek 82% (61 right, 13 wrong), GPT-6 Luna 94% (50 right, 3 wrong)](docs/images/results/precision.svg)
 
-![Screenshot from the DeepSeek release. An abbreviated SPEI reference read by the model: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
+![An abbreviated SPEI reference read by GPT-6 Luna: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
 
 ## The problem
 
@@ -99,6 +99,9 @@ shows the decision trace, a method comparison and synthetic reliability checks
   the hidden instruction was not followed (F-5520, not F-5521). These are four
   development observations, and the prompt was revised after the first live call
   on the abbreviated case abstained. They are not an accuracy measurement.
+  After the switch to GPT-6 Luna, one live call per case on the demo resolved the
+  abbreviated reference and the partial payment the same way. It left the
+  ambiguous payment and the hidden-instruction case for a person.
 - **How the AI did on 178 cases**
   ([GPT-6 Luna](reports/eval-v2-openai/README.md),
   [DeepSeek, pre-registered](reports/eval-v2/README.md)). AI agents wrote 178

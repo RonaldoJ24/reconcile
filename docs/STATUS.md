@@ -48,8 +48,22 @@ CLI's own token to call the API is credential access that stays off limits. The
 owner sets `OPENAI_API_KEY` (and `RECONCILE_LLM_MODEL=gpt-6-luna` if present) in the
 Render dashboard before the deploy. The temporary key expires after a day.
 
-**Next.** Deploy after the key is set. Retake the README screenshots, which still
-show the DeepSeek UI, then continue the v2 next steps with a new blind set.
+**Deployed.**
+- #51 and #52 (saved readings keep the name of the model that made them) went live
+  as `e8337c9` in `dep-daq98g142hec738qnmn0`.
+- The owner then created a replacement OpenAI key and added it to Render, which
+  redeployed as `dep-daq9dr142hec738rd17g`.
+- On the live demo, a session reports provider access, and the abbreviated SPEI case
+  returned a live `gpt-6-luna` reading: F-1432 and F-1433 with NC-88 applied to
+  F-1433, citing the note.
+- One live call per demo case resolved the abbreviated and partial-payment cases.
+  It left the ambiguous and hidden-instruction cases for a person.
+- The hosted Playwright suite passed 32 of 32 on the new build.
+- The README and landing page screenshots were retaken from the live demo.
+
+**Next.** Revoke the temporary key pasted into the conversation, and remove
+`DEEPSEEK_API_KEY` from Render once GPT-6 Luna has run for a while. Then continue
+the v2 next steps with a new blind set.
 
 ## Evaluation v2: measured once — 2026-09-23
 
