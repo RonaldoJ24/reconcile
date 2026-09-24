@@ -102,8 +102,8 @@ shows the decision trace, a method comparison and synthetic reliability checks
   - All 13 errors were cases that should have gone to review. In 11, the right
     allocation was not among the candidates code built, mostly because the builder
     never pairs a single invoice with a credit note. The other 2 had no right answer.
-  - Whenever the right allocation was among the candidates, all 59 of the model's
-    proposals were correct.
+  - In the 64 answerable cases where the right allocation was among the candidates,
+    the model proposed in 59, all correctly, and sent 5 to review.
   - The run took 108 DeepSeek calls, for about US$0.04.
 
   These are AI-written synthetic cases, not real-world accuracy, and the set is now

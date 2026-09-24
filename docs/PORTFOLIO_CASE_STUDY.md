@@ -108,8 +108,8 @@ domain-only brief, against a system frozen before any case existed
 
 Every wrong proposal was a failure to defer. Eleven of them trace to allocations
 the candidate builder cannot express, mainly a single invoice netted by a credit
-note. When the right allocation was among the candidates, the model's 59 proposals
-were all correct.
+note. When the right allocation was among the candidates (64 cases), the model
+proposed in 59, all correctly, and sent 5 to review.
 
 These are synthetic, AI-written labels. No real-world accuracy, accounting time
 saved or business impact is claimed.

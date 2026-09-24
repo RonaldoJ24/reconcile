@@ -67,11 +67,12 @@ descriptive and was not registered. [`analyze.py`](analyze.py) regenerates
 
 **Every wrong proposal was a failure to defer.** In 11 of the 13, the correct
 allocation was not among the candidates the system built. The other 2 had no
-correct answer. The model never passed over a correct candidate for a wrong one: on
-answerable cases where the right allocation was offered, all 59 of its proposals
-were right. That includes the 26 cases where it had two or more candidates to
-choose from. The weakness is accepting a near-miss when nothing offered is right.
-Nine of the 13 errors came from accepting the only candidate.
+correct answer. The model never passed over a correct candidate for a wrong one. It
+saw 64 answerable cases whose correct allocation was among its candidates. It
+proposed in 59 of them, all correctly, and deferred the other 5. Of those 64, 27 had
+two or more candidates; it proposed in 26, all correctly, and deferred 1. The
+weakness is accepting a near-miss when nothing offered is right. Nine of the 13
+errors came from accepting the only candidate.
 
 | Cause | Wrong proposals | Cases |
 | --- | ---: | --- |

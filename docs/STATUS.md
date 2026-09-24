@@ -26,7 +26,8 @@ was opened once, and the ledger is published.
 **Post-hoc findings.**
 - Every wrong proposal was a failure to defer: 11 were unreachable and 2 had no
   correct answer.
-- When the correct allocation was offered, all 59 proposals were right.
+- When the correct allocation was offered (64 cases), the model proposed in 59, all
+  correctly, and deferred 5.
 - The candidate builder never pairs a single invoice with a credit note, so 0 of 17
   credit cases were reachable. The pre-registration described this wrongly.
 
