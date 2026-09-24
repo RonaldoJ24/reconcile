@@ -65,7 +65,7 @@ function V2ResultRow({ row }: { row: EvaluationV2Result }) {
     <td data-label="Deferred but answerable">{row.unnecessary_deferrals}</td>
     <td data-label="Unavailable">{row.unavailable_or_error}</td>
     <td data-label="Answerable resolved">{`${row.correct} of ${row.answerable}`}</td>
-    <td data-label="Wrongly allocated">{formatMxn(row.misallocated_centavos)}</td>
+    <td data-label="Value of wrong proposals">{formatMxn(row.misallocated_centavos)}</td>
   </tr>
 }
 
@@ -80,7 +80,7 @@ export function V2Results({ v2 }: { v2: EvaluationV2 }) {
     {scopes.map((scope) => <div className="table-wrap evaluation-table-wrap" key={scope}>
       <table className="evaluation-v2-table">
         <caption>{`${V2_SCOPE_LABELS[scope] ?? scope}: ${rows.find((row) => row.scope === scope)?.cases ?? 0} cases`}</caption>
-        <thead><tr><th scope="col">Method</th><th scope="col">Proposed</th><th scope="col">Right</th><th scope="col">Wrong</th><th scope="col">Deferred correctly</th><th scope="col">Deferred but answerable</th><th scope="col">Unavailable</th><th scope="col">Answerable resolved</th><th scope="col">Wrongly allocated</th></tr></thead>
+        <thead><tr><th scope="col">Method</th><th scope="col">Proposed</th><th scope="col">Right</th><th scope="col">Wrong</th><th scope="col">Deferred correctly</th><th scope="col">Deferred but answerable</th><th scope="col">Unavailable</th><th scope="col">Answerable resolved</th><th scope="col">Value of wrong proposals</th></tr></thead>
         <tbody>{rows.filter((row) => row.scope === scope).map((row) => <V2ResultRow key={`${scope}-${row.method}`} row={row} />)}</tbody>
       </table>
     </div>)}

@@ -153,6 +153,7 @@
     ],
     "findings": [
       "Every wrong proposal was a case that should have gone to review: in 11 the correct allocation was not among the system's candidates, and 2 had no correct answer. In the 64 answerable cases where the correct allocation was among the candidates, the model proposed in 59, all correctly, and sent 5 to review.",
+      "Value of wrong proposals counts the full payment of each wrong proposal. On the held-out split, both wrong proposals put the cash on the right invoice and missed only a credit note, MXN 5,262.00 of credit in total.",
       "The biggest gap is credit notes. The candidate builder never pairs a single invoice with a credit note, so none of the 17 answerable cases that needed one could be proposed correctly. Six were proposed with the cash on the right invoice and MXN 31,962.00 of credit left unapplied.",
       "37 of the 55 answerable cases that went to review had no remittance note, so the model was never called. The bank reference is not yet usable as evidence."
     ],

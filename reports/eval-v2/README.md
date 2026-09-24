@@ -17,11 +17,25 @@ This is the registered headline. The final split was opened once, after the live
 pass, through a one-time ledger. It has 40 cases, 34 of which a careful analyst
 could allocate.
 
-| Method | Proposed | Right | Wrong | Deferred correctly | Answerable resolved | Wrongly allocated |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Rules alone | 1 | 1 | 0 | 6 | 1 of 34 | MXN 0.00 |
-| Shadow ranker | 0 | 0 | 0 | 6 | 0 of 34 | MXN 0.00 |
-| **Rules, then DeepSeek (production)** | **23** | **21** | **2** | **6** | **21 of 34** | **MXN 102,906.00** |
+Every case ends in one of three ways. The method proposes an allocation, which is
+either right or wrong. Or it defers, which means it sends the case to a person. A
+deferral is correct when the case has no right answer. It is a miss when an analyst
+could have answered the case. So proposed, deferred correctly and deferred but
+answerable add up to the number of cases.
+
+| Method | Proposed | Right | Wrong | Deferred correctly | Deferred but answerable | Answerable resolved | Value of wrong proposals |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Rules alone | 1 | 1 | 0 | 6 | 33 | 1 of 34 | MXN 0.00 |
+| Shadow ranker | 0 | 0 | 0 | 6 | 34 | 0 of 34 | MXN 0.00 |
+| **Rules, then DeepSeek (production)** | **23** | **21** | **2** | **6** | **11** | **21 of 34** | **MXN 102,906.00** |
+
+**Value of wrong proposals** is the registered measure, and it is deliberately
+harsh. It counts the full payment of every wrong proposal, even when most of that
+money went to the right invoice. On this split there were two wrong proposals, for
+payments of MXN 59,000.00 and MXN 43,906.00. Both put the cash on the correct
+invoice, and each missed only a credit note. Together they were off by MXN 5,262.00
+of credit. For scale, the 40 held-out payments total MXN 2,071,523.44. Nothing is
+recorded until a person approves, but a reviewer would have had to catch these two.
 
 ## All 178 cases
 
@@ -29,11 +43,22 @@ Neither the rules nor DeepSeek were tuned on any split, so the registration also
 reports all cases. This is the larger sample, and the held-out split was kinder than
 average: validation alone held 6 of the 13 wrong proposals.
 
-| Method | Proposed | Right | Wrong | Deferred correctly | Answerable resolved | Wrongly allocated |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Rules alone | 2 | 2 | 0 | 51 | 2 of 127 | MXN 0.00 |
-| Shadow ranker (138 cases, validation excluded) | 0 | 0 | 0 | 40 | 0 of 98 | MXN 0.00 |
-| **Rules, then DeepSeek (production)** | **74** | **61** | **13** | **49** | **61 of 127** | **MXN 720,266.00** |
+| Method | Proposed | Right | Wrong | Deferred correctly | Deferred but answerable | Answerable resolved | Value of wrong proposals |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Rules alone | 2 | 2 | 0 | 51 | 125 | 2 of 127 | MXN 0.00 |
+| Shadow ranker (138 cases, validation excluded) | 0 | 0 | 0 | 40 | 98 | 0 of 98 | MXN 0.00 |
+| **Rules, then DeepSeek (production)** | **74** | **61** | **13** | **49** | **55** | **61 of 127** | **MXN 720,266.00** |
+
+Six of the thirteen wrong proposals put the cash on the right invoice and missed
+only a credit note. They account for MXN 341,906.00 of the MXN 720,266.00, but
+together they were off by just MXN 31,962.00 of credit. The other seven got invoices
+wrong:
+- four left out invoices that the payment also covered
+- one chose the wrong invoice
+- two proposed an allocation for a case with no right answer
+
+The 178 payments total MXN 9,234,864.96. No case was unavailable: there were no
+provider failures or timeouts.
 
 With 95% Wilson intervals, precision is 91.3% (73.2% to 97.6%) on the held-out split
 and 82.4% (72.2% to 89.4%) on all cases. Answerable resolved is 61.8% (45.0% to 76.1%)
@@ -48,13 +73,8 @@ How to read the rows:
 - **Shadow ranker.** Its threshold was chosen on validation, as registered: the
   highest coverage with zero wrong proposals. At every threshold it made one proposal
   on validation, and that proposal was wrong, so no threshold qualified and it
-  defers every case. It stays shadow-only.
-- **Wrongly allocated** is the registered measure: the full payment amount of every
-  wrong proposal. It overstates the harm in one pattern. Both held-out errors, and 6
-  of the 13 overall, put the cash on the correct invoice but left a credit note
-  unapplied, MXN 5,262.00 of credit on the held-out split and MXN 31,962.00 overall.
-  Nothing is applied without a person's approval in the product, but these are the
-  proposals a reviewer would have to catch.
+  defers every case. It stays shadow-only. Its all-cases row leaves out the 40
+  validation cases used to choose the threshold, so it covers 138 cases.
 - **Answerable but unreachable.** 36 answerable cases (4 held out) need an
   allocation that no system candidate matches. They stay in the denominator: a
   deferral there counts as a miss, and a proposal counts as wrong.
