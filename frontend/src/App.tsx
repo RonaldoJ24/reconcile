@@ -7,6 +7,7 @@ import {
   commitImport,
   correctProposal,
   createSession,
+  resetSession,
   exportUrl,
   getEvaluation,
   getProposal,
@@ -370,6 +371,18 @@ function App() {
 
   const openDetail = (id: string) => navigate({ screen: 'detail', id })
 
+  // Starting over replaces the whole session, so a reload is the simplest way to drop every cached view.
+  const startOver = async () => {
+    if (caseBusy || !window.confirm('Start over? This clears the cases, AI readings and approvals in your demo session.')) return
+    try {
+      await resetSession()
+      window.location.hash = 'cases'
+      window.location.reload()
+    } catch (cause) {
+      setError(errorText(cause))
+    }
+  }
+
   const openCase = async (caseId: string) => {
     if (caseBusy) return
     setCaseBusy(caseId)
@@ -460,10 +473,10 @@ function App() {
         <main id="main-content" className="main-content" tabIndex={-1}>
           <div className="content-wrap">
             {(error || caseError) && <ErrorBanner message={error || caseError} onDismiss={() => { setError(''); setCaseError('') }} />}
-            {screen === 'cases' && <CasesView registry={caseRegistry} busy={caseBusy} progress={caseProgress} onOpen={openCase} />}
+            {screen === 'cases' && <CasesView registry={caseRegistry} busy={caseBusy} progress={caseProgress} onOpen={openCase} onStartOver={session?.mode === 'preview' ? () => void startOver() : undefined} />}
             {screen === 'imports' && <ImportsView mode={mode} imports={imports} onError={setError} onRefresh={refresh} />}
             {screen === 'queue' && <QueueView proposals={proposals} onOpen={openDetail} onRefresh={refresh} onError={setError} />}
-            {screen === 'evaluation' && <><PageHeading eyebrow="Evaluation" title="Evaluation" description="What the preserved report measured." /><EvaluationView evaluation={evaluation} loading={evaluationLoading} error={evaluationError} onRetry={retryEvaluation} /></>}
+            {screen === 'evaluation' && <><PageHeading eyebrow="Evaluation" title="Evaluation" description="What each evaluation measured." /><EvaluationView evaluation={evaluation} loading={evaluationLoading} error={evaluationError} onRetry={retryEvaluation} /></>}
             {screen === 'detail' && (
               <DetailView
                 id={selectedId}
@@ -655,7 +668,7 @@ function CaseCard({ item, busy, onOpen }: { item: CaseSummary; busy: string; onO
 
 // Case cards describe inputs only. The allocation shown after opening a case comes
 // from the server's actual rules, retrieval and interpretation results.
-export function CasesView({ registry, busy, progress, onOpen }: { registry?: CaseRegistry; busy: string; progress?: string; onOpen: (caseId: string) => Promise<void> }) {
+export function CasesView({ registry, busy, progress, onOpen, onStartOver }: { registry?: CaseRegistry; busy: string; progress?: string; onOpen: (caseId: string) => Promise<void>; onStartOver?: () => void }) {
   const cases = registry?.cases ?? []
   const library = cases.filter((item) => item.group === 'library')
   const regression = cases.filter((item) => item.group !== 'library')
@@ -664,6 +677,7 @@ export function CasesView({ registry, busy, progress, onOpen }: { registry?: Cas
   const featuredReference = featured?.reference && featured.reference !== '—' ? featured.reference : undefined
   return <>
     <PageHeading eyebrow="Accounts receivable · synthetic demo" title="Which invoices does this payment settle?" description="Customers pay with short, messy bank references. Reconcile proposes which invoices a payment settles, quotes its evidence, and records the allocation only after a person approves." />
+    {onStartOver && <p className="start-over"><span>Walked through it already?</span><button className="button button-quiet" type="button" onClick={onStartOver} disabled={busy !== ''}>Start over</button></p>}
     <HowItWorks />
     {featured ? <section className="case-hero panel" aria-labelledby="case-hero-heading">
       <div className="case-hero-copy">

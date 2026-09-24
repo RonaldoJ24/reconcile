@@ -459,6 +459,7 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
 .evaluation-takeaway p { margin: 0; color: #36536a; font-size: .84rem; line-height: 1.5; }
 .evaluation-takeaway strong { color: var(--navy); }
 
+.start-over { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: -6px 0 18px; color: #4b667c; font-size: .86rem; }
 .evaluation-v2-results { display: grid; gap: 12px; margin-top: 20px; }
 .evaluation-v2-results h3 { margin: 0; color: var(--navy); font-size: 1rem; }
 .evaluation-v2-results p { margin: 0; font-size: .82rem; }

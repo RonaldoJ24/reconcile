@@ -92,6 +92,13 @@ export async function createSession(): Promise<Session> {
   return session
 }
 
+// Deletes this synthetic preview session's cases and starts a fresh one.
+export async function resetSession(): Promise<Session> {
+  const session = await request<Session>('/api/v1/session/reset', { method: 'POST', body: '{}' })
+  csrfToken = session.csrf_token
+  return session
+}
+
 function refreshSessionOnce() {
   if (!sessionRefresh) {
     sessionRefresh = createSession().finally(() => { sessionRefresh = undefined })

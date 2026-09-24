@@ -267,6 +267,13 @@ describe('case study surfaces', () => {
     expect(markup).toContain('A different registered example')
     expect(markup).toContain('Other case')
     expect(markup).not.toContain('Regression fixtures')
+    expect(markup).not.toContain('Start over')
+  })
+
+  it('offers to start over only when the preview passes a handler', () => {
+    const markup = renderToString(<CasesView registry={{ version: 'v2', cases: [] }} busy="" onOpen={async () => {}} onStartOver={() => {}} />)
+    expect(markup).toContain('Walked through it already?')
+    expect(markup).toContain('Start over')
   })
 
   it('explains a rules proposal in plain language and separates proposed effects from balances', () => {

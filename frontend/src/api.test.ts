@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, applyCaseVariant, applyProposal, compareProposal, createSession, getEvaluation, getSource, runReliabilityCheck, streamInterpretProposal } from './api'
+import { ApiError, applyCaseVariant, applyProposal, compareProposal, createSession, getEvaluation, getSource, resetSession, runReliabilityCheck, streamInterpretProposal } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -19,6 +19,22 @@ describe('API transport boundary', () => {
     expect(requestInit.credentials).toBe('include')
     expect(headers.get('Content-Type')).toBe('application/json')
     expect(headers.get('X-CSRF-Token')).toBe('csrf-test')
+  })
+
+  it('starts over with the current CSRF token and adopts the new one', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'preview', csrf_token: 'old-token' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ mode: 'preview', csrf_token: 'new-token' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'APPLIED' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createSession()
+    await resetSession()
+    await applyProposal('proposal-1', { expected_revision: 1 })
+
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/session/reset')
+    expect(new Headers((fetchMock.mock.calls[1][1] as RequestInit).headers).get('X-CSRF-Token')).toBe('old-token')
+    expect(new Headers((fetchMock.mock.calls[2][1] as RequestInit).headers).get('X-CSRF-Token')).toBe('new-token')
   })
 
   it('preserves structured server errors', async () => {
