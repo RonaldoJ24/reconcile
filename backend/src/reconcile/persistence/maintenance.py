@@ -78,6 +78,12 @@ def cleanup_expired_preview_workspaces(session: Session, *, batch_size: int = 10
     return len(workspace_ids)
 
 
+def delete_preview_workspace(session: Session, workspace_id: uuid.UUID) -> None:
+    """Delete one guest workspace at its owner's request, exactly as expiry would."""
+
+    _delete_workspace_records(session, [workspace_id])
+
+
 def _delete_workspace_records(session: Session, workspace_ids: list[uuid.UUID]) -> None:
     proposal_ids = select(Proposal.id).where(Proposal.workspace_id.in_(workspace_ids))
     session.execute(delete(CashApplication).where(CashApplication.workspace_id.in_(workspace_ids)))

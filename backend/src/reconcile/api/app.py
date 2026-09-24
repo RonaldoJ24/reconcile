@@ -68,6 +68,7 @@ from reconcile.ml.runtime import ACTIVE_RULES_IDENTITY, runtime_mode
 from reconcile.persistence.db import SessionLocal, readiness, session_scope
 from reconcile.persistence.maintenance import (
     cleanup_expired_preview_workspaces,
+    delete_preview_workspace,
     enforce_database_admission,
 )
 from reconcile.persistence.models import (
@@ -240,6 +241,33 @@ def _session_response(
         "active_engine": ACTIVE_RULES_IDENTITY,
         "capabilities": _capabilities(record, workspace),
     }
+
+
+def _new_session(
+    request: Request, db: Session, mode: str, *, provider_access: bool
+) -> JSONResponse:
+    workspace = ReconcileService(db).create_workspace(mode)
+    raw_token, csrf_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    session = DbSession(
+        workspace_id=workspace.id,
+        token_hash=_sha(raw_token),
+        csrf_hash=_sha(csrf_token),
+        expires_at=now_utc() + _session_ttl(mode),
+        provider_access=provider_access,
+    )
+    db.add(session)
+    db.commit()
+    response = JSONResponse(_session_response(session, workspace, csrf_token))
+    response.set_cookie(
+        SESSION_COOKIE,
+        raw_token,
+        httponly=True,
+        secure=workspace.mode == "preview",
+        samesite="strict",
+        max_age=int(_session_ttl(workspace.mode).total_seconds()),
+    )
+    _wake_consumer(request)
+    return response
 
 
 def _case_audit(
@@ -993,34 +1021,32 @@ def create_app() -> FastAPI:
                     return response
         if mode == "preview":
             enforce_database_admission(db)
-        workspace = ReconcileService(db).create_workspace(mode)
-        raw_token, csrf_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         provider_access = mode == "local"
         if body and body.invite_token:
             expected = provider_invite_hash()
             if expected is None or not secrets.compare_digest(expected, _sha(body.invite_token)):
                 raise HTTPException(403, "provider invite is invalid")
             provider_access = True
-        session = DbSession(
-            workspace_id=workspace.id,
-            token_hash=_sha(raw_token),
-            csrf_hash=_sha(csrf_token),
-            expires_at=now_utc() + _session_ttl(mode),
-            provider_access=provider_access,
-        )
-        db.add(session)
+        return _new_session(request, db, mode, provider_access=provider_access)
+
+    @app.post("/api/v1/session/reset", response_model=dict)
+    def reset_session(request: Request, db: Session = Depends(_db)) -> Response:
+        record, workspace = _require_mutation(request, db)
+        if workspace.mode != "preview":
+            raise HTTPException(
+                409,
+                detail={
+                    "code": "reset_unavailable",
+                    "message": "only the synthetic preview can start over",
+                },
+            )
+        provider_access = record.provider_access
+        # Starting over deletes this guest workspace as expiry would. Interpretation
+        # calls and budget counters survive, so starting over cannot reset spend.
+        delete_preview_workspace(db, workspace.id)
         db.commit()
-        response = JSONResponse(_session_response(session, workspace, csrf_token))
-        response.set_cookie(
-            SESSION_COOKIE,
-            raw_token,
-            httponly=True,
-            secure=workspace.mode == "preview",
-            samesite="strict",
-            max_age=int(_session_ttl(workspace.mode).total_seconds()),
-        )
-        _wake_consumer(request)
-        return response
+        enforce_database_admission(db)
+        return _new_session(request, db, "preview", provider_access=provider_access)
 
     @app.post("/api/v1/imports/validate")
     async def validate_import(

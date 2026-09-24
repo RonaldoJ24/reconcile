@@ -2306,3 +2306,56 @@ def test_folio_fragments_widen_candidates_without_letting_rules_propose(
         assert [("F-1436", 5_500_000)] in allocations
     finally:
         api.dependency_overrides.clear()
+
+
+def test_preview_start_over_replaces_the_guest_workspace(session, monkeypatch) -> None:
+    monkeypatch.setenv("RECONCILE_MODE", "preview")
+    monkeypatch.setenv("RECONCILE_LLM_ENABLED", "0")
+    api = create_app()
+    api.dependency_overrides[_db] = lambda: session
+    client = TestClient(api, base_url="https://testserver")
+    try:
+        started = client.post("/api/v1/session", json={})
+        assert started.status_code == 200, started.text
+        old_cookie = client.cookies.get("reconcile_session")
+        old_workspace = session.scalar(
+            select(DbSession.workspace_id).where(
+                DbSession.token_hash == hashlib.sha256(old_cookie.encode()).hexdigest()
+            )
+        )
+        client.headers["X-CSRF-Token"] = started.json()["csrf_token"]
+        opened = client.post("/api/v1/cases/spei-shorthand/open", json={})
+        assert opened.status_code == 200, opened.text
+        _run_all_jobs(client)
+        proposals = client.get("/api/v1/proposals").json()
+        assert proposals
+
+        without_csrf = TestClient(api, base_url="https://testserver")
+        without_csrf.cookies.set("reconcile_session", old_cookie)
+        assert without_csrf.post("/api/v1/session/reset", json={}).status_code == 403
+
+        reset = client.post("/api/v1/session/reset", json={})
+        assert reset.status_code == 200, reset.text
+        assert reset.json()["mode"] == "preview"
+        assert client.cookies.get("reconcile_session") != old_cookie
+        client.headers["X-CSRF-Token"] = reset.json()["csrf_token"]
+
+        assert client.get("/api/v1/proposals").json() == []
+        assert client.get(f"/api/v1/proposals/{proposals[0]['proposal_id']}").status_code == 404
+        assert session.get(Workspace, old_workspace) is None
+
+        stale = TestClient(api, base_url="https://testserver")
+        stale.cookies.set("reconcile_session", old_cookie)
+        assert stale.get("/api/v1/proposals").status_code == 401
+    finally:
+        api.dependency_overrides.clear()
+
+
+def test_start_over_is_refused_outside_the_preview(session, monkeypatch) -> None:
+    api, client = _api_client(session, monkeypatch)
+    try:
+        response = client.post("/api/v1/session/reset", json={})
+        assert response.status_code == 409, response.text
+        assert response.json()["error"]["code"] == "reset_unavailable"
+    finally:
+        api.dependency_overrides.clear()

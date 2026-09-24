@@ -324,3 +324,27 @@ test.describe('real case lab', () => {
     await page.screenshot({ path: qualityDemoPath(`real-case-lab-${test.info().project.name}.png`), fullPage: true })
   })
 })
+
+test.describe('real start over', () => {
+  test('clears the demo session and returns to fresh cases', async ({ page }) => {
+    test.skip(process.env.E2E_REAL_CASE_LAB !== '1', 'Run with E2E_REAL_CASE_LAB=1 against the synthetic preview.')
+    test.setTimeout(240_000)
+
+    await page.goto('/#cases')
+    await expect(page.locator('button[data-case-id]').first()).toBeVisible({ timeout: 90_000 })
+    await page.locator('button[data-case-id="clean-reference"]').click()
+    await expect(page.getByRole('heading', { name: 'Review this payment allocation' })).toBeVisible({ timeout: 90_000 })
+    await page.getByRole('navigation').getByRole('button', { name: /Review queue/ }).click()
+    await expect(page.locator('.proposal-card')).not.toHaveCount(0)
+
+    await page.getByRole('navigation').getByRole('button', { name: /Cases/ }).click()
+    page.once('dialog', (dialog) => void dialog.accept())
+    const reset = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/v1/session/reset')
+    await page.getByRole('button', { name: 'Start over' }).click()
+    expect((await reset).status()).toBe(200)
+
+    await expect(page.locator('button[data-case-id]').first()).toBeVisible({ timeout: 90_000 })
+    await page.getByRole('navigation').getByRole('button', { name: /Review queue/ }).click()
+    await expect(page.getByText('Queue is clear')).toBeVisible({ timeout: 30_000 })
+  })
+})
