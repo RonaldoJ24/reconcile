@@ -1,5 +1,29 @@
 # Status
 
+## Start over and fresh pages after deploys — 2026-09-23
+
+After the switch, the owner kept seeing DeepSeek labels. Their browser session still
+held payments that DeepSeek had read earlier, and the preview keeps a visitor's
+cases for 24 hours, renewed on every visit.
+
+- #54: HTML responses carry `Cache-Control: no-cache`, so a deploy shows at once.
+- #55: a "Start over" button on the Cases page, preview only.
+  - It asks for confirmation, then calls `POST /api/v1/session/reset`.
+  - The reset deletes the visitor's guest workspace as expiry would. Interpretation
+    calls and budget counters survive, so spend cannot be reset.
+  - It starts a new session and keeps any invited provider access. Local mode
+    refuses the reset with 409.
+
+Deployed as `50496d5` (`dep-daq9n3ou01pc73fcgsrg`).
+
+Checks:
+- ruff and strict mypy passed
+- 1,114 offline tests
+- 71 of 71 PostgreSQL tests on `test-release1` in 20m14s
+- frontend typecheck, 61 tests and the build
+- 34 of 34 hosted Playwright checks, including the new start-over check on desktop
+  and mobile
+
 ## Runtime model switched to OpenAI GPT-6 Luna — 2026-09-23
 
 The owner asked to replace DeepSeek with OpenAI `gpt-6-luna`, using a temporary API
