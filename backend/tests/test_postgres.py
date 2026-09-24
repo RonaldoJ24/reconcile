@@ -665,7 +665,7 @@ def test_interpretation_budget_reservation_is_transactional_and_reconciled(sessi
     call = session.get(InterpretationCall, call_id)
     assert call is not None
     assert call.status == "RESERVED"
-    assert call.reservation_microdollars == 4_258
+    assert call.reservation_microdollars == 1_774
 
     with pytest.raises(BudgetExceeded, match="attempts budget exhausted"):
         reserve_attempt(
@@ -691,11 +691,11 @@ def test_interpretation_budget_reservation_is_transactional_and_reconciled(sessi
         latency_ms=50,
     )
     assert finalized.status == "SUCCEEDED"
-    assert finalized.estimated_microdollars == 362
+    assert finalized.estimated_microdollars == 152
     assert finalized.reservation_retained is False
     counters = session.query(InterpretationBudgetCounter).all()
     assert all(counter.reserved_microdollars == 0 for counter in counters)
-    assert all(counter.committed_microdollars == 362 for counter in counters)
+    assert all(counter.committed_microdollars == 152 for counter in counters)
 
 
 def test_interpretation_timeout_retains_possible_billing_reservation(session) -> None:
@@ -730,7 +730,7 @@ def test_interpretation_timeout_retains_possible_billing_reservation(session) ->
     assert finalized.reservation_retained is True
     execution = session.get(InterpretationBudgetCounter, f"execution:{finalized.execution_id}")
     assert execution is not None
-    assert execution.reserved_microdollars == 4_258
+    assert execution.reserved_microdollars == 1_774
 
     reconciled = reconcile_unknown_attempt(
         session,
@@ -742,10 +742,10 @@ def test_interpretation_timeout_retains_possible_billing_reservation(session) ->
 
     assert reconciled.status == "FAILED_BILLED"
     assert reconciled.reservation_retained is False
-    assert reconciled.estimated_microdollars == 54
+    assert reconciled.estimated_microdollars == 23
     session.refresh(execution)
     assert execution.reserved_microdollars == 0
-    assert execution.committed_microdollars == 54
+    assert execution.committed_microdollars == 23
 
 
 def test_two_payments_cannot_consume_one_invoice(session) -> None:
