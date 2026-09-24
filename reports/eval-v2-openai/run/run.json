@@ -1,0 +1,53 @@
+{
+  "identity": {
+    "frozen_commit": "37dda8c0eb7f8a53c2bc0384e9c817260128e1fe",
+    "model": "gpt-6-luna",
+    "prompt_version": "reconcile-interpretation-prompt-v3",
+    "rules_identity": "rules-v2-conservative",
+    "schema_version": "reconcile-interpretation-schema-v1",
+    "temperature": 0
+  },
+  "invalid_cases": [
+    {
+      "case_id": "c007",
+      "reason": "the parser rejected part of the case"
+    },
+    {
+      "case_id": "c072",
+      "reason": "the parser rejected part of the case"
+    }
+  ],
+  "manifests": {
+    "development": {
+      "input_count": 79,
+      "input_sha256": "4d4dff57c2cad534fa7b5596aab206c264a586170b75658eed7939abd8b8dd32",
+      "manifest_sha256": "667346c2fcbd40a506b13a8fc82991feda7575c145e2d08570cd36ab33ecbf61",
+      "protocol": "reconcile-eval-v2",
+      "public_exposed": false,
+      "split": "development",
+      "target_count": 79,
+      "target_sha256": "a26f24da75773430c0234f003bfb29659d51f712dd991849047644f9302dd625"
+    },
+    "reserved-final": {
+      "input_count": 36,
+      "input_sha256": "8e78c0f3e3535b095a205397ff76cac15ff81e045dbdc35d371da390e61c09f3",
+      "manifest_sha256": "c3ff3846299f0b8fdf23493d7ae98954265b42a361b6fdf050af7c6915aa15b9",
+      "protocol": "reconcile-eval-v2",
+      "public_exposed": false,
+      "split": "reserved-final",
+      "target_count": 36,
+      "target_sha256": "69b781c69f745909538274f08e2035bfe22b06d7fd78a4a9abf2b102073e827a"
+    },
+    "validation": {
+      "input_count": 27,
+      "input_sha256": "483098cbc1c82d59be4a18a505d37f1bc86a80fcd318f1fdd20d1a08dde013a1",
+      "manifest_sha256": "379b9c450c1d2a2ec13467c3e9ac5f465aba7805352e4a6deb13f33ba844669f",
+      "protocol": "reconcile-eval-v2",
+      "public_exposed": false,
+      "split": "validation",
+      "target_count": 27,
+      "target_sha256": "5f0138bc99e17b1846452d7cc9bdb247c6bcfd997df1cc206e33dca4c15963de"
+    }
+  },
+  "prepared_cases": 178
+}
