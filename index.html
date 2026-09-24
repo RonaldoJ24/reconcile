@@ -44,10 +44,15 @@
     .card h3 { margin: 0 0 8px; color: var(--navy); font-size: 1.05rem; }
     .card ul { margin: 0; padding-left: 18px; color: #3d566b; }
     .card li { margin: 6px 0; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 16px; }
+    .stat { padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+    .stat strong { display: block; color: var(--navy); font-size: 1.65rem; letter-spacing: -.02em; line-height: 1.2; }
+    .stat span { color: var(--muted); font-size: .9rem; }
+    .section-lead { max-width: 760px; margin: 0 0 16px; color: #3d566b; }
     code { padding: 2px 6px; color: var(--navy); background: var(--soft); border-radius: 5px; font-size: .88em; }
     footer { padding: 28px 0 40px; color: var(--muted); font-size: .88rem; border-top: 1px solid var(--line); }
     @media (max-width: 820px) {
-      .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .steps, .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .two { grid-template-columns: 1fr; }
     }
     @media (max-width: 520px) {
@@ -73,6 +78,7 @@
       <div class="actions">
         <a class="button primary" href="https://reconcile-preview.onrender.com">Open the live demo</a>
         <a class="button secondary" href="https://github.com/RonaldoJ24/reconcile">Read the code</a>
+        <a class="button secondary" href="https://github.com/RonaldoJ24/reconcile/blob/main/reports/eval-v2/README.md">Evaluation</a>
         <a class="button secondary" href="https://github.com/RonaldoJ24/reconcile/blob/main/docs/PORTFOLIO_CASE_STUDY.md">Case study</a>
       </div>
       <p class="wake" id="wake" role="status">The demo runs on free hosting and sleeps when idle; this page has asked it to wake up.</p>
@@ -92,6 +98,18 @@
       </ol>
     </section>
 
+    <section aria-labelledby="measured">
+      <h2 id="measured">Measured once, pre-registered</h2>
+      <p class="section-lead">AI agents wrote 178 synthetic payment cases blind, from a domain-only brief. The system was frozen and the metrics were registered before any case existed, and then the production path ran once.</p>
+      <div class="stats">
+        <div class="stat"><strong>21 of 23</strong><span>proposals right on the 40-case held-out split</span></div>
+        <div class="stat"><strong>61 of 74</strong><span>proposals right across all 178 cases</span></div>
+        <div class="stat"><strong>59 of 64</strong><span>resolved when the right allocation was among the candidates; the other 5 went to review, none wrong</span></div>
+        <div class="stat"><strong>US$0.04</strong><span>for the run's 108 DeepSeek calls</span></div>
+      </div>
+      <p class="section-lead">It resolved 61 of the 127 answerable cases and sent the rest to review. Every wrong proposal was one it should have sent to a person, mostly because the candidate builder cannot yet pair a single invoice with a credit note. <a href="https://github.com/RonaldoJ24/reconcile/blob/main/reports/eval-v2/README.md">Read the evaluation</a>, with every case, label and recorded model call.</p>
+    </section>
+
     <section aria-labelledby="real">
       <h2 id="real">What is real, and what is not</h2>
       <div class="two">
@@ -101,14 +119,14 @@
             <li>CSV and remittance parsing, candidate retrieval and deterministic rules.</li>
             <li>Live DeepSeek calls with strict JSON output, exact quotes, prompt-injection handling, and daily, monthly and per-session budgets.</li>
             <li>A PostgreSQL ledger: row locks, version checks, idempotent application and audited reversal.</li>
-            <li>Tests: 1,111 offline, 68 PostgreSQL integration, 58 frontend and 32 Playwright checks on the hosted demo.</li>
+            <li>Tests: 1,113 offline, 69 PostgreSQL integration, 59 frontend and 32 Playwright checks on the hosted demo.</li>
           </ul>
         </div>
         <div class="card">
           <h3>Not claimed</h3>
           <ul>
             <li>All data is synthetic. There is no bank connection and no money moves.</li>
-            <li>LLM accuracy has not been measured yet; a held-out evaluation comes next.</li>
+            <li>The evaluation cases are synthetic and AI-written, so the results are not real-world accuracy. They are now public, and the next fix needs a new held-out set.</li>
             <li>A trained scikit-learn ranker lost to the rules because it could not abstain, so it only observes.</li>
             <li>No accountant has reviewed the cases yet.</li>
           </ul>
