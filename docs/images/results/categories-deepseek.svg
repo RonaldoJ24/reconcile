@@ -1,16 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="698" viewBox="0 0 760 698" role="img" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
-  <title>Results by case type for rules, then DeepSeek</title>
+  <title>Results by case type for rules then DeepSeek</title>
   <rect x="0.5" y="0.5" width="759" height="697" rx="14" fill="#ffffff" stroke="#dbe3ea"/>
-  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">Results by case type, all 178 cases</text>
-  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">Rules, then DeepSeek. Each bar is one type of case, split by outcome.</text>
+  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">Results by case type, rules then DeepSeek</text>
+  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">All 178 cases. Each bar is one type of case, split by outcome.</text>
   <rect x="32.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#1f7a4d"/>
   <text x="52.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Right</text>
   <rect x="98.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#c2413b"/>
   <text x="118.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Wrong</text>
   <rect x="165.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#7f9bb3"/>
-  <text x="185.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Sent to a person, correctly</text>
-  <rect x="374.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#dfe6ec"/>
-  <text x="394.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Sent to a person, but answerable</text>
+  <text x="185.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">To a person, correctly</text>
+  <rect x="342.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#dfe6ec"/>
+  <text x="362.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">To a person, but answerable</text>
+  <rect x="551.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#d9a441"/>
+  <text x="571.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Unavailable</text>
   <text x="32.0" y="146.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Hidden instructions</text>
   <rect x="250.0" y="128.0" width="312.0" height="26.0" rx="0" fill="#1f7a4d"/>
   <text x="406.0" y="146.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">8</text>
@@ -18,6 +20,7 @@
   <rect x="562.0" y="128.0" width="78.0" height="26.0" rx="0" fill="#7f9bb3"/>
   <text x="601.0" y="146.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="640.0" y="128.0" width="0.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <rect x="640.0" y="128.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="146.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">8 of 10 right</text>
   <text x="32.0" y="182.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Short by a bank fee</text>
   <rect x="250.0" y="164.0" width="260.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -27,6 +30,7 @@
   <text x="542.5" y="182.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="575.0" y="164.0" width="65.0" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="607.5" y="182.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">2</text>
+  <rect x="640.0" y="164.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="182.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">8 of 12 right</text>
   <text x="32.0" y="218.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Wrong payer or customer</text>
   <rect x="250.0" y="200.0" width="260.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -35,6 +39,7 @@
   <rect x="510.0" y="200.0" width="130.0" height="26.0" rx="0" fill="#7f9bb3"/>
   <text x="575.0" y="218.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="640.0" y="200.0" width="0.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <rect x="640.0" y="200.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="218.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">4 of 6 right</text>
   <text x="32.0" y="254.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Partial payment</text>
   <rect x="250.0" y="236.0" width="260.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -45,6 +50,7 @@
   <text x="575.0" y="254.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
   <rect x="614.0" y="236.0" width="26.0" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="627.0" y="254.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">1</text>
+  <rect x="640.0" y="236.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="254.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">10 of 15 right</text>
   <text x="32.0" y="290.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Exact invoice number</text>
   <rect x="250.0" y="272.0" width="222.9" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -54,6 +60,7 @@
   <text x="500.7" y="290.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="528.6" y="272.0" width="111.4" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="584.3" y="290.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">4</text>
+  <rect x="640.0" y="272.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="290.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">8 of 14 right</text>
   <text x="32.0" y="326.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Overpayment</text>
   <rect x="250.0" y="308.0" width="146.2" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -63,6 +70,7 @@
   <text x="445.0" y="326.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="493.8" y="308.0" width="146.2" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="566.9" y="326.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">3</text>
+  <rect x="640.0" y="308.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="326.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">3 of 8 right</text>
   <text x="32.0" y="362.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Described, not numbered</text>
   <rect x="250.0" y="344.0" width="130.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -72,6 +80,7 @@
   <text x="419.0" y="362.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
   <rect x="458.0" y="344.0" width="182.0" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="549.0" y="362.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">7</text>
+  <rect x="640.0" y="344.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="362.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">5 of 15 right</text>
   <text x="32.0" y="398.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Abbreviated invoice numbers</text>
   <rect x="250.0" y="380.0" width="117.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -81,6 +90,7 @@
   <text x="415.8" y="398.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
   <rect x="445.0" y="380.0" width="195.0" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="542.5" y="398.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">10</text>
+  <rect x="640.0" y="380.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="398.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">6 of 20 right</text>
   <text x="32.0" y="434.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Typos and odd formats</text>
   <rect x="250.0" y="416.0" width="104.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -91,6 +101,7 @@
   <text x="419.0" y="434.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
   <rect x="458.0" y="416.0" width="182.0" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="549.0" y="434.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">7</text>
+  <rect x="640.0" y="416.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="434.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">4 of 15 right</text>
   <text x="32.0" y="470.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Conflicting instructions</text>
   <rect x="250.0" y="452.0" width="97.5" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -101,6 +112,7 @@
   <text x="493.8" y="470.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">7</text>
   <rect x="607.5" y="452.0" width="32.5" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="623.8" y="470.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">1</text>
+  <rect x="640.0" y="452.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="470.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">3 of 12 right</text>
   <text x="32.0" y="506.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Ambiguous, no single answer</text>
   <rect x="250.0" y="488.0" width="43.3" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -110,6 +122,7 @@
   <text x="445.0" y="506.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">14</text>
   <rect x="596.7" y="488.0" width="43.3" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="618.3" y="506.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">2</text>
+  <rect x="640.0" y="488.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="506.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">2 of 18 right</text>
   <text x="32.0" y="542.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Partial across invoices</text>
   <rect x="250.0" y="524.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -119,6 +132,7 @@
   <text x="347.5" y="542.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="396.2" y="524.0" width="243.8" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="518.1" y="542.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">5</text>
+  <rect x="640.0" y="524.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="542.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 8 right</text>
   <text x="32.0" y="578.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">More than three invoices</text>
   <rect x="250.0" y="560.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -128,6 +142,7 @@
   <text x="396.2" y="578.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="445.0" y="560.0" width="195.0" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="542.5" y="578.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">4</text>
+  <rect x="640.0" y="560.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="578.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 8 right</text>
   <text x="32.0" y="614.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Credit note netted</text>
   <rect x="250.0" y="596.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
@@ -137,7 +152,8 @@
   <text x="410.6" y="614.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
   <rect x="433.5" y="596.0" width="206.5" height="26.0" rx="0" fill="#dfe6ec"/>
   <text x="536.8" y="614.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">9</text>
+  <rect x="640.0" y="596.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
   <text x="652.0" y="614.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 17 right</text>
-  <text x="32.0" y="660.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Evaluation v2, 2026-09-23: 178 synthetic cases written by AI agents; pre-registered, run once.</text>
+  <text x="32.0" y="660.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">DeepSeek run, 2026-09-23: pre-registered, 178 synthetic cases written by AI agents, run once.</text>
   <text x="32.0" y="677.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Synthetic results, not real-world accuracy. Source: github.com/RonaldoJ24/reconcile</text>
 </svg>
