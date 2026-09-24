@@ -3,7 +3,7 @@
   <rect x="0.5" y="0.5" width="759" height="375" rx="14" fill="#ffffff" stroke="#dbe3ea"/>
   <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">Payments the rules missed, resolved by each model</text>
   <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">Answerable payments the rules sent to a person, and how many each model then got right.</text>
-  <text x="32.0" y="114.0" font-size="16" font-weight="700" fill="#183047" text-anchor="start">Held-out split</text>
+  <text x="32.0" y="114.0" font-size="16" font-weight="700" fill="#183047" text-anchor="start">40-case split</text>
   <text x="32.0" y="145.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">DeepSeek, 20 of 33</text>
   <rect x="210.0" y="128.0" width="440.0" height="24.0" rx="5" fill="#eef2f5"/>
   <rect x="210.0" y="128.0" width="266.7" height="24.0" rx="5" fill="#8fb0d0"/>

@@ -51,7 +51,8 @@ COMPARISON_FOOTNOTE = (
     "GPT-6 Luna run after the cases were public.",
     SOURCE,
 )
-SCOPES = [("reserved-final", "Held-out split"), ("all-cases", "All cases")]
+# The 40 cases were held out for DeepSeek only; GPT-6 Luna ran after they were public.
+SCOPES = [("reserved-final", "40-case split"), ("all-cases", "All cases")]
 CATEGORY_NAMES = {
     "abbreviated_folios": "Abbreviated invoice numbers",
     "ambiguous": "Ambiguous, no single answer",

@@ -7,7 +7,7 @@
   <text x="52.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Right</text>
   <rect x="98.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#c2413b"/>
   <text x="118.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Wrong</text>
-  <text x="32.0" y="132.0" font-size="16" font-weight="700" fill="#183047" text-anchor="start">Held-out split</text>
+  <text x="32.0" y="132.0" font-size="16" font-weight="700" fill="#183047" text-anchor="start">40-case split</text>
   <text x="32.0" y="163.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">DeepSeek, 23 proposals</text>
   <rect x="210.0" y="146.0" width="96.5" height="24.0" rx="0" fill="#1f7a4d"/>
   <text x="258.2" y="163.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">21</text>
