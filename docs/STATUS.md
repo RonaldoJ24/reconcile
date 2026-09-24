@@ -1,5 +1,67 @@
 # Status
 
+## Evaluation v2: measured once — 2026-09-23
+
+The pre-registered v2 run finished, and its results are published in
+[`reports/eval-v2/README.md`](../reports/eval-v2/README.md).
+
+**Setup.** The runner from #46 was frozen at `c4524a2`. Three Claude subagents
+wrote 180 cases blind. Two cases, c007 and c072, were excluded because the parser
+rejects folios with a space. The run used the isolated Neon branch
+`test-release1`, schema `reconcile_eval_v2`.
+
+**Live pass.** DeepSeek made 108 calls, using 110,029 input and 11,041 output
+tokens. That is about US$0.04 at the peak list price; the billed cost was not
+observed. Latency was p50 1.05 s and p95 1.31 s, with no failures. The final split
+was opened once, and the ledger is published.
+
+**Results for rules then DeepSeek.**
+- Held-out final split, 40 cases: 23 proposals, 21 right, 2 wrong, 21 of 34
+  answerable cases resolved, MXN 102,906.00 misallocated.
+- All 178 cases: 74 proposals, 61 right, 13 wrong, 61 of 127 answerable cases
+  resolved, MXN 720,266.00 misallocated.
+- Rules alone: 1 of 1 right on the final split and 2 of 2 on all cases.
+- Ranker: no validation threshold qualified, so it defers every case.
+
+**Post-hoc findings.**
+- Every wrong proposal was a failure to defer: 11 were unreachable and 2 had no
+  correct answer.
+- When the correct allocation was offered (64 cases), the model proposed in 59, all
+  correctly, and deferred 5.
+- The candidate builder never pairs a single invoice with a credit note, so 0 of 17
+  credit cases were reachable. The pre-registration described this wrongly.
+
+**Commands.**
+```sh
+uv run python -m reconcile.ml.run_v2 prepare --cases CASES --labels LABELS --out RUN --commit c4524a27222757f835364e643cf4f14551e78ec7
+uv run python -m reconcile.ml.run_v2 interpret --out RUN --budget-usd 2.00 --run-id 20260923
+uv run python -m reconcile.ml.run_v2 score --out RUN
+uv run python -m reconcile.ml.run_v2 score --out RUN --final
+python3 reports/eval-v2/analyze.py reports/eval-v2/run
+```
+Re-scoring a copy without the ledger regenerated `report.json` and the ledger byte
+for byte.
+
+**Publication.**
+- Cases and labels are in `data/eval-v2/`, and run outputs with every recording are
+  in `reports/eval-v2/run/`.
+- The Evaluation page shows the v2 counts, notes and findings from
+  `evaluation_summary.json`.
+- The README, the case study and the landing page now cite measured results
+  instead of "not measured".
+
+**Checks.** Ruff and strict mypy passed. The offline suite passed 1,113 tests.
+Frontend typecheck, 59 tests and the build passed. The PostgreSQL suite passed 69 tests on `test-release1` in 17m42s.
+
+**Deviations.** There were three authors, two Opus and one Sonnet continuation.
+The continuation author read the other authors' inputs, not their labels, for
+uniqueness. The c096–c180 batch skipped its self-check. An unregistered merge check
+excluded nothing.
+
+**Next.** Build single-invoice credit-note candidates. Defer when the note names
+something the candidate omits. Make the bank reference citable. Then run a new
+blind v3 set once. The v2 cases are now exposed development data.
+
 ## Release 1: presentable demo — 2026-09-23
 
 Merged and deployed #39–#43; #38 was closed and superseded by #42.

@@ -459,6 +459,23 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
 .evaluation-takeaway p { margin: 0; color: #36536a; font-size: .84rem; line-height: 1.5; }
 .evaluation-takeaway strong { color: var(--navy); }
 
+.evaluation-v2-results { display: grid; gap: 12px; margin-top: 20px; }
+.evaluation-v2-results h3 { margin: 0; color: var(--navy); font-size: 1rem; }
+.evaluation-v2-results p { margin: 0; font-size: .82rem; }
+.evaluation-v2-findings { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: #36536a; font-size: .82rem; line-height: 1.5; }
+.evaluation-row-note { display: block; margin-top: 2px; color: var(--muted); font-size: .72rem; font-weight: 400; }
+@media (min-width: 651px) {
+  /* The v2 table has its own columns; the shared widths fit the historical table. */
+  .evaluation-table-wrap .evaluation-v2-table { min-width: 760px; }
+  .evaluation-v2-table th:first-child { width: 20%; }
+  .evaluation-v2-table th:nth-child(2) { width: 8%; }
+  .evaluation-v2-table th:nth-child(3), .evaluation-v2-table th:nth-child(4) { width: 7%; }
+  .evaluation-v2-table th:nth-child(5), .evaluation-v2-table th:nth-child(8) { width: 11%; }
+  .evaluation-v2-table th:nth-child(6) { width: 12%; }
+  .evaluation-v2-table th:nth-child(7) { width: 10%; }
+  .evaluation-v2-table th:nth-child(9) { width: 14%; }
+}
+
 @media (max-width: 900px) {
   .how-it-works { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .remittance-list > div { grid-template-columns: 1fr; gap: 6px; }
@@ -536,6 +553,7 @@ q { color: #36536a; font-size: .82rem; overflow-wrap: anywhere; }
   .evaluation-table-wrap tr > :last-child { border-bottom: 0; }
   .evaluation-table-wrap th.evaluation-method { display: block; width: 100%; position: static; z-index: auto; padding-bottom: 8px; color: var(--navy); background: transparent; text-align: left; font-size: .86rem; }
   .evaluation-table-wrap td::before { content: attr(data-label); color: var(--muted); font-size: .67rem; font-weight: 600; text-align: left; }
+  .evaluation-v2-table caption { display: block; width: 100%; }
   .evaluation-split-heading { margin-bottom: 8px; }
   .source-content { max-height: 360px; font-size: .78rem; }
   .allocation-overview, .proposed-lines, .lines-card, .line-list { min-width: 0; }

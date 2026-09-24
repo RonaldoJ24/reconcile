@@ -254,11 +254,31 @@ export type EvaluationProvenance = {
   release_commit: string
 }
 
+export type EvaluationV2Result = {
+  scope: string
+  method: string
+  cases: number
+  answerable: number
+  proposals: number
+  correct: number
+  unsupported: number
+  correct_deferrals: number
+  unnecessary_deferrals: number
+  unavailable_or_error: number
+  misallocated_centavos: number
+  note?: string
+}
+
 export type EvaluationV2 = {
   status: string
   provider_calls_this_continuation: number
   final_access_this_continuation: boolean
   independent_domain_review: string
+  cases?: { authored: number; evaluated: number; excluded: number; answerable: number; unreachable: number }
+  results?: EvaluationV2Result[]
+  provider?: { attempts: number; estimated_cost_usd: number; latency_ms_p50: number | null; latency_ms_p95: number | null }
+  findings?: string[]
+  report_path?: string
 }
 
 export type EvaluationSummary = {

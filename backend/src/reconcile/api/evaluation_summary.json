@@ -58,10 +58,111 @@
     }
   ],
   "v2": {
-    "status": "not_evaluated",
-    "provider_calls_this_continuation": 0,
-    "final_access_this_continuation": false,
-    "independent_domain_review": "pending"
+    "status": "complete",
+    "provider_calls_this_continuation": 108,
+    "final_access_this_continuation": true,
+    "independent_domain_review": "pending",
+    "cases": {
+      "authored": 180,
+      "evaluated": 178,
+      "excluded": 2,
+      "answerable": 127,
+      "unreachable": 36
+    },
+    "results": [
+      {
+        "scope": "reserved-final",
+        "method": "rules",
+        "cases": 40,
+        "answerable": 34,
+        "proposals": 1,
+        "correct": 1,
+        "unsupported": 0,
+        "correct_deferrals": 6,
+        "unnecessary_deferrals": 33,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 0
+      },
+      {
+        "scope": "reserved-final",
+        "method": "ranker",
+        "cases": 40,
+        "answerable": 34,
+        "proposals": 0,
+        "correct": 0,
+        "unsupported": 0,
+        "correct_deferrals": 6,
+        "unnecessary_deferrals": 34,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 0,
+        "note": "No threshold passed on the validation split, so it defers every case."
+      },
+      {
+        "scope": "reserved-final",
+        "method": "rules_then_direct",
+        "cases": 40,
+        "answerable": 34,
+        "proposals": 23,
+        "correct": 21,
+        "unsupported": 2,
+        "correct_deferrals": 6,
+        "unnecessary_deferrals": 11,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 10290600
+      },
+      {
+        "scope": "all-cases",
+        "method": "rules",
+        "cases": 178,
+        "answerable": 127,
+        "proposals": 2,
+        "correct": 2,
+        "unsupported": 0,
+        "correct_deferrals": 51,
+        "unnecessary_deferrals": 125,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 0
+      },
+      {
+        "scope": "all-cases",
+        "method": "ranker",
+        "cases": 138,
+        "answerable": 98,
+        "proposals": 0,
+        "correct": 0,
+        "unsupported": 0,
+        "correct_deferrals": 40,
+        "unnecessary_deferrals": 98,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 0,
+        "note": "138 cases: excludes the 40 validation cases used to choose its threshold."
+      },
+      {
+        "scope": "all-cases",
+        "method": "rules_then_direct",
+        "cases": 178,
+        "answerable": 127,
+        "proposals": 74,
+        "correct": 61,
+        "unsupported": 13,
+        "correct_deferrals": 49,
+        "unnecessary_deferrals": 55,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 72026600
+      }
+    ],
+    "findings": [
+      "Every wrong proposal was a case that should have gone to review: in 11 the correct allocation was not among the system's candidates, and 2 had no correct answer. In the 64 answerable cases where the correct allocation was among the candidates, the model proposed in 59, all correctly, and sent 5 to review.",
+      "The biggest gap is credit notes. The candidate builder never pairs a single invoice with a credit note, so none of the 17 answerable cases that needed one could be proposed correctly. Six were proposed with the cash on the right invoice and MXN 31,962.00 of credit left unapplied.",
+      "37 of the 55 answerable cases that went to review had no remittance note, so the model was never called. The bank reference is not yet usable as evidence."
+    ],
+    "provider": {
+      "attempts": 108,
+      "estimated_cost_usd": 0.038185,
+      "latency_ms_p50": 1048,
+      "latency_ms_p95": 1311
+    },
+    "report_path": "reports/eval-v2/README.md"
   },
   "limitations": [
     "Synthetic agent-generated labels; no independent domain validation or real-world accuracy claim.",
@@ -70,6 +171,6 @@
     "Historical evaluator latency excluded feature construction and inference, so it is not displayed as execution latency.",
     "Historical candidate recall used supplied candidates, not end-to-end retrieval.",
     "Correctness here means the preserved v1 label definition; exact citation location and financial validity do not establish semantic support.",
-    "No new provider benchmark, final evaluation, model training or promotion occurred in this continuation."
+    "v2 measured frozen commit c4524a2 once, on 178 AI-written synthetic cases with 40 held out. The cases are now public, so any later change needs a new held-out set before new numbers are claimed."
   ]
 }

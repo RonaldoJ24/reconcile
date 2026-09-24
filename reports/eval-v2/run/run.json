@@ -1,0 +1,53 @@
+{
+  "identity": {
+    "frozen_commit": "c4524a27222757f835364e643cf4f14551e78ec7",
+    "model": "deepseek-flash",
+    "prompt_version": "reconcile-interpretation-prompt-v3",
+    "rules_identity": "rules-v2-conservative",
+    "schema_version": "reconcile-interpretation-schema-v1",
+    "temperature": 0
+  },
+  "invalid_cases": [
+    {
+      "case_id": "c007",
+      "reason": "the parser rejected part of the case"
+    },
+    {
+      "case_id": "c072",
+      "reason": "the parser rejected part of the case"
+    }
+  ],
+  "manifests": {
+    "development": {
+      "input_count": 79,
+      "input_sha256": "f665332608a67787da15ccda36cdcd048fcfb4386c387e6597bfbcb8355bcf93",
+      "manifest_sha256": "31c187688d0985f41294134a32cfbb2bba37da1755b261bb055bc7f9958c39d3",
+      "protocol": "reconcile-eval-v2",
+      "public_exposed": false,
+      "split": "development",
+      "target_count": 79,
+      "target_sha256": "a26f24da75773430c0234f003bfb29659d51f712dd991849047644f9302dd625"
+    },
+    "reserved-final": {
+      "input_count": 36,
+      "input_sha256": "8f270d8933ce47a64108710dbbb3e7d3771b4067f37b6debccd035d1712f50da",
+      "manifest_sha256": "89cbc906cb871c4e72a84bbf1debbd62da0f80ac8563ac9e9e6672f9da214058",
+      "protocol": "reconcile-eval-v2",
+      "public_exposed": false,
+      "split": "reserved-final",
+      "target_count": 36,
+      "target_sha256": "69b781c69f745909538274f08e2035bfe22b06d7fd78a4a9abf2b102073e827a"
+    },
+    "validation": {
+      "input_count": 27,
+      "input_sha256": "1f0277222540e52b8f8d7717b111a3989eff4d2f16f65bc76c8f2bc038b4bb4a",
+      "manifest_sha256": "5b2016705e2fc10e3b9d93a914a19f9b423e268a7f478b574759fe3d3b594780",
+      "protocol": "reconcile-eval-v2",
+      "public_exposed": false,
+      "split": "validation",
+      "target_count": 27,
+      "target_sha256": "5f0138bc99e17b1846452d7cc9bdb247c6bcfd997df1cc206e33dca4c15963de"
+    }
+  },
+  "prepared_cases": 178
+}
