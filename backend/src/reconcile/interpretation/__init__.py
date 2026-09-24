@@ -11,13 +11,12 @@ from .prompt import (
 )
 from .provider import (
     ATTEMPT_TIMEOUT_SECONDS,
-    DEEPSEEK_BASE_URL,
     DEFAULT_MODEL,
+    OPENAI_BASE_URL,
     OVERALL_TIMEOUT_SECONDS,
     AttemptContext,
     AttemptEvent,
-    DeepSeekClient,
-    DeepSeekProvider,
+    OpenAIProvider,
     ProviderOutcome,
 )
 from .schemas import (
@@ -57,10 +56,9 @@ __all__ = [
     "CreditAllocationLine",
     "CreditObservation",
     "DEFAULT_MODEL",
-    "DEEPSEEK_BASE_URL",
+    "OPENAI_BASE_URL",
     "Decision",
-    "DeepSeekClient",
-    "DeepSeekProvider",
+    "OpenAIProvider",
     "FailureCode",
     "InterpretationFailure",
     "InterpretationRequest",

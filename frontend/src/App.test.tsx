@@ -150,7 +150,7 @@ describe('Phase 4 interpretation UI', () => {
       onInterpret={async () => {}}
     />)
 
-    expect(markup).toContain('AI reading · DeepSeek')
+    expect(markup).toContain('AI reading · GPT-6 Luna')
     expect(markup).toContain('Live interpretation is disabled for this session.')
   })
 
@@ -289,8 +289,8 @@ describe('case study surfaces', () => {
     const detail = { reason: 'bounded interpretation: evidence_supported', trace: { mode: 'llm-direct' } } as unknown as ProposalDetail
     const markup = renderToString(<DecisionSummary detail={detail} status="PROPOSED" cash={[{ invoice_id: 'F-1432', amount_mxn: '30000.00' }]} credits={[]} />)
 
-    expect(markup).toContain('DeepSeek proposed this allocation')
-    expect(markup).toContain('DeepSeek, checked by code')
+    expect(markup).toContain('GPT-6 Luna proposed this allocation')
+    expect(markup).toContain('GPT-6 Luna, checked by code')
     expect(markup).toContain('Nothing is recorded until you approve')
   })
 

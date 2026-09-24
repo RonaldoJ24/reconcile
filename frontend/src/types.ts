@@ -266,6 +266,7 @@ export type EvaluationV2Result = {
   unnecessary_deferrals: number
   unavailable_or_error: number
   misallocated_centavos: number
+  label?: string
   note?: string
 }
 
@@ -276,7 +277,7 @@ export type EvaluationV2 = {
   independent_domain_review: string
   cases?: { authored: number; evaluated: number; excluded: number; answerable: number; unreachable: number }
   results?: EvaluationV2Result[]
-  provider?: { attempts: number; estimated_cost_usd: number; latency_ms_p50: number | null; latency_ms_p95: number | null }
+  provider?: { label?: string; attempts: number; estimated_cost_usd: number; latency_ms_p50: number | null; latency_ms_p95: number | null }
   findings?: string[]
   report_path?: string
 }

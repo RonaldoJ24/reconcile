@@ -27,3 +27,17 @@ Audit RonaldoJ24/incident-lens and RonaldoJ24/supplierops-lab locally, read-only
 The free profile uses one service and a consumer that runs only while the service is awake. Small source payloads and financial state persist in bounded PostgreSQL storage. No hosted training, always-on processing, or zero-overage guarantee is implied by a free plan label.
 
 User approval of a future phase is separate from evidence that it ran. No cloud resources, repository, provider credit purchase, billing change, or deployment was created by preparing this package.
+
+## 2026-09-23: OpenAI runtime provider
+
+The owner switched the runtime model to OpenAI `gpt-6-luna`. Sources checked on this date:
+
+- GPT-6 Luna model page: https://developers.openai.com/api/docs/models/gpt-6-luna
+- OpenAI API pricing: https://developers.openai.com/api/docs/pricing
+
+The model page lists structured outputs, Chat Completions support, and reasoning effort
+`none` through `max`. Standard prices are USD 0.10 per 1M input tokens, USD 0.125 per 1M
+cache writes, USD 0.01 per 1M cached input tokens and USD 0.50 per 1M output tokens. The
+authenticated model catalog listed `gpt-6-luna`, and a one-call check accepted reasoning
+effort `none`, temperature 0 and JSON output.
+

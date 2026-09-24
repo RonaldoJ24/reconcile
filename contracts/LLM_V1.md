@@ -21,14 +21,17 @@ at 2,048 tokens.
 
 ## Provider request and validated result
 
-DeepSeek is the only provider. The base URL is `https://api.deepseek.com`, the
-default configurable model is `deepseek-flash`, and live use requires an explicit
+OpenAI is the only provider. The base URL is `https://api.openai.com/v1`, the
+default configurable model is `gpt-6-luna`, and live use requires an explicit
 enable flag, API credential, and nonzero budget. Chat completions set:
 
-- `thinking: {"type": "disabled"}`
+- `reasoning_effort: "none"`
 - `response_format: {"type": "json_object"}`
 - `stream: false`
-- `max_tokens: 2048`
+- `max_completion_tokens: 2048`
+
+The provider changed from DeepSeek (`deepseek-flash`) to OpenAI on 2026-09-23. The
+v2 evaluation measured the DeepSeek configuration.
 
 The JSON result is strict and has no extra fields:
 
@@ -84,10 +87,11 @@ per UTC day, USD 0.10 per UTC day, and USD 1.00 per UTC month; live mode remains
 off until explicitly enabled. This execution additionally caps all attempts at
 USD 0.05 and never tops up credit.
 
-The official 2026-09-14 `deepseek-flash` peak rate card is USD 0.30/1M uncached
-input tokens and USD 1.20/1M output tokens. Cache discounts and off-peak prices are
-ignored when reserving. A 6,000-input/2,048-output attempt reserves USD 0.0042576,
-rounded upward to 4,258 microdollars. Persist requested/response model, input,
+The official 2026-09-23 `gpt-6-luna` standard rate card is USD 0.10/1M input,
+USD 0.125/1M cache writes, USD 0.01/1M cached input and USD 0.50/1M output tokens.
+Reservations price every uncached input token at the cache-write rate, and cache
+discounts are ignored. A 6,000-input/2,048-output attempt reserves USD 0.001774,
+or 1,774 microdollars. Persist requested/response model, input,
 output, provider-cache and reasoning tokens when reported, latency, retry number,
 cache status, HTTP/failure code, reservation state, and reconciled estimated cost.
 Missing usage remains unknown, never zero.

@@ -22,11 +22,12 @@ class BudgetExceeded(RuntimeError):
 
 @dataclass(frozen=True)
 class RateCard:
-    verified_on: str = "2026-09-14"
-    model: str = "deepseek-flash"
-    uncached_input_usd_per_million: Decimal = Decimal("0.30")
-    cached_input_usd_per_million: Decimal = Decimal("0.006")
-    output_usd_per_million: Decimal = Decimal("1.20")
+    verified_on: str = "2026-09-23"
+    model: str = "gpt-6-luna"
+    # Uncached input can be billed as a cache write, so it uses the higher write rate.
+    uncached_input_usd_per_million: Decimal = Decimal("0.125")
+    cached_input_usd_per_million: Decimal = Decimal("0.01")
+    output_usd_per_million: Decimal = Decimal("0.50")
 
     def estimated_microdollars(
         self, *, input_tokens: int, output_tokens: int, cached_input_tokens: int = 0

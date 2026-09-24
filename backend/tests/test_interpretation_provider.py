@@ -11,11 +11,11 @@ from reconcile.interpretation import (
     AllocationLine,
     CandidateAllocation,
     Citation,
-    DeepSeekProvider,
     FailureCode,
     InterpretationRequest,
     InterpretationResult,
     InvoiceObservation,
+    OpenAIProvider,
     PaymentObservation,
     PromptTooLarge,
     SourceSpan,
@@ -71,12 +71,12 @@ def response(result: dict[str, object], *, status_code: int = 200) -> httpx.Resp
     return httpx.Response(
         status_code,
         json={
-            "model": "deepseek-flash-2026",
+            "model": "gpt-6-luna-2026-09-01",
             "choices": [{"message": {"content": json.dumps(result)}}],
             "usage": {
                 "prompt_tokens": 101,
                 "completion_tokens": 42,
-                "prompt_cache_hit_tokens": 5,
+                "prompt_tokens_details": {"cached_tokens": 5},
                 "completion_tokens_details": {"reasoning_tokens": 0},
             },
         },
@@ -212,10 +212,10 @@ def test_oversized_prompt_fails_before_provider_or_reservation() -> None:
         return object()
 
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(handler),
     )
-    outcome = DeepSeekProvider(
+    outcome = OpenAIProvider(
         api_key="provided-explicitly",
         enabled=True,
         client=client,
@@ -231,7 +231,7 @@ def test_oversized_prompt_fails_before_provider_or_reservation() -> None:
     client.close()
 
 
-def test_provider_posts_required_deepseek_options_without_network() -> None:
+def test_provider_posts_required_openai_options_without_network() -> None:
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -246,22 +246,22 @@ def test_provider_posts_required_deepseek_options_without_network() -> None:
         )
 
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(handler),
     )
-    provider = DeepSeekProvider(api_key="provided-explicitly", enabled=True, client=client)
+    provider = OpenAIProvider(api_key="provided-explicitly", enabled=True, client=client)
     outcome = provider.interpret(make_request())
     assert outcome.ok
     assert len(seen) == 1
     body = json.loads(seen[0].content)
-    assert seen[0].url == "https://api.deepseek.com/chat/completions"
-    assert body["thinking"] == {"type": "disabled"}
+    assert seen[0].url == "https://api.openai.com/v1/chat/completions"
+    assert body["reasoning_effort"] == "none"
     assert body["response_format"] == {"type": "json_object"}
     assert body["stream"] is False
-    assert body["max_tokens"] == 2048
+    assert body["max_completion_tokens"] == 2048
     assert body["temperature"] == 0
-    assert outcome.attempts[0].requested_model == "deepseek-flash"
-    assert outcome.attempts[0].response_model == "deepseek-flash-2026"
+    assert outcome.attempts[0].requested_model == "gpt-6-luna"
+    assert outcome.attempts[0].response_model == "gpt-6-luna-2026-09-01"
     assert outcome.attempts[0].usage.provider_cache_tokens == 5
     client.close()
 
@@ -286,10 +286,10 @@ def test_only_transient_failures_retry_and_hooks_run_per_attempt() -> None:
         )
 
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(handler),
     )
-    provider = DeepSeekProvider(
+    provider = OpenAIProvider(
         api_key="provided-explicitly",
         enabled=True,
         client=client,
@@ -304,10 +304,10 @@ def test_only_transient_failures_retry_and_hooks_run_per_attempt() -> None:
     client.close()
 
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(lambda request: httpx.Response(400)),
     )
-    outcome = DeepSeekProvider(
+    outcome = OpenAIProvider(
         api_key="provided-explicitly", enabled=True, client=client
     ).interpret(make_request())
     assert not outcome.ok
@@ -320,7 +320,7 @@ def test_only_transient_failures_retry_and_hooks_run_per_attempt() -> None:
 def test_semantic_failure_reconciles_complete_usage() -> None:
     finalized: list[AttemptEvent] = []
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(
             lambda request: response(
                 {
@@ -339,7 +339,7 @@ def test_semantic_failure_reconciles_complete_usage() -> None:
             )
         ),
     )
-    outcome = DeepSeekProvider(
+    outcome = OpenAIProvider(
         api_key="provided-explicitly",
         enabled=True,
         client=client,
@@ -362,10 +362,10 @@ def test_timeout_retries_once_and_retains_each_unknown_reservation() -> None:
         raise httpx.ReadTimeout("timed out", request=request)
 
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(timeout),
     )
-    outcome = DeepSeekProvider(
+    outcome = OpenAIProvider(
         api_key="provided-explicitly",
         enabled=True,
         client=client,
@@ -384,10 +384,10 @@ def test_timeout_retries_once_and_retains_each_unknown_reservation() -> None:
 def test_definite_provider_rejection_releases_reservation() -> None:
     finalized: list[AttemptEvent] = []
     client = httpx.Client(
-        base_url="https://api.deepseek.com",
+        base_url="https://api.openai.com/v1",
         transport=httpx.MockTransport(lambda request: httpx.Response(400)),
     )
-    outcome = DeepSeekProvider(
+    outcome = OpenAIProvider(
         api_key="provided-explicitly",
         enabled=True,
         client=client,

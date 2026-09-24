@@ -31,7 +31,7 @@ def test_public_provider_access_requires_valid_live_configuration(monkeypatch) -
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
     monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "server-only-test-key")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "public-access-test")
     monkeypatch.setenv("RECONCILE_LLM_DAILY_BUDGET_USD", "0.10")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0.01")
@@ -39,9 +39,9 @@ def test_public_provider_access_requires_valid_live_configuration(monkeypatch) -
     assert _effective_provider_access(record, workspace) is True
     assert _interpretation_enabled(record, workspace) is True
 
-    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    monkeypatch.delenv("OPENAI_API_KEY")
     assert _effective_provider_access(record, workspace) is False
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "server-only-test-key")
     monkeypatch.setenv("RECONCILE_LLM_DAILY_BUDGET_USD", "0")
     assert _effective_provider_access(record, workspace) is False
 
@@ -64,7 +64,7 @@ def test_public_budget_caps_and_execution_id_roll_over_by_utc_day(monkeypatch) -
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
     monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "server-only-test-key")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "public-preview")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "not-used")
     monkeypatch.setenv("RECONCILE_LLM_DAILY_BUDGET_USD", "0.50")
@@ -110,7 +110,7 @@ def test_nonpublic_runtime_keeps_legacy_execution_cap(monkeypatch) -> None:
     monkeypatch.setenv("RECONCILE_MODE", "local")
     monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "0")
     monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "server-only-test-key")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "legacy-execution")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0.05")
     monkeypatch.setenv("RECONCILE_LLM_DAILY_BUDGET_USD", "not-used")

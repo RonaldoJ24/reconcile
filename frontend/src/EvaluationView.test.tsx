@@ -42,7 +42,7 @@ describe('EvaluationView', () => {
     expect(markup).toContain('Active engine: <strong>rules-v2-conservative</strong>')
     expect(plainMarkup).toContain('Not evaluated')
     expect(plainMarkup).toContain('Independent accountant review: Pending')
-    expect(plainMarkup).toContain('Live DeepSeek calls counted in v2: 0')
+    expect(plainMarkup).toContain('Live model calls counted in v2: 0')
     expect(plainMarkup).toContain('Held-out final set opened: No')
     expect(plainMarkup).not.toContain('continuation')
     expect(plainMarkup).toContain('The rules proposed an allocation in 300 of 500 cases')
@@ -85,15 +85,15 @@ describe('v2 results', () => {
         { ...row('all-cases', 'ranker', 0), note: 'Excludes the validation cases' },
       ],
       findings: ['Every wrong proposal should have been a deferral.'],
-      provider: { attempts: 140, estimated_cost_usd: 0.09, latency_ms_p50: 1100, latency_ms_p95: 2400 },
+      provider: { label: 'GPT-6 Luna', attempts: 140, estimated_cost_usd: 0.09, latency_ms_p50: 1100, latency_ms_p95: 2400 },
       report_path: 'reports/eval-v2/README.md',
     }} />).replace(/<!-- -->/g, '')
 
     expect(markup).toContain('Held-out final split: 36 cases')
-    expect(markup).toContain('Rules, then DeepSeek (production path)')
+    expect(markup).toContain('Rules, then the model (production path)')
     expect(markup).toContain('14 of 20')
     expect(markup).toContain('178 synthetic cases written by AI agents')
-    expect(markup).toContain('DeepSeek: 140 calls, about US$0.09 at list price, median 1.1 s per call.')
+    expect(markup).toContain('GPT-6 Luna: 140 calls, about US$0.09 at list price, median 1.1 s per call.')
     expect(markup).toContain('Excludes the validation cases')
     expect(markup).toContain('MX$10.00')
     expect(markup).toContain('<li>Every wrong proposal should have been a deferral.</li>')

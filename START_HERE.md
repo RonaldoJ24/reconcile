@@ -1,5 +1,7 @@
 # Start Reconcile in local Codex — free deployment edition
 
+Update 2026-09-23: the owner switched the runtime model from DeepSeek to OpenAI `gpt-6-luna`. The DeepSeek references below describe the original plan; `AGENTS.md` and `contracts/LLM_V1.md` hold the current provider rules.
+
 Version 1.1, 2026-09-14. This package replaces the previous cost/provider defaults. It contains specifications, not an implemented application. Use the existing Codex session and available subscription model; this project requires no separate OpenAI API subscription. Do not alter global Codex settings.
 
 Extract into the intended project directory. For an existing checkout, inspect differences before replacing instructions; preserve completed code, local changes, and STATUS. Do not reset the repository.

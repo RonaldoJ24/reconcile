@@ -657,7 +657,7 @@ def test_interpretation_budget_reservation_is_transactional_and_reconciled(sessi
         session_id=visitor,
         execution_id="phase4-test",
         mode="direct",
-        requested_model="deepseek-flash",
+        requested_model="gpt-6-luna",
         attempt=1,
         policy=policy,
         rate_card=rate,
@@ -674,7 +674,7 @@ def test_interpretation_budget_reservation_is_transactional_and_reconciled(sessi
             session_id=visitor,
             execution_id="phase4-test",
             mode="direct",
-            requested_model="deepseek-flash",
+            requested_model="gpt-6-luna",
             attempt=2,
             policy=policy,
             rate_card=rate,
@@ -687,7 +687,7 @@ def test_interpretation_budget_reservation_is_transactional_and_reconciled(sessi
         rate_card=rate,
         status="SUCCEEDED",
         usage=Usage(input_tokens=1_000, output_tokens=100, cached_input_tokens=200),
-        response_model="deepseek-v4.1-flash",
+        response_model="gpt-6-luna-2026-09-01",
         latency_ms=50,
     )
     assert finalized.status == "SUCCEEDED"
@@ -710,7 +710,7 @@ def test_interpretation_timeout_retains_possible_billing_reservation(session) ->
         session_id=uuid.uuid4(),
         execution_id=f"timeout-{uuid.uuid4()}",
         mode="hybrid",
-        requested_model="deepseek-flash",
+        requested_model="gpt-6-luna",
         attempt=1,
         policy=policy,
         rate_card=rate,
@@ -1725,7 +1725,7 @@ def test_preview_public_provider_access_is_reversible_and_invites_persist(
 ) -> None:
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "server-only-test-key")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "public-access-test")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0.01")
     monkeypatch.delenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", raising=False)
@@ -1775,7 +1775,7 @@ def test_preview_public_access_routes_direct_and_hybrid_and_revokes_post(
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
     monkeypatch.setenv("RECONCILE_LLM_ENABLED", "1")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "server-only-test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "server-only-test-key")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_ID", "public-access-test")
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0.01")
     api = create_app()
@@ -1864,7 +1864,7 @@ def test_preview_public_access_stays_disabled_when_runtime_is_killed(session, mo
     monkeypatch.setenv("RECONCILE_MODE", "preview")
     monkeypatch.setenv("RECONCILE_PUBLIC_PROVIDER_ACCESS", "1")
     monkeypatch.setenv("RECONCILE_LLM_ENABLED", "0")
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("RECONCILE_LLM_EXECUTION_ID", raising=False)
     monkeypatch.setenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", "0")
     api = create_app()

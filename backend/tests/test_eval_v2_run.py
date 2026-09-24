@@ -106,13 +106,13 @@ class _FakeProvider:
         reserve_attempt: ReserveAttempt | None = None,
         finalize_attempt: FinalizeAttempt | None = None,
     ) -> ProviderOutcome:
-        context = AttemptContext(1, 0, "deepseek-flash")
+        context = AttemptContext(1, 0, "gpt-6-luna")
         reservation = reserve_attempt(context) if reserve_attempt else None
         telemetry = AttemptTelemetry(
             attempt=1,
             retry_number=0,
-            requested_model="deepseek-flash",
-            response_model="deepseek-flash",
+            requested_model="gpt-6-luna",
+            response_model="gpt-6-luna",
             usage=Usage(input_tokens=900, output_tokens=60, provider_cache_tokens=0),
             latency_ms=12,
             http_status=200,
@@ -161,7 +161,7 @@ def test_run_records_verified_direct_observations_end_to_end(
         pytest.skip("TEST_DATABASE_URL is not set")
     monkeypatch.setenv("RECONCILE_EVAL_SCHEMA", "reconcile_eval_v2_test")
     monkeypatch.setenv("RECONCILE_RANKER_MODE", "shadow")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
 
     shorthand = _case_id("shorthand", "development")
     clean = _case_id("clean", "validation")

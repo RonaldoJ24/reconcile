@@ -23,7 +23,7 @@ The coordinator owns shared contracts and integration. At most two implementers 
 Inspect source repositories read-only. Reuse small audited components and their tests, record provenance, and do not copy credentials, databases, old claims, fixture answers, or entire architectures. Preserve unrelated changes.
 
 ## Cost and runtime provider
-Use DeepSeek only for runtime interpretation: configurable `deepseek-flash`, explicit non-thinking JSON output, strict server-side validation, and bounded calls. No separately billed OpenAI API dependency. Use the owner's existing Codex session for development, without adding subscriptions or auto-refilling credits.
+Use OpenAI only for runtime interpretation: configurable `gpt-6-luna`, reasoning effort `none`, JSON output, strict server-side validation, and bounded calls, with the owner's OpenAI API key held only in server-side secret storage. The owner switched from DeepSeek on 2026-09-23; the v2 evaluation was measured with DeepSeek and stays attributed to it. Use the owner's existing Codex session for development, without adding subscriptions or auto-refilling credits.
 
 Read `docs/FREE_DEPLOYMENT.md` before hosting or live calls. Infrastructure is strictly Render Free + Neon Free + existing GitHub free allowances. Exactly one Render web service serves React, API, and a bounded consumer while awake. No hosted standalone worker, paid disk, cron, Redis, object store, GPU, paid domain, or cloud training. Train and load-test locally. Check remaining shared allowances and overage behavior; alerts alone are not a hard zero-cost guarantee. Use explicit budgets and invitation-gated provider access. Free-tier restrictions never waive integrity/evaluation tests.
 

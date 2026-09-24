@@ -87,13 +87,13 @@ class FakeProvider:
         finalize_attempt: FinalizeAttempt | None = None,
     ) -> ProviderOutcome:
         self.calls += 1
-        context = AttemptContext(1, 0, "deepseek-flash")
+        context = AttemptContext(1, 0, "gpt-6-luna")
         reservation = reserve_attempt(context) if reserve_attempt else None
         telemetry = AttemptTelemetry(
             attempt=1,
             retry_number=0,
-            requested_model="deepseek-flash",
-            response_model="deepseek-flash-test",
+            requested_model="gpt-6-luna",
+            response_model="gpt-6-luna-test",
             usage=Usage(input_tokens=500, output_tokens=50, provider_cache_tokens=0),
             latency_ms=10,
             http_status=200,
@@ -138,7 +138,7 @@ def imported_review_case(db) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
 
 
 def settings(execution_id: str) -> InterpretationSettings:
-    return InterpretationSettings(True, "not-a-real-key", "deepseek-flash", execution_id, 50_000)
+    return InterpretationSettings(True, "not-a-real-key", "gpt-6-luna", execution_id, 50_000)
 
 
 def select_invoice_a(request: InterpretationRequest) -> InterpretationResult:
