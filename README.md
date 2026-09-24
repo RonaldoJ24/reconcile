@@ -11,6 +11,11 @@ allocations that code built, and it can never move money.
 **[Open the live demo](https://reconcile-preview.onrender.com)** · synthetic data,
 free hosting (the first load can take about a minute while the server wakes).
 
+**Measured once, pre-registered.** On 40 held-out synthetic cases, the production
+path proposed 23 allocations and 21 were right; across all 178 cases, 61 of 74.
+Every wrong proposal was one it should have sent to a person.
+[Read the evaluation](reports/eval-v2/README.md).
+
 ![An abbreviated SPEI reference read by DeepSeek: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
 
 ## The problem
@@ -87,11 +92,22 @@ shows the decision trace, a method comparison and synthetic reliability checks
   the hidden instruction was not followed (F-5520, not F-5521). These are four
   development observations, and the prompt was revised after the first live call
   on the abbreviated case abstained. They are not an accuracy measurement.
-- **LLM quality has not been measured yet.** The evaluation protocol is frozen in
-  [`contracts/PORTFOLIO_V2.md`](contracts/PORTFOLIO_V2.md): grouped splits,
-  thresholds chosen on validation only, and risk against coverage. The next step
-  is to write a held-out set of realistic cases by hand and run it once. No
-  accuracy is claimed until then.
+- **How the AI did on 178 cases it had never seen**
+  ([evaluation v2](reports/eval-v2/README.md)). AI agents wrote 178 synthetic
+  cases blind, from a domain-only brief. The system was frozen and the metrics were
+  registered before any case existed, and the production path ran once.
+  - On the 40-case held-out split, it proposed 23 allocations and 21 were right.
+  - Across all cases it proposed 74, with 61 right, resolving 61 of 127 answerable
+    cases.
+  - All 13 errors were cases that should have gone to review. In 11, the right
+    allocation was not among the candidates code built, mostly because the builder
+    never pairs a single invoice with a credit note. The other 2 had no right answer.
+  - Whenever the right allocation was among the candidates, all 59 of the model's
+    proposals were correct.
+  - The run took 108 DeepSeek calls, for about US$0.04.
+
+  These are AI-written synthetic cases, not real-world accuracy, and the set is now
+  public, so the next fix needs a new held-out set.
 
 ## Engineering
 
@@ -99,8 +115,8 @@ Python 3.14, FastAPI, SQLAlchemy, PostgreSQL (Neon), scikit-learn, DeepSeek
 (`deepseek-flash`, JSON mode), React and TypeScript with Vite, and Playwright. The
 whole product runs as one Render Free web service.
 
-Checks at the current release: ruff and strict mypy, 1,111 offline backend tests,
-68 PostgreSQL integration tests on an isolated database, 58 frontend tests,
+Checks at the current release: ruff and strict mypy, 1,113 offline backend tests,
+69 PostgreSQL integration tests on an isolated database, 59 frontend tests,
 and 32 Playwright checks against the hosted preview on desktop and mobile. Run evidence is in
 [docs/STATUS.md](docs/STATUS.md), and the design reasoning is in the
 [case study](docs/PORTFOLIO_CASE_STUDY.md).
@@ -130,10 +146,14 @@ integration database. Never point destructive tests at the preview's database.
 
 - All data is synthetic. There is no bank integration, customer data or money
   movement; an approval records an internal allocation only.
-- The case labels and demo cases were written by the author. No independent
-  accountant has reviewed them yet; a 24-case review packet is in
-  [`docs/domain-review/`](docs/domain-review/README.md).
-- LLM accuracy, time saved and production use have not been measured.
+- The demo cases and historical labels were written by the author, and the v2
+  evaluation cases by AI agents. No independent accountant has reviewed them yet; a
+  24-case review packet is in [`docs/domain-review/`](docs/domain-review/README.md).
+- LLM accuracy was measured only on AI-written synthetic cases, and that set is now
+  public. Time saved and production use have not been measured.
+- The candidate builder cannot yet express a single invoice netted by a credit
+  note, more than three invoices, or partial splits with a remainder. Those cases go
+  to review, or, as the evaluation showed, sometimes get a near-miss proposal.
 - The free service sleeps after 15 minutes without traffic, so the first request is
   slow. The historical remote-database p95 (about 600 ms) missed its 500 ms target.
 - Folio recall is a heuristic: a short fragment can match unrelated folios, which the

@@ -90,7 +90,7 @@ Visible edits must be saved or discarded before applying; confirmation shows the
 persisted revision and its cash, credit and projected balance effects. A changed
 source invalidates pending decisions. Interpretation never approves itself.
 
-## What v2 is designed to measure
+## What v2 measured
 
 The [frozen v2 protocol](../contracts/PORTFOLIO_V2.md) separates related variants by
 group, fixes baselines/selection before final evaluation and reports risk against
@@ -98,8 +98,21 @@ coverage with numerators and denominators. Supported proposals, unsupported
 proposals, correct deferrals, unnecessary deferrals and provider failures are
 different outcomes. A timeout is not credited as safe abstention.
 
-The harness is useful without running a paid or final benchmark. No new model
-quality, real-world accuracy, accounting time saved or business impact is claimed.
+On 2026-09-23 it ran once over 178 synthetic cases that AI agents wrote blind from a
+domain-only brief, against a system frozen before any case existed
+([results](../reports/eval-v2/README.md)).
+
+- On the 40-case held-out split, rules then DeepSeek proposed 23 allocations, and
+  21 were right.
+- Across all cases it proposed 74, and 61 were right.
+
+Every wrong proposal was a failure to defer. Eleven of them trace to allocations
+the candidate builder cannot express, mainly a single invoice netted by a credit
+note. When the right allocation was among the candidates, the model's 59 proposals
+were all correct.
+
+These are synthetic, AI-written labels. No real-world accuracy, accounting time
+saved or business impact is claimed.
 
 ## Evidence still missing
 
@@ -117,5 +130,4 @@ Preparing the packet does not supply external validation.
 
 The historical remote-database list/detail p95 exceeded the proposed 500 ms budget;
 matching-only timing excluded persistence. Neither is a new end-to-end latency
-claim. No public deployment, provider enablement or external domain review is part
-of this continuation's implementation evidence.
+claim. External domain review has not happened yet.
