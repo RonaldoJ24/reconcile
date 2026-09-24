@@ -128,9 +128,9 @@ Python 3.14, FastAPI, SQLAlchemy, PostgreSQL (Neon), scikit-learn, OpenAI GPT-6 
 (`gpt-6-luna`, JSON mode), React and TypeScript with Vite, and Playwright. The
 whole product runs as one Render Free web service.
 
-Checks at the current release: ruff and strict mypy, 1,113 offline backend tests,
-69 PostgreSQL integration tests on an isolated database, 59 frontend tests,
-and 32 Playwright checks against the hosted preview on desktop and mobile. Run evidence is in
+Checks at the current release: ruff and strict mypy, 1,114 offline backend tests,
+71 PostgreSQL integration tests on an isolated database, 61 frontend tests,
+and 34 Playwright checks against the hosted preview on desktop and mobile. Run evidence is in
 [docs/STATUS.md](docs/STATUS.md), and the design reasoning is in the
 [case study](docs/PORTFOLIO_CASE_STUDY.md).
 
