@@ -1714,7 +1714,7 @@ def test_evaluation_route_serves_packaged_summary_with_active_engine(session, mo
         payload = response.json()
         assert payload["active_engine"] == "rules-v2-conservative"
         assert payload["schema_version"] == "evaluation-summary-v1"
-        assert payload["v2"]["status"] == "not_evaluated"
+        assert payload["v2"]["status"] == "complete"
         assert "dataset" not in payload
     finally:
         api.dependency_overrides.clear()

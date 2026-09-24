@@ -1,4 +1,4 @@
-import type { EvaluationHistoricalRow, EvaluationResponse } from './types'
+import type { EvaluationHistoricalRow, EvaluationResponse, EvaluationV2, EvaluationV2Result } from './types'
 
 export function formatEvaluationPercent(value: number) {
   return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'Unknown'
@@ -41,6 +41,55 @@ function HistoricalSplit({ split, rows }: { split: string; rows: EvaluationHisto
   </section>
 }
 
+const V2_METHOD_LABELS: Record<string, string> = {
+  rules: 'Rules alone',
+  ranker: 'Shadow ranker (threshold chosen on validation)',
+  rules_then_direct: 'Rules, then DeepSeek (production path)',
+}
+
+const V2_SCOPE_LABELS: Record<string, string> = {
+  'reserved-final': 'Held-out final split',
+  'all-cases': 'All cases',
+}
+
+const formatMxn = (centavos: number) =>
+  new Intl.NumberFormat('en-MX', { style: 'currency', currency: 'MXN' }).format(centavos / 100)
+
+function V2ResultRow({ row }: { row: EvaluationV2Result }) {
+  return <tr>
+    <th scope="row" className="evaluation-method">{V2_METHOD_LABELS[row.method] ?? row.method}{row.note && <span className="evaluation-row-note">{row.note}</span>}</th>
+    <td data-label="Proposed">{row.proposals}</td>
+    <td data-label="Right">{row.correct}</td>
+    <td data-label="Wrong">{row.unsupported}</td>
+    <td data-label="Deferred correctly">{row.correct_deferrals}</td>
+    <td data-label="Deferred but answerable">{row.unnecessary_deferrals}</td>
+    <td data-label="Unavailable">{row.unavailable_or_error}</td>
+    <td data-label="Answerable resolved">{`${row.correct} of ${row.answerable}`}</td>
+    <td data-label="Wrongly allocated">{formatMxn(row.misallocated_centavos)}</td>
+  </tr>
+}
+
+// The v2 run's counts, packaged from its published report; nothing here is recomputed.
+export function V2Results({ v2 }: { v2: EvaluationV2 }) {
+  const rows = v2.results ?? []
+  if (rows.length === 0) return null
+  const scopes = Array.from(new Set(rows.map((row) => row.scope)))
+  return <section className="evaluation-v2-results" aria-labelledby="evaluation-v2-results-heading">
+    <h3 id="evaluation-v2-results-heading">New evaluation (v2): what each method did</h3>
+    {v2.cases && <p className="muted">{`${v2.cases.evaluated} synthetic cases written by AI agents from a domain brief, run once against the frozen system. ${v2.cases.answerable} could be allocated by a careful analyst; ${v2.cases.unreachable} of those need an allocation the system cannot represent.`}</p>}
+    {scopes.map((scope) => <div className="table-wrap evaluation-table-wrap" key={scope}>
+      <table className="evaluation-v2-table">
+        <caption>{`${V2_SCOPE_LABELS[scope] ?? scope}: ${rows.find((row) => row.scope === scope)?.cases ?? 0} cases`}</caption>
+        <thead><tr><th scope="col">Method</th><th scope="col">Proposed</th><th scope="col">Right</th><th scope="col">Wrong</th><th scope="col">Deferred correctly</th><th scope="col">Deferred but answerable</th><th scope="col">Unavailable</th><th scope="col">Answerable resolved</th><th scope="col">Wrongly allocated</th></tr></thead>
+        <tbody>{rows.filter((row) => row.scope === scope).map((row) => <V2ResultRow key={`${scope}-${row.method}`} row={row} />)}</tbody>
+      </table>
+    </div>)}
+    {v2.findings && v2.findings.length > 0 && <ul className="evaluation-v2-findings">{v2.findings.map((finding) => <li key={finding}>{finding}</li>)}</ul>}
+    {v2.provider && <p className="muted">{`DeepSeek: ${v2.provider.attempts} calls, about US$${v2.provider.estimated_cost_usd.toFixed(2)} at list price${v2.provider.latency_ms_p50 !== null ? `, median ${(v2.provider.latency_ms_p50 / 1000).toFixed(1)} s per call` : ''}.`}</p>}
+    {v2.report_path && <p className="muted">{`Full report, cases, labels and every recorded model call: ${v2.report_path}`}</p>}
+  </section>
+}
+
 // Summarizes the preserved final-split rows in plain language; numbers come from the report.
 export function HistoricalTakeaway({ rows }: { rows: EvaluationHistoricalRow[] }) {
   const final = rows.filter((row) => row.split === 'final')
@@ -73,6 +122,7 @@ export function EvaluationView({ evaluation, loading = false, error = null, onRe
           <span>Live DeepSeek calls counted in v2: {evaluation.v2.provider_calls_this_continuation}</span>
           <span>Held-out final set opened: {evaluation.v2.final_access_this_continuation ? 'Yes' : 'No'}</span>
         </div>
+        <V2Results v2={evaluation.v2} />
       </> : <p className="empty-inline">Current engine status is unavailable from the server.</p>}
     </section>
     <section className="panel evaluation-panel" aria-labelledby="evaluation-heading">
