@@ -214,8 +214,11 @@ test.describe('comparison and evaluation', () => {
     await page.screenshot({ path: qualityDemoPath(`real-comparison-${test.info().project.name}.png`), fullPage: true })
 
     await page.getByRole('button', { name: 'Evaluation' }).click()
-    await expect(page.locator('.evaluation-table-wrap tbody tr')).toHaveCount(4, { timeout: 90_000 })
-    await expect(page.getByText('Not evaluated')).toBeVisible()
+    await expect(page.locator('.evaluation-panel .evaluation-table-wrap tbody tr')).toHaveCount(4, { timeout: 90_000 })
+    await expect(page.getByText('New evaluation (v2): Complete')).toBeVisible()
+    // Three methods for the held-out split and three for all cases, from the packaged summary.
+    await expect(page.locator('.evaluation-v2-results tbody tr')).toHaveCount(6)
+    await expect(page.locator('.evaluation-v2-results')).toContainText('21 of 34')
     await page.locator('.evaluation-provenance summary').click()
     await expect(page.locator('.evaluation-provenance')).toContainText('reports/release-v1/evaluation.json')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
