@@ -11,10 +11,13 @@ allocations that code built, and it can never move money.
 **[Open the live demo](https://reconcile-preview.onrender.com)** · synthetic data,
 free hosting (the first load can take about a minute while the server wakes).
 
-**Measured once, pre-registered.** On 40 held-out synthetic cases, the production
-path proposed 23 allocations and 21 were right; across all 178 cases, 61 of 74.
-Every wrong proposal was one it should have sent to a person.
+**Measured once, pre-registered.** Adding DeepSeek raised the share of answerable
+payments resolved automatically from 3% to 62% on 40 held-out synthetic cases, and
+from 2% to 48% across all 178. On the held-out cases, 21 of its 23 proposals were
+right. Every wrong proposal was one it should have sent to a person.
 [Read the evaluation](reports/eval-v2/README.md).
+
+![Answerable payments resolved automatically: rules only 3% (1 of 34) versus rules then DeepSeek 62% (21 of 34) on the held-out split; 2% (2 of 127) versus 48% (61 of 127) across all 178 cases](docs/images/results/resolution.svg)
 
 ![An abbreviated SPEI reference read by DeepSeek: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
 

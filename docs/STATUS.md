@@ -59,6 +59,12 @@ result rows. The hosted Playwright suite ran with real-backend flags and passed 
 of 32 on desktop and mobile, after its real evaluation assertions were updated for
 v2 (they still expected "Not evaluated"). The landing page shows the results.
 
+**Charts.** `reports/charts.py` draws five SVG charts into `docs/images/results/`
+from `report.json` and `analysis.json`, so no figure is typed by hand. They cover
+resolution before and after DeepSeek, what DeepSeek resolved after the rules, where
+every case ended, results by case type, and wrong proposals by cause. The README,
+the v2 report and the landing page use them. Time saved is still not measured.
+
 **Deviations.** There were three authors, two Opus and one Sonnet continuation.
 The continuation author read the other authors' inputs, not their labels, for
 uniqueness. The c096–c180 batch skipped its self-check. An unregistered merge check

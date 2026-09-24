@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="500" viewBox="0 0 760 500" role="img" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title>Answerable payments resolved automatically, before and after DeepSeek</title>
+  <rect x="0.5" y="0.5" width="759" height="499" rx="14" fill="#ffffff" stroke="#dbe3ea"/>
+  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">Answerable payments resolved automatically</text>
+  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">Before: rules only. Now: the rules, then DeepSeek reads the customer's note.</text>
+  <rect x="32.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#b3c1cd"/>
+  <text x="52.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Rules only (before)</text>
+  <rect x="189.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#1a65a8"/>
+  <text x="209.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Rules, then DeepSeek (now)</text>
+  <line x1="84" y1="388.0" x2="728" y2="388.0" stroke="#dbe3ea"/>
+  <text x="74.0" y="393.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="end">0%</text>
+  <line x1="84" y1="323.0" x2="728" y2="323.0" stroke="#dbe3ea"/>
+  <text x="74.0" y="328.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="end">25%</text>
+  <line x1="84" y1="258.0" x2="728" y2="258.0" stroke="#dbe3ea"/>
+  <text x="74.0" y="263.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="end">50%</text>
+  <line x1="84" y1="193.0" x2="728" y2="193.0" stroke="#dbe3ea"/>
+  <text x="74.0" y="198.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="end">75%</text>
+  <line x1="84" y1="128.0" x2="728" y2="128.0" stroke="#dbe3ea"/>
+  <text x="74.0" y="133.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="end">100%</text>
+  <rect x="146.0" y="380.4" width="88.0" height="7.6" rx="4" fill="#b3c1cd"/>
+  <text x="190.0" y="354.4" font-size="22" font-weight="700" fill="#5c7084" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">3%</text>
+  <text x="190.0" y="372.4" font-size="12" font-weight="400" fill="#5c7084" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">1 of 34</text>
+  <rect x="256.0" y="227.4" width="88.0" height="160.6" rx="4" fill="#1a65a8"/>
+  <text x="300.0" y="201.4" font-size="22" font-weight="700" fill="#112d4e" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">62%</text>
+  <text x="300.0" y="219.4" font-size="12" font-weight="400" fill="#5c7084" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">21 of 34</text>
+  <text x="245.0" y="416.0" font-size="16" font-weight="700" fill="#183047" text-anchor="middle">Held-out split</text>
+  <text x="245.0" y="436.0" font-size="13" font-weight="400" fill="#5c7084" text-anchor="middle">34 answerable of 40 cases</text>
+  <rect x="468.0" y="383.9" width="88.0" height="4.1" rx="4" fill="#b3c1cd"/>
+  <text x="512.0" y="357.9" font-size="22" font-weight="700" fill="#5c7084" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">2%</text>
+  <text x="512.0" y="375.9" font-size="12" font-weight="400" fill="#5c7084" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">2 of 127</text>
+  <rect x="578.0" y="263.1" width="88.0" height="124.9" rx="4" fill="#1a65a8"/>
+  <text x="622.0" y="237.1" font-size="22" font-weight="700" fill="#112d4e" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">48%</text>
+  <text x="622.0" y="255.1" font-size="12" font-weight="400" fill="#5c7084" text-anchor="middle" stroke="#ffffff" stroke-width="4" paint-order="stroke">61 of 127</text>
+  <text x="567.0" y="416.0" font-size="16" font-weight="700" fill="#183047" text-anchor="middle">All cases</text>
+  <text x="567.0" y="436.0" font-size="13" font-weight="400" fill="#5c7084" text-anchor="middle">127 answerable of 178 cases</text>
+  <text x="32.0" y="462.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Evaluation v2, 2026-09-23: 178 synthetic cases written by AI agents; pre-registered, run once.</text>
+  <text x="32.0" y="479.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Synthetic results, not real-world accuracy. Source: github.com/RonaldoJ24/reconcile</text>
+</svg>

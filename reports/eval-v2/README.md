@@ -11,6 +11,21 @@ In short: on the 40 held-out cases, the production path proposed 23 allocations 
 proposal was a case that should have gone to a person. Most of them trace to
 allocations the candidate builder cannot express yet, credit notes in particular.
 
+## At a glance
+
+Every chart is drawn by [`../charts.py`](../charts.py) from `run/report.json` and
+`run/analysis.json`, and carries its own sample sizes.
+
+![Answerable payments resolved automatically: rules only 3% versus rules then DeepSeek 62% on the held-out split, 2% versus 48% across all cases](../../docs/images/results/resolution.svg)
+
+![Of the answerable payments the rules sent to a person, DeepSeek resolved 61% on the held-out split (20 of 33) and 47% across all cases (59 of 125)](../../docs/images/results/rescue.svg)
+
+![Where every case ended for each method: right, wrong, sent to a person correctly, or sent to a person although answerable](../../docs/images/results/outcomes.svg)
+
+![Results by case type for rules then DeepSeek, from hidden instructions (8 of 10 right, none wrong) to credit notes (0 of 17 right)](../../docs/images/results/categories.svg)
+
+![All 13 wrong proposals by cause: 6 missed a credit note, 4 left out invoices, 2 had no right answer, 1 never retrieved the right invoice](../../docs/images/results/errors.svg)
+
 ## Headline: held-out final split, end to end
 
 This is the registered headline. The final split was opened once, after the live
@@ -230,6 +245,9 @@ None of these has been done or measured.
 - [`run/`](run/) holds the prepared inputs and labels per split, the rules and ranker
   observations, `direct.jsonl` with every recorded DeepSeek call, `run.json`,
   `report.json`, `analysis.json` and the ledger.
+- [`../charts.py`](../charts.py) redraws the charts in
+  [`docs/images/results/`](../../docs/images/results/) from `report.json` and
+  `analysis.json`: `python3 reports/charts.py`.
 
 Scoring reads only files. To reproduce `report.json`, copy `run/` somewhere else,
 delete the copy's `final-access.ledger` and `report.json`, and run from the

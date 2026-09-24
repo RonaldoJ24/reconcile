@@ -1,4 +1,14 @@
 {
+  "after_rules": {
+    "all-cases": {
+      "answerable": 125,
+      "resolved": 59
+    },
+    "reserved-final": {
+      "answerable": 33,
+      "resolved": 20
+    }
+  },
   "by_category": {
     "abbreviated_folios": {
       "cases": 20,
@@ -126,6 +136,11 @@
     "evidence_supported": 72,
     "insufficient_evidence": 28,
     "no provider call": 68
+  },
+  "direct_seen_reachable": {
+    "cases": 64,
+    "correct": 59,
+    "proposed": 59
   },
   "misallocated_centavos": 72026600,
   "missed_answerable": {
