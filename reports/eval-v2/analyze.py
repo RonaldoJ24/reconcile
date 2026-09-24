@@ -98,6 +98,9 @@ errors = []
 missed = collections.Counter()
 reasons = collections.Counter()
 direct_answerable_reachable = collections.Counter()
+# Answerable cases the rules sent on, and what the model did with the reachable ones.
+after_rules = {"all-cases": collections.Counter(), "reserved-final": collections.Counter()}
+seen_reachable = collections.Counter()
 for case_id, info in sorted(meta.items()):
     result = outcome(case_id)
     for counter in (by_category[info["category"]], by_split[info["split"]]):
@@ -120,6 +123,15 @@ for case_id, info in sorted(meta.items()):
         if info["answerable"] and info["reachable"]:
             direct_answerable_reachable["proposals"] += 1
             direct_answerable_reachable["correct"] += result == "right"
+    if rules[case_id]["status"] != "PROPOSED" and info["answerable"]:
+        for scope in ("all-cases", info["split"]):
+            if scope in after_rules:
+                after_rules[scope]["answerable"] += 1
+                after_rules[scope]["resolved"] += result == "right"
+        if info["reachable"] and provider_called(case_id):
+            seen_reachable["cases"] += 1
+            seen_reachable["proposed"] += (row or {}).get("status") == "PROPOSED"
+            seen_reachable["correct"] += result == "right"
     if result == "wrong":
         chosen, target = lines(row.get("allocation")), lines(expected.get(case_id))
         reason = cause(case_id, chosen, target)
@@ -145,6 +157,8 @@ for case_id, info in sorted(meta.items()):
 summary = {
     "by_category": {name: dict(counts) for name, counts in sorted(by_category.items())},
     "by_split": {name: dict(counts) for name, counts in sorted(by_split.items())},
+    "after_rules": {scope: dict(counts) for scope, counts in after_rules.items()},
+    "direct_seen_reachable": dict(seen_reachable),
     "direct_on_answerable_reachable": dict(direct_answerable_reachable),
     "direct_reason_codes": dict(reasons),
     "missed_answerable": dict(missed),
