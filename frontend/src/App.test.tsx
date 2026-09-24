@@ -1,6 +1,6 @@
 import { renderToString } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App, { ApplyConfirmation, CasesView, DecisionSummary, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, shouldShowInterpretation, toCents } from './App'
+import App, { ApplyConfirmation, CasesView, DecisionSummary, DecisionTracePanel, InterpretationAction, SourceViewer, applyAttemptFingerprint, cashDraftToPayload, comparisonMatchesDetail, formatDateTime, parseAppRoute, projectedBalanceRows, recordedModel, reviewDraftError, reviewDraftsEqual, runJobsUntilSettled, shouldShowInterpretation, toCents } from './App'
 import { centsToMxn, mxnToCents } from './money'
 import { interpretProposal } from './api'
 import type { Comparison, DecisionTrace, ProposalDetail, SourceRecord } from './types'
@@ -286,12 +286,18 @@ describe('case study surfaces', () => {
   })
 
   it('explains an AI proposal as checked by code and still awaiting approval', () => {
-    const detail = { reason: 'bounded interpretation: evidence_supported', trace: { mode: 'llm-direct' } } as unknown as ProposalDetail
+    const detail = { reason: 'bounded interpretation: evidence_supported', trace: { mode: 'llm-direct', response_model: 'gpt-6-luna' } } as unknown as ProposalDetail
     const markup = renderToString(<DecisionSummary detail={detail} status="PROPOSED" cash={[{ invoice_id: 'F-1432', amount_mxn: '30000.00' }]} credits={[]} />)
 
     expect(markup).toContain('GPT-6 Luna proposed this allocation')
     expect(markup).toContain('GPT-6 Luna, checked by code')
     expect(markup).toContain('Nothing is recorded until you approve')
+    // Saved readings keep the model that made them, even after the runtime model changed.
+    const older = { ...detail, trace: { mode: 'llm-direct', response_model: 'deepseek-v4-flash' } } as unknown as ProposalDetail
+    expect(renderToString(<DecisionSummary detail={older} status="PROPOSED" cash={[{ invoice_id: 'F-1432', amount_mxn: '30000.00' }]} credits={[]} />)).toContain('DeepSeek proposed this allocation')
+    expect(recordedModel({ trace: { attempts: [{ requested_model: 'gpt-6-luna' }] } })).toBe('GPT-6 Luna')
+    expect(recordedModel({ mode: 'llm-direct-v1', interpretation: { response_model: 'deepseek-v4-flash' } })).toBe('DeepSeek')
+    expect(recordedModel({})).toBeUndefined()
   })
 
   it('explains unresolved work from the server reason code, not the case identifier', () => {

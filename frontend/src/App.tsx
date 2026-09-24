@@ -212,15 +212,35 @@ function interpretationReason(value: string | undefined) {
   }
 }
 
-function interpretationSource(source: Interpretation['source']) {
-  if (source === 'live') return 'Live GPT-6 Luna'
+export const CURRENT_MODEL = 'GPT-6 Luna'
+
+const asRecord = (value: unknown) => value && typeof value === 'object' ? value as Record<string, unknown> : {}
+
+// A saved reading names the model that produced it; readings before 2026-09-23 came from DeepSeek.
+// Fresh results carry it under `trace`, saved revisions under `interpretation`.
+export function recordedModel(value: unknown): string | undefined {
+  const record = asRecord(value)
+  for (const candidate of [record, asRecord(record.trace), asRecord(record.interpretation)]) {
+    const attempts = Array.isArray(candidate.attempts) ? candidate.attempts.map(asRecord) : []
+    const model = [candidate.response_model, attempts[0]?.response_model, attempts[0]?.requested_model]
+      .find((item): item is string => typeof item === 'string' && item.length > 0)
+    if (!model) continue
+    if (model.startsWith('gpt-6-luna')) return 'GPT-6 Luna'
+    if (model.toLowerCase().includes('deepseek')) return 'DeepSeek'
+    return model
+  }
+  return undefined
+}
+
+function interpretationSource(source: Interpretation['source'], model: string) {
+  if (source === 'live') return `Live ${model}`
   if (source === 'cache') return 'Validated cache'
   return 'Unavailable'
 }
 
-function interpretationSummary(result: Interpretation) {
-  if (result.status === 'selected') return 'GPT-6 Luna chose one of the prepared allocations. Check the quote and the lines before approving.'
-  if (result.status === 'needs_review') return 'GPT-6 Luna made no choice. The payment stays with a person.'
+function interpretationSummary(result: Interpretation, model: string) {
+  if (result.status === 'selected') return `${model} chose one of the prepared allocations. Check the quote and the lines before approving.`
+  if (result.status === 'needs_review') return `${model} made no choice. The payment stays with a person.`
   return 'The AI reading is unavailable; the proposal is unchanged.'
 }
 
@@ -486,10 +506,17 @@ export function DecisionSummary({ detail, cash, credits, status }: { detail: Pro
   </section>
 }
 
+function aiDecisionModel(detail: ProposalDetail) {
+  const mode = typeof detail.trace?.mode === 'string' ? detail.trace.mode : undefined
+  if (!mode?.startsWith('llm-')) return undefined
+  return recordedModel(detail.trace) ?? recordedModel(detail.interpretation) ?? 'The AI model'
+}
+
 function decisionSource(detail: ProposalDetail) {
   const mode = typeof detail.trace?.mode === 'string' ? detail.trace.mode : undefined
+  const aiModel = aiDecisionModel(detail)
   if (mode === 'human-correction') return 'a reviewer'
-  if (mode?.startsWith('llm-')) return 'GPT-6 Luna, checked by code'
+  if (aiModel) return `${aiModel}, checked by code`
   if (mode === 'rules-v2-conservative' || detail.decision_trace?.source === 'rules') return 'deterministic rules'
   return undefined
 }
@@ -499,10 +526,11 @@ function decisionSource(detail: ProposalDetail) {
 function decisionExplanation(detail: ProposalDetail, status: string) {
   const reason = (detail.reason ?? '').replace(/^bounded interpretation:\s*/i, '').replace(/_/g, ' ')
   const source = decisionSource(detail)
-  const byAi = source === 'GPT-6 Luna, checked by code'
+  const aiModel = aiDecisionModel(detail)
+  const byAi = aiModel !== undefined
   switch (status) {
     case 'PROPOSED':
-      if (byAi) return { label: 'Ready for approval', title: 'GPT-6 Luna proposed this allocation from the customer\'s note', description: 'It could only choose among allocations that code built from open invoices, and it had to quote the note. Code checked the amounts. Nothing is recorded until you approve.', source }
+      if (byAi) return { label: 'Ready for approval', title: `${aiModel} proposed this allocation from the customer's note`, description: 'It could only choose among allocations that code built from open invoices, and it had to quote the note. Code checked the amounts. Nothing is recorded until you approve.', source }
       if (source === 'a reviewer') return { label: 'Ready for approval', title: 'A reviewer entered this allocation', description: 'Check the lines and balances before approving. Nothing is recorded until you approve.', source }
       return { label: 'Ready for approval', title: 'The rules matched an exact invoice number', description: 'The reference names the invoice exactly, so no AI call was needed. Nothing is recorded until you approve.', source }
     case 'APPLIED': return { label: 'Recorded', title: 'Allocation recorded', description: 'A reviewer approved this allocation. It is part of the ledger history; no bank money moved. It can be reversed with a reason.', source }
@@ -1469,6 +1497,7 @@ export function InterpretationAction({
     ?? readableCode(interpretation?.failure_code)
   const savedReason = proposalReason ? interpretationReason(proposalReason.replace(/^bounded interpretation:\s*/i, '')) : undefined
   const citations = interpretation?.citations ?? []
+  const readingModel = recordedModel(interpretation) ?? CURRENT_MODEL
   const nextAction = interpretationRefreshFailed
     ? 'Refresh the proposal to confirm the saved allocation before applying.'
     : interpretation?.status === 'selected'
@@ -1484,7 +1513,7 @@ export function InterpretationAction({
             : undefined
   return <section className="panel interpretation-panel" aria-labelledby="interpretation-heading">
     <div className="panel-heading">
-      <div><p className="eyebrow">AI reading · GPT-6 Luna</p><h2 id="interpretation-heading">{interpretation && !interpretationRefreshPending ? 'What the AI read' : 'Ask AI to read the note'}</h2></div>
+      <div><p className="eyebrow">{`AI reading · ${readingModel}`}</p><h2 id="interpretation-heading">{interpretation && !interpretationRefreshPending ? 'What the AI read' : 'Ask AI to read the note'}</h2></div>
     </div>
     {showControls && <p className="interpretation-help" id="interpretation-help">GPT-6 Luna reads the bank reference and the customer's note. It can only choose among allocations that code built from open invoices, must quote the note, and never applies money. You approve or correct the result.</p>}
     {showControls && <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
@@ -1506,8 +1535,8 @@ export function InterpretationAction({
     {!enabled && disabledReason && !interpretation && !hasSavedInterpretation && <p className="interpretation-detail interpretation-disabled" role="status">{disabledReason}</p>}
     {interpretationRefreshFailed && <p className="interpretation-detail interpretation-refresh-warning" role="status">The interpretation response arrived, but the saved proposal could not be refreshed. Refresh the proposal to confirm its persisted status and allocation before applying.</p>}
     {interpretation && !interpretationRefreshPending && <div className={`interpretation-result interpretation-${interpretation.status}`} role="status" aria-live="polite">
-      <div className="interpretation-result-top"><span className={`status-pill status-${interpretation.status}`}>{interpretation.status.replace('_', ' ')}</span><span className="interpretation-source">{interpretationSource(interpretation.source)}</span></div>
-      <strong>{interpretationSummary(interpretation)}</strong>
+      <div className="interpretation-result-top"><span className={`status-pill status-${interpretation.status}`}>{interpretation.status.replace('_', ' ')}</span><span className="interpretation-source">{interpretationSource(interpretation.source, readingModel)}</span></div>
+      <strong>{interpretationSummary(interpretation, readingModel)}</strong>
       {savedStatus && proposalRevision !== undefined && <span className="interpretation-detail"><strong>Saved decision:</strong> {decisionSummaryCopy(savedStatus).title}.</span>}
       {interpretation.status === 'selected' && <span className="interpretation-detail"><strong>Chosen allocation:</strong> {interpretationRefreshFailed ? 'Allocation details could not be refreshed; refresh the proposal before applying.' : allocation.length ? allocation.join('; ') : 'The saved proposal contains no cash or credit lines.'}</span>}
       {interpretation.status === 'needs_review' && <span className="interpretation-detail"><strong>Allocation:</strong> unresolved; no existing candidate was selected.</span>}
