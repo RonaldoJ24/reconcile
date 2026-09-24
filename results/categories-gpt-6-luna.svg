@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="698" viewBox="0 0 760 698" role="img" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title>Results by case type for rules then GPT-6 Luna</title>
+  <rect x="0.5" y="0.5" width="759" height="697" rx="14" fill="#ffffff" stroke="#dbe3ea"/>
+  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">Results by case type, rules then GPT-6 Luna</text>
+  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">All 178 cases. Each bar is one type of case, split by outcome.</text>
+  <rect x="32.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#1f7a4d"/>
+  <text x="52.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Right</text>
+  <rect x="98.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#c2413b"/>
+  <text x="118.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Wrong</text>
+  <rect x="165.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#7f9bb3"/>
+  <text x="185.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">To a person, correctly</text>
+  <rect x="342.0" y="95.0" width="13.0" height="13.0" rx="3" fill="#dfe6ec"/>
+  <text x="362.0" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">To a person, but answerable</text>
+  <rect x="551.5" y="95.0" width="13.0" height="13.0" rx="3" fill="#d9a441"/>
+  <text x="571.5" y="106.0" font-size="13" font-weight="400" fill="#183047" text-anchor="start">Unavailable</text>
+  <text x="32.0" y="146.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Hidden instructions</text>
+  <rect x="250.0" y="128.0" width="312.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="406.0" y="146.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">8</text>
+  <rect x="562.0" y="128.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="562.0" y="128.0" width="78.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="601.0" y="146.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="640.0" y="128.0" width="0.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <rect x="640.0" y="128.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="146.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">8 of 10 right</text>
+  <text x="32.0" y="182.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Partial payment</text>
+  <rect x="250.0" y="164.0" width="260.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="380.0" y="182.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">10</text>
+  <rect x="510.0" y="164.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="510.0" y="164.0" width="78.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="549.0" y="182.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="588.0" y="164.0" width="52.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="614.0" y="182.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">2</text>
+  <rect x="640.0" y="164.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="182.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">10 of 15 right</text>
+  <text x="32.0" y="218.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Wrong payer or customer</text>
+  <rect x="250.0" y="200.0" width="260.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="380.0" y="218.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">4</text>
+  <rect x="510.0" y="200.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="510.0" y="200.0" width="130.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="575.0" y="218.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="640.0" y="200.0" width="0.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <rect x="640.0" y="200.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="218.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">4 of 6 right</text>
+  <text x="32.0" y="254.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Short by a bank fee</text>
+  <rect x="250.0" y="236.0" width="227.5" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="363.8" y="254.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">7</text>
+  <rect x="477.5" y="236.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="477.5" y="236.0" width="65.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="510.0" y="254.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="542.5" y="236.0" width="97.5" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="591.2" y="254.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">3</text>
+  <rect x="640.0" y="236.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="254.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">7 of 12 right</text>
+  <text x="32.0" y="290.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Exact invoice number</text>
+  <rect x="250.0" y="272.0" width="222.9" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="361.4" y="290.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">8</text>
+  <rect x="472.9" y="272.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="472.9" y="272.0" width="55.7" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="500.7" y="290.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="528.6" y="272.0" width="111.4" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="584.3" y="290.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">4</text>
+  <rect x="640.0" y="272.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="290.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">8 of 14 right</text>
+  <text x="32.0" y="326.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Abbreviated invoice numbers</text>
+  <rect x="250.0" y="308.0" width="117.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="308.5" y="326.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">6</text>
+  <rect x="367.0" y="308.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="367.0" y="308.0" width="58.5" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="396.2" y="326.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="425.5" y="308.0" width="214.5" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="532.8" y="326.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">11</text>
+  <rect x="640.0" y="308.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="326.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">6 of 20 right</text>
+  <text x="32.0" y="362.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Conflicting instructions</text>
+  <rect x="250.0" y="344.0" width="97.5" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="298.8" y="362.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="347.5" y="344.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="347.5" y="344.0" width="260.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="477.5" y="362.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">8</text>
+  <rect x="607.5" y="344.0" width="32.5" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="623.8" y="362.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">1</text>
+  <rect x="640.0" y="344.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="362.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">3 of 12 right</text>
+  <text x="32.0" y="398.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Typos and odd formats</text>
+  <rect x="250.0" y="380.0" width="78.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <text x="289.0" y="398.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="328.0" y="380.0" width="26.0" height="26.0" rx="0" fill="#c2413b"/>
+  <text x="341.0" y="398.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <rect x="354.0" y="380.0" width="78.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="393.0" y="398.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="432.0" y="380.0" width="208.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="536.0" y="398.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">8</text>
+  <rect x="640.0" y="380.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="398.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">3 of 15 right</text>
+  <text x="32.0" y="434.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Ambiguous, no single answer</text>
+  <rect x="250.0" y="416.0" width="21.7" height="26.0" rx="0" fill="#1f7a4d"/>
+  <rect x="271.7" y="416.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="271.7" y="416.0" width="303.3" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="423.3" y="434.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">14</text>
+  <rect x="575.0" y="416.0" width="65.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="607.5" y="434.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">3</text>
+  <rect x="640.0" y="416.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="434.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">1 of 18 right</text>
+  <text x="32.0" y="470.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Described, not numbered</text>
+  <rect x="250.0" y="452.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <rect x="250.0" y="452.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="250.0" y="452.0" width="78.0" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="289.0" y="470.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="328.0" y="452.0" width="312.0" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="484.0" y="470.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">12</text>
+  <rect x="640.0" y="452.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="470.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 15 right</text>
+  <text x="32.0" y="506.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">More than three invoices</text>
+  <rect x="250.0" y="488.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <rect x="250.0" y="488.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="250.0" y="488.0" width="97.5" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="298.8" y="506.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="347.5" y="488.0" width="243.8" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="469.4" y="506.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">5</text>
+  <rect x="591.2" y="488.0" width="48.8" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="615.6" y="506.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">1</text>
+  <text x="652.0" y="506.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 8 right</text>
+  <text x="32.0" y="542.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Overpayment</text>
+  <rect x="250.0" y="524.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <rect x="250.0" y="524.0" width="0.0" height="26.0" rx="0" fill="#c2413b"/>
+  <rect x="250.0" y="524.0" width="97.5" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="298.8" y="542.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="347.5" y="524.0" width="292.5" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="493.8" y="542.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">6</text>
+  <rect x="640.0" y="524.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="542.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 8 right</text>
+  <text x="32.0" y="578.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Credit note netted</text>
+  <rect x="250.0" y="560.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <rect x="250.0" y="560.0" width="22.9" height="26.0" rx="0" fill="#c2413b"/>
+  <text x="261.5" y="578.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <rect x="272.9" y="560.0" width="68.8" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="307.4" y="578.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">3</text>
+  <rect x="341.8" y="560.0" width="298.2" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="490.9" y="578.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">13</text>
+  <rect x="640.0" y="560.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="578.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 17 right</text>
+  <text x="32.0" y="614.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">Partial across invoices</text>
+  <rect x="250.0" y="596.0" width="0.0" height="26.0" rx="0" fill="#1f7a4d"/>
+  <rect x="250.0" y="596.0" width="48.8" height="26.0" rx="0" fill="#c2413b"/>
+  <text x="274.4" y="614.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">1</text>
+  <rect x="298.8" y="596.0" width="97.5" height="26.0" rx="0" fill="#7f9bb3"/>
+  <text x="347.5" y="614.0" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">2</text>
+  <rect x="396.2" y="596.0" width="243.8" height="26.0" rx="0" fill="#dfe6ec"/>
+  <text x="518.1" y="614.0" font-size="12" font-weight="700" fill="#183047" text-anchor="middle">5</text>
+  <rect x="640.0" y="596.0" width="0.0" height="26.0" rx="0" fill="#d9a441"/>
+  <text x="652.0" y="614.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">0 of 8 right</text>
+  <text x="32.0" y="660.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">GPT-6 Luna run, 2026-09-23: the same 178 AI-written cases, after they were public.</text>
+  <text x="32.0" y="677.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Synthetic results, not real-world accuracy. Source: github.com/RonaldoJ24/reconcile</text>
+</svg>

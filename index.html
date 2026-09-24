@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reconcile · AI cash application demo</title>
-  <meta name="description" content="Which invoices does this payment settle? Rules take the clean references, DeepSeek reads the messy ones and must quote the note, code checks the math, and a person approves.">
+  <meta name="description" content="Which invoices does this payment settle? Rules take the clean references, GPT-6 Luna reads the messy ones and must quote the note, code checks the math, and a person approves.">
   <style>
     :root {
       --navy: #112d4e; --ink: #183047; --muted: #5c7084; --line: #dbe3ea;
@@ -86,8 +86,8 @@
       </div>
       <p class="wake" id="wake" role="status">The demo runs on free hosting and sleeps when idle; this page has asked it to wake up.</p>
       <figure>
-        <img src="ai-reading.png" width="1440" height="900" alt="The rules could not read an abbreviated SPEI reference; DeepSeek chose invoices F-1432 and F-1433 with credit note NC-88, quoting the customer's note, and balances wait for approval.">
-        <figcaption>The rules can't parse "la 1432 y la 33", so DeepSeek reads the note, picks one of the allocations the code prepared, and quotes its evidence. Nothing is recorded until a reviewer approves.</figcaption>
+        <img src="ai-reading.png" width="1440" height="900" alt="Screenshot from the DeepSeek release. The rules could not read an abbreviated SPEI reference; the model chose invoices F-1432 and F-1433 with credit note NC-88, quoting the customer's note, and balances wait for approval.">
+        <figcaption>The rules can't parse "la 1432 y la 33", so the model reads the note, picks one of the allocations the code prepared, and quotes its evidence. Nothing is recorded until a reviewer approves.</figcaption>
       </figure>
     </div>
 
@@ -95,28 +95,29 @@
       <h2 id="how">How it decides</h2>
       <ol class="steps">
         <li><b>1</b><strong>Rules take the clean ones</strong><span>An exact invoice number is matched instantly, with no AI call.</span></li>
-        <li><b>2</b><strong>AI reads the messy ones</strong><span>DeepSeek chooses among allocations the code built and must quote the note, or abstain.</span></li>
+        <li><b>2</b><strong>AI reads the messy ones</strong><span>OpenAI GPT-6 Luna chooses among allocations the code built and must quote the note, or abstain.</span></li>
         <li><b>3</b><strong>Code checks the math</strong><span>Amounts, credit notes and open balances are validated in integer centavos.</span></li>
         <li><b>4</b><strong>A person approves</strong><span>Applied in one PostgreSQL transaction with locks and idempotency. Reversals keep the history.</span></li>
       </ol>
     </section>
 
     <section aria-labelledby="measured">
-      <p class="eyebrow">Evaluation v2 · pre-registered · run once</p>
-      <h2 id="measured">DeepSeek took automatic matching from 3% to 62%</h2>
-      <p class="section-lead">That is the share of answerable payments resolved automatically on 40 held-out synthetic cases, before and after DeepSeek reads the customer's note. Across all 178 cases it went from 2% to 48%. Every proposal still waits for a person's approval.</p>
+      <p class="eyebrow">Same 178 cases · two models · each run once</p>
+      <h2 id="measured">GPT-6 Luna: 3 wrong proposals where DeepSeek made 13</h2>
+      <p class="section-lead">With the rules alone, 2% of answerable payments were resolved automatically. With OpenAI GPT-6 Luna reading the customer's note, 39% were, and 50 of its 53 proposals were right. DeepSeek, measured first, resolved more (48%) but was wrong 13 times. Every payment GPT-6 Luna resolved, DeepSeek also resolved. Every proposal still waits for a person's approval.</p>
       <div class="stats">
-        <div class="stat"><strong>61%</strong><span>of the answerable payments the rules sent to a person were then resolved by DeepSeek (20 of 33 held out; 47% across all cases)</span></div>
-        <div class="stat"><strong>21 of 23</strong><span>held-out proposals right (61 of 74 across all cases)</span></div>
+        <div class="stat"><strong>94%</strong><span>of GPT-6 Luna's proposals were right (50 of 53), against DeepSeek's 82% (61 of 74)</span></div>
+        <div class="stat"><strong>48 of 64</strong><span>resolved when the right allocation was among the candidates; the other 16 went to review, none wrong</span></div>
         <div class="stat"><strong>0 of 10</strong><span>hidden instructions in customer notes led to a wrong allocation</span></div>
-        <div class="stat"><strong>US$0.04</strong><span>for the run's 108 DeepSeek calls, about 1 s each</span></div>
+        <div class="stat"><strong>US$0.017</strong><span>for 107 GPT-6 Luna calls, less than half DeepSeek's cost</span></div>
       </div>
-      <a class="chart" href="results/resolution.svg"><img src="results/resolution.svg" width="760" height="500" alt="Answerable payments resolved automatically: rules only 3% versus rules then DeepSeek 62% on the held-out split, and 2% versus 48% across all 178 cases."></a>
-      <a class="chart" href="results/categories.svg"><img src="results/categories.svg" width="760" height="698" alt="Results by case type: hidden instructions 8 of 10 right with none wrong, partial payments 10 of 15, credit notes 0 of 17."></a>
+      <a class="chart" href="results/precision.svg"><img src="results/precision.svg" width="760" height="394" alt="How often a proposal was right across all 178 cases: DeepSeek 82% with 13 wrong, GPT-6 Luna 94% with 3 wrong."></a>
+      <a class="chart" href="results/resolution.svg"><img src="results/resolution.svg" width="760" height="500" alt="Answerable payments resolved automatically across all 178 cases: rules only 2%, rules then DeepSeek 48%, rules then GPT-6 Luna 39%."></a>
+      <a class="chart" href="results/categories-gpt-6-luna.svg"><img src="results/categories-gpt-6-luna.svg" width="760" height="698" alt="Results by case type for rules then GPT-6 Luna."></a>
       <h3>Where it still fails</h3>
-      <p class="section-lead">Every wrong proposal should have gone to a person. Most trace to one gap: the candidate builder never pairs a single invoice with a credit note. That is the next fix, and it will be measured on a new blind set.</p>
-      <a class="chart" href="results/errors.svg"><img src="results/errors.svg" width="760" height="500" alt="All 13 wrong proposals by cause: 6 missed a credit note, 4 left out invoices, 2 had no right answer, 1 never retrieved the right invoice. When the right allocation was among the candidates, 59 of 64 were resolved and none were wrong."></a>
-      <p class="section-lead"><a href="https://github.com/RonaldoJ24/reconcile/blob/main/reports/eval-v2/README.md">Read the full evaluation</a>, with every case, label and recorded model call.</p>
+      <p class="section-lead">GPT-6 Luna's three wrong proposals should have gone to a person. Two trace to the gap that also caught DeepSeek: the candidate builder never pairs a single invoice with a credit note. It also declines notes that describe invoices without numbering them. Both are the next fixes, and they will be measured on a new blind set.</p>
+      <a class="chart" href="results/errors-gpt-6-luna.svg"><img src="results/errors-gpt-6-luna.svg" width="760" height="368" alt="GPT-6 Luna's three wrong proposals by cause: two missed a credit note, one left out invoices."></a>
+      <p class="section-lead"><a href="https://github.com/RonaldoJ24/reconcile/blob/main/reports/eval-v2-openai/README.md">Read the model comparison</a> and the <a href="https://github.com/RonaldoJ24/reconcile/blob/main/reports/eval-v2/README.md">pre-registered DeepSeek evaluation</a>, with every case, label and recorded model call.</p>
     </section>
 
     <section aria-labelledby="real">
@@ -126,7 +127,7 @@
           <h3>Real</h3>
           <ul>
             <li>CSV and remittance parsing, candidate retrieval and deterministic rules.</li>
-            <li>Live DeepSeek calls with strict JSON output, exact quotes, prompt-injection handling, and daily, monthly and per-session budgets.</li>
+            <li>Live OpenAI GPT-6 Luna calls with strict JSON output, exact quotes, prompt-injection handling, and daily, monthly and per-session budgets.</li>
             <li>A PostgreSQL ledger: row locks, version checks, idempotent application and audited reversal.</li>
             <li>Tests: 1,113 offline, 69 PostgreSQL integration, 59 frontend and 32 Playwright checks on the hosted demo.</li>
           </ul>

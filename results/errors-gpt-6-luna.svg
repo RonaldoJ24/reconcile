@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="368" viewBox="0 0 760 368" role="img" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title>Every wrong proposal by GPT-6 Luna, by cause</title>
+  <rect x="0.5" y="0.5" width="759" height="367" rx="14" fill="#ffffff" stroke="#dbe3ea"/>
+  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">GPT-6 Luna: all 3 wrong proposals, by cause</text>
+  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">3 of 53 proposals across all 178 cases were wrong.</text>
+  <text x="32.0" y="118.0" font-size="15" font-weight="400" fill="#183047" text-anchor="start">Cash on the right invoice, but the credit note was never offered</text>
+  <rect x="32.0" y="128.0" width="638.0" height="24.0" rx="4" fill="#c2413b"/>
+  <text x="682.0" y="146.0" font-size="18" font-weight="700" fill="#112d4e" text-anchor="start">2</text>
+  <text x="32.0" y="184.0" font-size="15" font-weight="400" fill="#183047" text-anchor="start">The payment covered more invoices than the proposal</text>
+  <rect x="32.0" y="194.0" width="319.0" height="24.0" rx="4" fill="#c2413b"/>
+  <text x="363.0" y="212.0" font-size="18" font-weight="700" fill="#112d4e" text-anchor="start">1</text>
+  <rect x="32.0" y="238.0" width="696.0" height="58.0" rx="8" fill="#eef2f5"/>
+  <text x="48.0" y="262.0" font-size="14" font-weight="700" fill="#183047" text-anchor="start">When the right allocation was among the candidates (64 cases):</text>
+  <text x="48.0" y="283.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">48 resolved correctly, 16 sent to a person, 0 wrong.</text>
+  <text x="32.0" y="330.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">GPT-6 Luna run, 2026-09-23: the same 178 AI-written cases, after they were public.</text>
+  <text x="32.0" y="347.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Synthetic results, not real-world accuracy. Source: github.com/RonaldoJ24/reconcile</text>
+</svg>
