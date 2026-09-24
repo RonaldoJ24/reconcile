@@ -2,8 +2,12 @@
 
 Rotate these credentials after the current release work is complete:
 
+- [ ] Replace the temporary OpenAI API key used from 2026-09-23. It expires after a
+  day; set the replacement as `OPENAI_API_KEY` on the Render service, verify a
+  minimal authenticated catalog request, and never copy the value into Git,
+  frontend configuration, commands, reports, or logs.
 - [ ] Replace and revoke the DeepSeek API key that was pasted into the project
-  conversation. Update only the supported local or deployment secret store, verify
+  conversation. The runtime no longer uses DeepSeek. Update only the supported local or deployment secret store, verify
   a minimal authenticated catalog request, and never copy the value into Git,
   frontend configuration, commands, reports, or logs.
 - [x] Reset the role credential for the isolated Reconcile Neon test branch after

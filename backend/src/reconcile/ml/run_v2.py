@@ -57,7 +57,7 @@ from reconcile.persistence.models import Base, Payment, Proposal, ProposalRevisi
 from reconcile.persistence.service import ReconcileService, ServiceError
 
 DEFAULT_EVAL_SCHEMA = "reconcile_eval_v2"
-MODEL = "deepseek-flash"
+MODEL = "gpt-6-luna"
 VALIDATOR = "validate_allocation+validate_result"
 SPLITS = ("development", "validation", FINAL_SPLIT)
 MAX_REFERENCE_CHARS = 40
@@ -533,9 +533,9 @@ def interpret(
     identity = run["identity"]
     if check_tree:
         _require_frozen_tree(str(identity["frozen_commit"]))
-    key = os.getenv("DEEPSEEK_API_KEY")
+    key = os.getenv("OPENAI_API_KEY")
     if not key:
-        raise SystemExit("DEEPSEEK_API_KEY is required for the live Direct pass")
+        raise SystemExit("OPENAI_API_KEY is required for the live Direct pass")
     budget = int(Decimal(budget_usd) * 1_000_000)
     if not 0 < budget <= 2_000_000:
         raise SystemExit("the approved evaluation cap is at most USD 2.00")

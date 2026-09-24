@@ -27,7 +27,7 @@ from reconcile.interpretation.schemas import (
 COMPARISON_SCHEMA_ID = "reconcile-comparison-v1"
 PARSER_IDENTITY = "reconcile-parser-v1"
 RECORDING_REGISTRY: tuple[Mapping[str, Any], ...] = ()
-ALLOWED_MODEL_IDS = frozenset({"deepseek-flash"})
+ALLOWED_MODEL_IDS = frozenset({"gpt-6-luna"})
 # No recording is trusted in the current release.  A future release must pin
 # both the complete recording digest and the complete artifact digest here at
 # packaging time; a registry entry cannot supply its own trust anchor.

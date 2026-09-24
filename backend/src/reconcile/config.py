@@ -73,8 +73,8 @@ def _utc_day() -> str:
 
 def interpretation_settings() -> InterpretationSettings:
     enabled = os.getenv("RECONCILE_LLM_ENABLED", "0") == "1"
-    model = os.getenv("RECONCILE_LLM_MODEL", "deepseek-flash").strip()
-    key = os.getenv("DEEPSEEK_API_KEY")
+    model = os.getenv("RECONCILE_LLM_MODEL", "gpt-6-luna").strip()
+    key = os.getenv("OPENAI_API_KEY")
     public_preview = server_mode() == "preview" and public_provider_access_enabled()
     if public_preview:
         day_microdollars = _budget_microdollars(
@@ -106,8 +106,8 @@ def interpretation_settings() -> InterpretationSettings:
             maximum=MAX_EXECUTION_MICRODOLLARS,
             maximum_usd="0.05",
         )
-    if model != "deepseek-flash":
-        raise RuntimeError("only the verified deepseek-flash rate card is enabled")
+    if model != "gpt-6-luna":
+        raise RuntimeError("only the verified gpt-6-luna rate card is enabled")
     if enabled and (not key or not execution_id or microdollars == 0):
         raise RuntimeError(
             "live interpretation requires a credential, execution ID, and nonzero budget"

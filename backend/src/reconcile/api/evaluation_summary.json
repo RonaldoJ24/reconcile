@@ -59,7 +59,7 @@
   ],
   "v2": {
     "status": "complete",
-    "provider_calls_this_continuation": 108,
+    "provider_calls_this_continuation": 215,
     "final_access_this_continuation": true,
     "independent_domain_review": "pending",
     "cases": {
@@ -108,7 +108,23 @@
         "correct_deferrals": 6,
         "unnecessary_deferrals": 11,
         "unavailable_or_error": 0,
-        "misallocated_centavos": 10290600
+        "misallocated_centavos": 10290600,
+        "label": "Rules, then DeepSeek (pre-registered run)"
+      },
+      {
+        "scope": "reserved-final",
+        "method": "rules_then_direct",
+        "cases": 40,
+        "answerable": 34,
+        "proposals": 16,
+        "correct": 15,
+        "unsupported": 1,
+        "correct_deferrals": 6,
+        "unnecessary_deferrals": 18,
+        "unavailable_or_error": 0,
+        "misallocated_centavos": 4390600,
+        "label": "Rules, then GPT-6 Luna (current model)",
+        "note": "Same cases, run after they were public."
       },
       {
         "scope": "all-cases",
@@ -148,22 +164,40 @@
         "correct_deferrals": 49,
         "unnecessary_deferrals": 55,
         "unavailable_or_error": 0,
-        "misallocated_centavos": 72026600
+        "misallocated_centavos": 72026600,
+        "label": "Rules, then DeepSeek (pre-registered run)"
+      },
+      {
+        "scope": "all-cases",
+        "method": "rules_then_direct",
+        "cases": 178,
+        "answerable": 127,
+        "proposals": 53,
+        "correct": 50,
+        "unsupported": 3,
+        "correct_deferrals": 51,
+        "unnecessary_deferrals": 73,
+        "unavailable_or_error": 1,
+        "misallocated_centavos": 16496800,
+        "label": "Rules, then GPT-6 Luna (current model)",
+        "note": "Same cases, run after they were public."
       }
     ],
     "findings": [
-      "Every wrong proposal was a case that should have gone to review: in 11 the correct allocation was not among the system's candidates, and 2 had no correct answer. In the 64 answerable cases where the correct allocation was among the candidates, the model proposed in 59, all correctly, and sent 5 to review.",
-      "Value of wrong proposals counts the full payment of each wrong proposal. On the held-out split, both wrong proposals put the cash on the right invoice and missed only a credit note, MXN 5,262.00 of credit in total.",
-      "The biggest gap is credit notes. The candidate builder never pairs a single invoice with a credit note, so none of the 17 answerable cases that needed one could be proposed correctly. Six were proposed with the cash on the right invoice and MXN 31,962.00 of credit left unapplied.",
-      "37 of the 55 answerable cases that went to review had no remittance note, so the model was never called. The bank reference is not yet usable as evidence."
+      "Switching to GPT-6 Luna on the same 178 cases cut wrong proposals from 13 to 3, at less than half the list-price cost, but it resolved 50 payments instead of 61. Every payment GPT-6 Luna resolved, DeepSeek also resolved.",
+      "Value of wrong proposals counts the full payment of each wrong proposal. GPT-6 Luna's held-out error put the cash on the right invoice and missed only a credit note, MXN 2,262.00.",
+      "The biggest gap is still credit notes: the candidate builder never pairs a single invoice with a credit note. Two of GPT-6 Luna's three errors come from it, as did six of DeepSeek's thirteen.",
+      "GPT-6 Luna declined notes that describe invoices without numbering them (none of 15 resolved, against DeepSeek's 5). One of its responses failed validation and went to a person.",
+      "37 of the answerable cases that went to review had no remittance note, so no model was called."
     ],
     "provider": {
-      "attempts": 108,
-      "estimated_cost_usd": 0.038185,
-      "latency_ms_p50": 1048,
-      "latency_ms_p95": 1311
+      "label": "GPT-6 Luna",
+      "attempts": 107,
+      "estimated_cost_usd": 0.017312,
+      "latency_ms_p50": 1511,
+      "latency_ms_p95": 2119
     },
-    "report_path": "reports/eval-v2/README.md"
+    "report_path": "reports/eval-v2-openai/README.md"
   },
   "limitations": [
     "Synthetic agent-generated labels; no independent domain validation or real-world accuracy claim.",
@@ -172,6 +206,6 @@
     "Historical evaluator latency excluded feature construction and inference, so it is not displayed as execution latency.",
     "Historical candidate recall used supplied candidates, not end-to-end retrieval.",
     "Correctness here means the preserved v1 label definition; exact citation location and financial validity do not establish semantic support.",
-    "v2 measured frozen commit c4524a2 once, on 178 AI-written synthetic cases with 40 held out. The cases are now public, so any later change needs a new held-out set before new numbers are claimed."
+    "v2 measured DeepSeek once at frozen commit c4524a2, pre-registered with 40 cases held out. GPT-6 Luna ran the same 178 AI-written synthetic cases at 37dda8c after they were public. Any later change needs a new held-out set before new numbers are claimed."
   ]
 }

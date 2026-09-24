@@ -1,7 +1,7 @@
 # Public provider access
 
 The hosted preview remains invite only by default. Set
-`RECONCILE_PUBLIC_PROVIDER_ACCESS=1` only when the server-side DeepSeek
+`RECONCILE_PUBLIC_PROVIDER_ACCESS=1` only when the server-side OpenAI
 configuration is live and its daily, monthly, session and execution budgets
 have been reviewed. The flag applies only to `RECONCILE_MODE=preview`.
 

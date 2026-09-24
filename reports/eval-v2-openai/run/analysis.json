@@ -1,0 +1,258 @@
+{
+  "after_rules": {
+    "all-cases": {
+      "answerable": 125,
+      "resolved": 48
+    },
+    "reserved-final": {
+      "answerable": 33,
+      "resolved": 14
+    }
+  },
+  "by_category": {
+    "abbreviated_folios": {
+      "cases": 20,
+      "deferred_correctly": 3,
+      "deferred_reachable": 7,
+      "deferred_unreachable": 4,
+      "right": 6
+    },
+    "ambiguous": {
+      "cases": 18,
+      "deferred_correctly": 14,
+      "deferred_reachable": 3,
+      "right": 1
+    },
+    "conflicting_instructions": {
+      "cases": 12,
+      "deferred_correctly": 8,
+      "deferred_unreachable": 1,
+      "right": 3
+    },
+    "credit_note_netting": {
+      "cases": 17,
+      "deferred_correctly": 3,
+      "deferred_unreachable": 13,
+      "wrong": 1
+    },
+    "descriptive_reference": {
+      "cases": 15,
+      "deferred_correctly": 3,
+      "deferred_reachable": 12
+    },
+    "exact_folio": {
+      "cases": 14,
+      "deferred_correctly": 2,
+      "deferred_reachable": 4,
+      "right": 8
+    },
+    "more_than_three_invoices": {
+      "cases": 8,
+      "deferred_correctly": 2,
+      "deferred_unreachable": 5,
+      "unavailable": 1
+    },
+    "overpayment": {
+      "cases": 8,
+      "deferred_correctly": 2,
+      "deferred_reachable": 5,
+      "deferred_unreachable": 1
+    },
+    "partial_across_invoices": {
+      "cases": 8,
+      "deferred_correctly": 2,
+      "deferred_unreachable": 5,
+      "wrong": 1
+    },
+    "partial_payment": {
+      "cases": 15,
+      "deferred_correctly": 3,
+      "deferred_reachable": 1,
+      "deferred_unreachable": 1,
+      "right": 10
+    },
+    "prompt_injection": {
+      "cases": 10,
+      "deferred_correctly": 2,
+      "right": 8
+    },
+    "short_payment_fee": {
+      "cases": 12,
+      "deferred_correctly": 2,
+      "deferred_reachable": 3,
+      "right": 7
+    },
+    "typos_and_formats": {
+      "cases": 15,
+      "deferred_correctly": 3,
+      "deferred_reachable": 6,
+      "deferred_unreachable": 2,
+      "right": 3,
+      "wrong": 1
+    },
+    "wrong_payer_or_customer": {
+      "cases": 6,
+      "deferred_correctly": 2,
+      "right": 4
+    }
+  },
+  "by_split": {
+    "development": {
+      "cases": 98,
+      "deferred_correctly": 34,
+      "deferred_reachable": 21,
+      "deferred_unreachable": 17,
+      "right": 24,
+      "wrong": 2
+    },
+    "reserved-final": {
+      "cases": 40,
+      "deferred_correctly": 6,
+      "deferred_reachable": 15,
+      "deferred_unreachable": 3,
+      "right": 15,
+      "wrong": 1
+    },
+    "validation": {
+      "cases": 40,
+      "deferred_correctly": 11,
+      "deferred_reachable": 5,
+      "deferred_unreachable": 12,
+      "right": 11,
+      "unavailable": 1
+    }
+  },
+  "direct_on_answerable_reachable": {
+    "correct": 48,
+    "proposals": 48
+  },
+  "direct_reason_codes": {
+    "ambiguous": 4,
+    "contradictory": 8,
+    "evidence_supported": 51,
+    "insufficient_evidence": 44,
+    "no provider call": 69
+  },
+  "direct_seen_reachable": {
+    "cases": 64,
+    "correct": 48,
+    "proposed": 48
+  },
+  "misallocated_centavos": 16496800,
+  "missed_answerable": {
+    "answerable deferrals": 73,
+    "model abstained": 34,
+    "no note, so no provider call": 37,
+    "note but no candidate, so no provider call": 2
+  },
+  "wrong_by_cause": {
+    "allocation spans more invoices than the chosen candidate": 1,
+    "correct cash, credit note missing from the candidates": 2
+  },
+  "wrong_proposals": [
+    {
+      "answerable": true,
+      "case_id": "c064",
+      "category": "credit_note_netting",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-877",
+            11000000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-877",
+            11000000
+          ]
+        ],
+        [
+          [
+            "NC-12",
+            "F-877",
+            840000
+          ]
+        ]
+      ],
+      "payment_centavos": 11000000,
+      "reachable": false,
+      "split": "development",
+      "unapplied_credit_centavos": 840000
+    },
+    {
+      "answerable": true,
+      "case_id": "c119",
+      "category": "partial_across_invoices",
+      "cause": "allocation spans more invoices than the chosen candidate",
+      "chosen": [
+        [
+          [
+            "T-0058",
+            487200
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "T-0058",
+            487200
+          ],
+          [
+            "T-0061",
+            319000
+          ],
+          [
+            "T-0064",
+            300000
+          ]
+        ],
+        []
+      ],
+      "payment_centavos": 1106200,
+      "reachable": false,
+      "split": "development",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c131",
+      "category": "typos_and_formats",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "HE-5609",
+            4390600
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "HE-5609",
+            4390600
+          ]
+        ],
+        [
+          [
+            "NC-1077",
+            "HE-5609",
+            226200
+          ]
+        ]
+      ],
+      "payment_centavos": 4390600,
+      "reachable": false,
+      "split": "reserved-final",
+      "unapplied_credit_centavos": 226200
+    }
+  ]
+}

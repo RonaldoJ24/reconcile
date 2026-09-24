@@ -1,6 +1,6 @@
 # Reconcile — zero-new-infrastructure-cost deployment
 
-Version 1.1, checked 2026-09-14. These are implementation instructions and proposed safeguards, not a deployed or measured system. This file supersedes earlier optional paid hosting and OpenAI-runtime defaults. The owner has existing Codex, gh, Render CLI, Neon CLI, and DeepSeek access.
+Version 1.1, checked 2026-09-14. These are implementation instructions and proposed safeguards, not a deployed or measured system. This file supersedes earlier optional paid hosting defaults. The owner has existing Codex, gh, Render CLI and Neon CLI access, and on 2026-09-23 switched the runtime model from DeepSeek to OpenAI `gpt-6-luna` with their own API key.
 
 ## Architecture and permitted resources
 
@@ -24,7 +24,7 @@ GitHub private-repository Actions use a finite allowance. Use only standard Linu
 
 ## Sleep-aware execution
 
-Wake the consumer from a real enqueue, startup recovery, or authenticated interactive activity. Stop DB polling once the queue is empty; release connections and transactions. Retry timers may exist only for bounded outstanding work. No scheduled pings or idle cleanup loops. Platform liveness must not query Neon, call DeepSeek, or wake the queue. Separate readiness checks should be deliberate and bounded.
+Wake the consumer from a real enqueue, startup recovery, or authenticated interactive activity. Stop DB polling once the queue is empty; release connections and transactions. Retry timers may exist only for bounded outstanding work. No scheduled pings or idle cleanup loops. Platform liveness must not query Neon, call the model provider, or wake the queue. Separate readiness checks should be deliberate and bounded.
 
 Jobs may pause when Render sleeps or restarts. Preserve attempts, leases, sources, quota reservations and checkpoints in Neon. A user returning to the site can trigger recovery. Never report continuous background processing or exactly-once model billing. Never hold a ledger transaction across an API call.
 
@@ -36,13 +36,13 @@ Hosted limits: 1 MiB/file, 4 MiB/import batch, 5 MiB/source bytes per synthetic 
 
 Expire synthetic guest workspaces after 24 hours of inactivity, using bounded cleanup on startup and real requests, not paid scheduling or always-on polling. Persist global billing reservations separately so deleting a workspace cannot reset the spend limit. Store only compact validated interpretation/cache data and bounded observability records. No unbounded logs or response bodies. Never delete applied private financial history as a storage-management trick.
 
-## DeepSeek runtime contract
+## OpenAI runtime contract
 
-Default model: `deepseek-flash`. Verify the current model catalog/ID and log the actual response model ID/date. Use DeepSeek's official API base, existing key, non-thinking mode, JSON output, server-side schema validation, and a maximum output of 2,048 tokens. A model alias can change underneath the application; rerun relevant development compatibility checks when that happens. Do not silently change providers or model tiers.
+Default model: `gpt-6-luna` (changed from DeepSeek `deepseek-flash` on 2026-09-23). Verify the current model catalog/ID and log the actual response model ID/date. Use OpenAI's official API base, the owner's key, reasoning effort `none`, JSON output, server-side schema validation, and a maximum output of 2,048 tokens. A model alias can change underneath the application; rerun relevant development compatibility checks when that happens. Do not silently change providers or model tiers.
 
 Target 2,000–3,000 input tokens; maximum 6,000 including instructions/schema. One interpretation per ambiguous payment, one transient retry at most, concurrency one, bounded deadlines. No live inference on page load, health probes, CI, every generated case, or rules-resolved cases. Missing evidence or exhausted budgets produce explicit review/unavailable states.
 
-Live calls are disabled by default. Proposed local/app safety ceilings are USD 0.10/day and USD 1.00/month, plus five requests per visitor session and 25 attempts globally per day. These limits are not automatic spending authorization or DeepSeek account-wide limits. Each enablement/benchmark command is explicit and uses existing authorized credit. No top-up, auto-recharge, account change, or cap increase.
+Live calls are disabled by default. Proposed local/app safety ceilings are USD 0.10/day and USD 1.00/month, plus five requests per visitor session and 25 attempts globally per day. These limits are not automatic spending authorization or OpenAI account-wide limits. Each enablement/benchmark command is explicit and uses existing authorized credit. No top-up, auto-recharge, account change, or cap increase.
 
 Reserve a conservative peak-price, uncached-input maximum in PostgreSQL before every call and retry; concurrent operations must not bypass quotas. Count retries and retain reservations when billing is unknown after a timeout. Reconcile estimates with observed usage. Provider-side or other-app use of the same key is outside this application cap. Unknown prices/model identity disable live calls until verified. Do not claim an approximate token estimate is a guaranteed account-level hard cap.
 
@@ -50,6 +50,6 @@ Cache validated interpretations by workspace, immutable sources, candidate conte
 
 ## Deployment and evaluation cadence
 
-Phase 0–2: implement and test locally; no automatic deployment. Phase 3: local synthetic generation/training and verified artifact packaging. Phase 4: explicitly budgeted small DeepSeek comparison. Phase 5: local release/performance tests; no load testing the shared public preview. Phase 6: cost preflight, one reviewed deployment, bounded external smoke. Do not re-deploy on every agent commit or create PR preview services by default.
+Phase 0–2: implement and test locally; no automatic deployment. Phase 3: local synthetic generation/training and verified artifact packaging. Phase 4: explicitly budgeted small provider comparison. Phase 5: local release/performance tests; no load testing the shared public preview. Phase 6: cost preflight, one reviewed deployment, bounded external smoke. Do not re-deploy on every agent commit or create PR preview services by default.
 
 Deliver sanitized evidence of `plan=free`, resource IDs, deployed SHA, database persistence, actual model mode, sleep/recovery behavior, remaining allowance where observable, and overage protections/limitations. A free preview is an interview/testing surface, not an availability or production-finance compliance promise.

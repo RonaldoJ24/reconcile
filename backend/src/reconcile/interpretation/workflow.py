@@ -27,7 +27,7 @@ from .budget import finalize_attempt as finalize_budget_attempt
 from .budget import reserve_attempt as reserve_budget_attempt
 from .cache import cache_key, load_cached, source_fingerprint, store_cached
 from .prompt import TEMPERATURE
-from .provider import AttemptContext, AttemptEvent, DeepSeekProvider
+from .provider import AttemptContext, AttemptEvent, OpenAIProvider
 from .schemas import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -127,10 +127,10 @@ class CompiledInterpretationWorkflow:
 
     def __init__(
         self,
-        provider_factory: Callable[[InterpretationSettings], DeepSeekProvider] | None = None,
+        provider_factory: Callable[[InterpretationSettings], OpenAIProvider] | None = None,
     ):
         self.provider_factory = provider_factory or (
-            lambda settings: DeepSeekProvider(
+            lambda settings: OpenAIProvider(
                 api_key=settings.api_key,
                 model=settings.model,
                 enabled=settings.enabled,
@@ -451,8 +451,8 @@ class CompiledInterpretationWorkflow:
             "request": request.model_dump(mode="json"),
             "rules_identity": ACTIVE_RULES_IDENTITY,
             "model": config.model,
-            "base_url": "https://api.deepseek.com",
-            "thinking": "disabled",
+            "base_url": "https://api.openai.com/v1",
+            "reasoning_effort": "none",
             "max_output_tokens": policy.max_output_tokens,
             "temperature": TEMPERATURE,
         }
@@ -822,6 +822,6 @@ class CompiledInterpretationWorkflow:
 
 
 def compile_workflow(
-    provider_factory: Callable[[InterpretationSettings], DeepSeekProvider] | None = None,
+    provider_factory: Callable[[InterpretationSettings], OpenAIProvider] | None = None,
 ) -> CompiledInterpretationWorkflow:
     return CompiledInterpretationWorkflow(provider_factory)

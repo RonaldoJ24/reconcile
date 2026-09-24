@@ -17,8 +17,8 @@ SECRET_PATTERNS = {
         rb"postgres(?:ql)?(?:\+[a-z0-9]+)?://[^:/\s]+:[^@\s]+@", re.IGNORECASE
     ),
     "private_key": re.compile(rb"BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY"),
-    "deepseek_assignment": re.compile(
-        rb"DEEPSEEK_API_KEY[ \t]*[:=][ \t]*['\"]?[^\s'\"#]+", re.IGNORECASE
+    "openai_assignment": re.compile(
+        rb"OPENAI_API_KEY[ \t]*[:=][ \t]*['\"]?[^\s'\"#]+", re.IGNORECASE
     ),
 }
 REQUIRED_RUNTIME = {

@@ -6,13 +6,13 @@ from reconcile.interpretation.budget import BudgetPolicy, RateCard
 def test_peak_rate_card_rounds_up_worst_case_reservation() -> None:
     rate = RateCard()
 
-    assert rate.verified_on == "2026-09-14"
-    assert rate.estimated_microdollars(input_tokens=6_000, output_tokens=2_048) == 4_258
+    assert rate.verified_on == "2026-09-23"
+    assert rate.estimated_microdollars(input_tokens=6_000, output_tokens=2_048) == 1_774
     assert (
         rate.estimated_microdollars(
             input_tokens=6_000, output_tokens=2_048, cached_input_tokens=6_000
         )
-        == 2_494
+        == 1_084
     )
 
 

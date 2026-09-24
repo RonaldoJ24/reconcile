@@ -5,21 +5,25 @@
 Reconcile is a cash-application review system for Mexican accounts receivable. It
 proposes which invoices a payment settles, quotes the evidence, and changes balances
 only after validation and human approval. When a bank reference is too messy for the
-rules, a bounded LLM (DeepSeek) reads it, but the model can only choose among
+rules, a bounded LLM (OpenAI GPT-6 Luna) reads it, but the model can only choose among
 allocations that code built, and it can never move money.
 
 **[Open the live demo](https://reconcile-preview.onrender.com)** · synthetic data,
 free hosting (the first load can take about a minute while the server wakes).
 
-**Measured once, pre-registered.** Adding DeepSeek raised the share of answerable
-payments resolved automatically from 3% to 62% on 40 held-out synthetic cases, and
-from 2% to 48% across all 178. On the held-out cases, 21 of its 23 proposals were
-right. Every wrong proposal was one it should have sent to a person.
-[Read the evaluation](reports/eval-v2/README.md).
+**Measured on 178 cases, two models.** With OpenAI GPT-6 Luna reading the customer's
+note, the share of answerable payments resolved automatically rose from 2% with the
+rules alone to 39%, and 50 of its 53 proposals were right. DeepSeek, measured first in
+a pre-registered run, resolved more (48%) but made 13 wrong proposals to GPT-6 Luna's
+3. Every payment GPT-6 Luna resolved, DeepSeek also resolved.
+[GPT-6 Luna results](reports/eval-v2-openai/README.md) ·
+[pre-registered DeepSeek evaluation](reports/eval-v2/README.md).
 
-![Answerable payments resolved automatically: rules only 3% (1 of 34) versus rules then DeepSeek 62% (21 of 34) on the held-out split; 2% (2 of 127) versus 48% (61 of 127) across all 178 cases](docs/images/results/resolution.svg)
+![Answerable payments resolved automatically across all 178 cases: rules only 2%, rules then DeepSeek 48%, rules then GPT-6 Luna 39%; on the 40-case split, 3%, 62% and 44%](docs/images/results/resolution.svg)
 
-![An abbreviated SPEI reference read by DeepSeek: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
+![How often a proposal was right across all cases: DeepSeek 82% (61 right, 13 wrong), GPT-6 Luna 94% (50 right, 3 wrong)](docs/images/results/precision.svg)
+
+![Screenshot from the DeepSeek release. An abbreviated SPEI reference read by the model: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
 
 ## The problem
 
@@ -38,7 +42,7 @@ flowchart LR
   P --> R[Retrieve candidates: exact IDs, exact amount, folio fragments]
   R --> D{Deterministic rules}
   D -->|exact invoice number| A[Proposal]
-  D -->|can't read the reference| L[DeepSeek chooses a candidate and quotes the note]
+  D -->|can't read the reference| L[GPT-6 Luna chooses a candidate and quotes the note]
   L --> V[Validate schema, candidate, quote and amounts]
   V --> A
   A --> H[Reviewer approval]
@@ -51,7 +55,7 @@ flowchart LR
 - **Retrieval favors recall; it never decides.** Candidates come from exact
   identifiers, exact amounts and folio fragments ("33" can mean F-1433). The rules
   still need an explicit identifier to propose anything.
-- **The model is a selector, not a generator.** DeepSeek picks one candidate ID or
+- **The model is a selector, not a generator.** GPT-6 Luna picks one candidate ID or
   abstains. It must quote an exact span of the customer's note. Source text is
   delimited and escaped as untrusted input, output must match a strict JSON schema,
   and daily, monthly and per-session budgets plus a kill switch bound spending.
@@ -87,35 +91,38 @@ shows the decision trace, a method comparison and synthetic reliability checks
   scikit-learn ranker proposed in all 500 with 50% precision, because it had no way
   to abstain when the evidence was insufficient. It stays in shadow mode and never
   decides.
-- **What the AI did on the demo cases.** On 2026-09-23, with prompt v3 at
-  temperature 0, one live call per case on the hosted preview gave these results.
+- **What the AI did on the demo cases.** On 2026-09-23, with DeepSeek, prompt v3 at
+  temperature 0 and one live call per case on the hosted preview, the results were these.
   The abbreviated reference got the note's split (F-1432 and F-1433, with NC-88
   credited to F-1433) instead of the exact-amount decoy. The partial payment got
   F-2207 instead of its decoy. The ambiguous payment was left for a person, and
   the hidden instruction was not followed (F-5520, not F-5521). These are four
   development observations, and the prompt was revised after the first live call
   on the abbreviated case abstained. They are not an accuracy measurement.
-- **How the AI did on 178 cases it had never seen**
-  ([evaluation v2](reports/eval-v2/README.md)). AI agents wrote 178 synthetic
-  cases blind, from a domain-only brief. The system was frozen and the metrics were
-  registered before any case existed, and the production path ran once.
-  - On the 40-case held-out split, it proposed 23 allocations and 21 were right.
-  - Across all cases it proposed 74, with 61 right, resolving 61 of 127 answerable
-    cases.
-  - All 13 errors were cases that should have gone to review. In 11, the right
-    allocation was not among the candidates code built, mostly because the builder
-    never pairs a single invoice with a credit note. The other 2 had no right answer.
-  - In the 64 answerable cases where the right allocation was among the candidates,
-    the model proposed in 59, all correctly, and sent 5 to review.
-  - The run took 108 DeepSeek calls, for about US$0.04.
+- **How the AI did on 178 cases**
+  ([GPT-6 Luna](reports/eval-v2-openai/README.md),
+  [DeepSeek, pre-registered](reports/eval-v2/README.md)). AI agents wrote 178
+  synthetic cases blind, from a domain-only brief. DeepSeek ran first: the system was
+  frozen and the metrics registered before any case existed, with 40 cases held out.
+  GPT-6 Luna ran the same cases after the switch, with only the model changed.
+  - GPT-6 Luna made 53 proposals: 50 right and 3 wrong. It resolved 50 of 127
+    answerable cases, for about US$0.017 across 107 calls.
+  - DeepSeek made 74 proposals: 61 right and 13 wrong. It resolved 61 of 127, and 21
+    of its 23 proposals on the held-out split were right. It cost about US$0.04 for
+    108 calls.
+  - Every wrong proposal from either model was a case that should have gone to
+    review. Most trace to one gap: the candidate builder never pairs a single
+    invoice with a credit note.
+  - The right allocation was among the candidates in 64 cases. Neither model ever
+    chose wrong there: GPT-6 Luna resolved 48 of them and DeepSeek 59.
 
   These are AI-written synthetic cases, not real-world accuracy, and the set is now
   public, so the next fix needs a new held-out set.
 
 ## Engineering
 
-Python 3.14, FastAPI, SQLAlchemy, PostgreSQL (Neon), scikit-learn, DeepSeek
-(`deepseek-flash`, JSON mode), React and TypeScript with Vite, and Playwright. The
+Python 3.14, FastAPI, SQLAlchemy, PostgreSQL (Neon), scikit-learn, OpenAI GPT-6 Luna
+(`gpt-6-luna`, JSON mode), React and TypeScript with Vite, and Playwright. The
 whole product runs as one Render Free web service.
 
 Checks at the current release: ruff and strict mypy, 1,113 offline backend tests,

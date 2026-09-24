@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="760" height="500" viewBox="0 0 760 500" role="img" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
-  <title>Every wrong proposal, by cause</title>
+  <title>Every wrong proposal by DeepSeek, by cause</title>
   <rect x="0.5" y="0.5" width="759" height="499" rx="14" fill="#ffffff" stroke="#dbe3ea"/>
-  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">All 13 wrong proposals should have gone to a person</text>
-  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">13 of 74 proposals across all 178 cases, grouped by cause.</text>
+  <text x="32.0" y="46.0" font-size="23" font-weight="700" fill="#112d4e" text-anchor="start">DeepSeek: all 13 wrong proposals, by cause</text>
+  <text x="32.0" y="72.0" font-size="14" font-weight="400" fill="#5c7084" text-anchor="start">13 of 74 proposals across all 178 cases were wrong.</text>
   <text x="32.0" y="118.0" font-size="15" font-weight="400" fill="#183047" text-anchor="start">Cash on the right invoice, but the credit note was never offered</text>
   <rect x="32.0" y="128.0" width="638.0" height="24.0" rx="4" fill="#c2413b"/>
   <text x="682.0" y="146.0" font-size="18" font-weight="700" fill="#112d4e" text-anchor="start">6</text>
@@ -18,6 +18,6 @@
   <rect x="32.0" y="370.0" width="696.0" height="58.0" rx="8" fill="#eef2f5"/>
   <text x="48.0" y="394.0" font-size="14" font-weight="700" fill="#183047" text-anchor="start">When the right allocation was among the candidates (64 cases):</text>
   <text x="48.0" y="415.0" font-size="14" font-weight="400" fill="#183047" text-anchor="start">59 resolved correctly, 5 sent to a person, 0 wrong.</text>
-  <text x="32.0" y="462.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Evaluation v2, 2026-09-23: 178 synthetic cases written by AI agents; pre-registered, run once.</text>
+  <text x="32.0" y="462.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">DeepSeek run, 2026-09-23: pre-registered, 178 synthetic cases written by AI agents, run once.</text>
   <text x="32.0" y="479.0" font-size="12" font-weight="400" fill="#5c7084" text-anchor="start">Synthetic results, not real-world accuracy. Source: github.com/RonaldoJ24/reconcile</text>
 </svg>

@@ -15,7 +15,7 @@ the HTTP/domain boundary as integer centavos; editable amounts are decimal MXN t
 
 The application is a Python modular monolith (FastAPI/SQLAlchemy/PostgreSQL), a
 React/TypeScript interface, an optional scikit-learn shadow ranker and a bounded
-DeepSeek interpreter. There is no agent framework, retrieval service or vector
+OpenAI GPT-6 Luna interpreter (DeepSeek until 2026-09-23). There is no agent framework, retrieval service or vector
 database. The deployment architecture is one same-origin Render Free service and
 Neon; the free service may sleep. This branch is not a deployment.
 
@@ -110,6 +110,14 @@ Every wrong proposal was a failure to defer. Eleven of them trace to allocations
 the candidate builder cannot express, mainly a single invoice netted by a credit
 note. When the right allocation was among the candidates (64 cases), the model
 proposed in 59, all correctly, and sent 5 to review.
+
+The owner then switched the runtime model to OpenAI GPT-6 Luna, and the same cases
+ran on it with nothing else changed
+([comparison](../reports/eval-v2-openai/README.md)). GPT-6 Luna made 3 wrong
+proposals where DeepSeek made 13, at less than half the list-price cost, but
+resolved 50 payments where DeepSeek resolved 61. Every payment it resolved,
+DeepSeek also resolved. Because the cases were public by then, this is a model
+comparison on a known set, not a new held-out result.
 
 These are synthetic, AI-written labels. No real-world accuracy, accounting time
 saved or business impact is claimed.

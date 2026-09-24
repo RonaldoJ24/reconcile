@@ -1,5 +1,9 @@
 # Evaluation v2: results
 
+> Update: the runtime model is now OpenAI GPT-6 Luna. The same cases ran on it after
+> this evaluation; see [GPT-6 Luna on the v2 cases](../eval-v2-openai/README.md).
+> Everything below describes the pre-registered DeepSeek run.
+
 On 2026-09-23 the production pipeline ran once over 178 synthetic Mexican payment
 cases written by AI agents: rules first, then DeepSeek (`deepseek-flash`, prompt v3,
 temperature 0) on whatever the rules deferred. The system was frozen at commit
@@ -13,18 +17,19 @@ allocations the candidate builder cannot express yet, credit notes in particular
 
 ## At a glance
 
-Every chart is drawn by [`../charts.py`](../charts.py) from `run/report.json` and
-`run/analysis.json`, and carries its own sample sizes.
+Every chart is drawn by [`../charts.py`](../charts.py) from the published
+`report.json` and `analysis.json` files, and carries its own sample sizes. The first
+three also show GPT-6 Luna, which ran later on the same cases.
 
-![Answerable payments resolved automatically: rules only 3% versus rules then DeepSeek 62% on the held-out split, 2% versus 48% across all cases](../../docs/images/results/resolution.svg)
+![Answerable payments resolved automatically: rules only 3% versus rules then DeepSeek 62% on the held-out split, 2% versus 48% across all cases, with GPT-6 Luna alongside](../../docs/images/results/resolution.svg)
 
 ![Of the answerable payments the rules sent to a person, DeepSeek resolved 61% on the held-out split (20 of 33) and 47% across all cases (59 of 125)](../../docs/images/results/rescue.svg)
 
-![Where every case ended for each method: right, wrong, sent to a person correctly, or sent to a person although answerable](../../docs/images/results/outcomes.svg)
+![Where every case ended for each method: right, wrong, sent to a person correctly, sent to a person although answerable, or unavailable](../../docs/images/results/outcomes.svg)
 
-![Results by case type for rules then DeepSeek, from hidden instructions (8 of 10 right, none wrong) to credit notes (0 of 17 right)](../../docs/images/results/categories.svg)
+![Results by case type for rules then DeepSeek, from hidden instructions (8 of 10 right, none wrong) to credit notes (0 of 17 right)](../../docs/images/results/categories-deepseek.svg)
 
-![All 13 wrong proposals by cause: 6 missed a credit note, 4 left out invoices, 2 had no right answer, 1 never retrieved the right invoice](../../docs/images/results/errors.svg)
+![All 13 of DeepSeek's wrong proposals by cause: 6 missed a credit note, 4 left out invoices, 2 had no right answer, 1 never retrieved the right invoice](../../docs/images/results/errors-deepseek.svg)
 
 ## Headline: held-out final split, end to end
 

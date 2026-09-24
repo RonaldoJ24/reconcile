@@ -1,4 +1,4 @@
-"""Small synchronous DeepSeek adapter with bounded retries and safe telemetry."""
+"""Small synchronous OpenAI adapter with bounded retries and safe telemetry."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ from .schemas import (
     validate_result,
 )
 
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-flash"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_MODEL = "gpt-6-luna"
 ATTEMPT_TIMEOUT_SECONDS = 20.0
 OVERALL_TIMEOUT_SECONDS = 45.0
 MAX_ATTEMPTS = 2
@@ -78,7 +78,7 @@ AllocationValidator = Callable[[InterpretationRequest, InterpretationResult], ob
 ReservationState = Literal["not_reserved", "reserved", "released", "unknown", "reconciled"]
 
 
-class DeepSeekProvider:
+class OpenAIProvider:
     """Injectable HTTP adapter; it never discovers or reads credentials itself."""
 
     def __init__(
@@ -86,7 +86,7 @@ class DeepSeekProvider:
         api_key: str | None = None,
         *,
         model: str = DEFAULT_MODEL,
-        base_url: str = DEEPSEEK_BASE_URL,
+        base_url: str = OPENAI_BASE_URL,
         enabled: bool = False,
         budget_available: bool = True,
         client: httpx.Client | None = None,
@@ -101,8 +101,8 @@ class DeepSeekProvider:
         if attempt_timeout <= 0:
             raise ValueError("attempt_timeout must be positive")
         normalized_base_url = base_url.rstrip("/")
-        if normalized_base_url != DEEPSEEK_BASE_URL:
-            raise ValueError("base_url must be https://api.deepseek.com")
+        if normalized_base_url != OPENAI_BASE_URL:
+            raise ValueError("base_url must be https://api.openai.com/v1")
         self.api_key = api_key
         self.model = model.strip()
         self.base_url = normalized_base_url
@@ -123,7 +123,7 @@ class DeepSeekProvider:
         if self._owns_client:
             self.client.close()
 
-    def __enter__(self) -> DeepSeekProvider:
+    def __enter__(self) -> OpenAIProvider:
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -134,10 +134,10 @@ class DeepSeekProvider:
         return {
             "model": model,
             "messages": list(compiled.messages),
-            "thinking": {"type": "disabled"},
+            "reasoning_effort": "none",
             "response_format": {"type": "json_object"},
             "stream": False,
-            "max_tokens": MAX_OUTPUT_TOKENS,
+            "max_completion_tokens": MAX_OUTPUT_TOKENS,
             "temperature": TEMPERATURE,
         }
 
@@ -146,9 +146,11 @@ class DeepSeekProvider:
         usage = body.get("usage")
         if not isinstance(usage, Mapping):
             return Usage()
-        details = usage.get("completion_tokens_details")
-        if not isinstance(details, Mapping):
-            details = {}
+        details: dict[str, Any] = {}
+        for name in ("prompt_tokens_details", "completion_tokens_details"):
+            nested = usage.get(name)
+            if isinstance(nested, Mapping):
+                details.update(nested)
 
         def integer(*names: str) -> int | None:
             for name in names:
@@ -162,11 +164,7 @@ class DeepSeekProvider:
         return Usage(
             input_tokens=integer("prompt_tokens", "input_tokens"),
             output_tokens=integer("completion_tokens", "output_tokens"),
-            provider_cache_tokens=integer(
-                "prompt_cache_hit_tokens",
-                "cache_hit_tokens",
-                "cached_tokens",
-            ),
+            provider_cache_tokens=integer("cached_tokens"),
             reasoning_tokens=integer("reasoning_tokens"),
         )
 
@@ -570,7 +568,6 @@ class DeepSeekProvider:
         raise AssertionError("provider attempt loop ended unexpectedly")
 
 
-DeepSeekClient = DeepSeekProvider
 ProviderResult = ProviderOutcome
 StructuredFailure = InterpretationFailure
 
@@ -580,9 +577,8 @@ __all__ = [
     "AttemptContext",
     "AttemptEvent",
     "DEFAULT_MODEL",
-    "DEEPSEEK_BASE_URL",
-    "DeepSeekClient",
-    "DeepSeekProvider",
+    "OPENAI_BASE_URL",
+    "OpenAIProvider",
     "FinalizeAttempt",
     "MAX_ATTEMPTS",
     "OVERALL_TIMEOUT_SECONDS",

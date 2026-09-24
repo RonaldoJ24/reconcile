@@ -44,7 +44,7 @@ function HistoricalSplit({ split, rows }: { split: string; rows: EvaluationHisto
 const V2_METHOD_LABELS: Record<string, string> = {
   rules: 'Rules alone',
   ranker: 'Shadow ranker (threshold chosen on validation)',
-  rules_then_direct: 'Rules, then DeepSeek (production path)',
+  rules_then_direct: 'Rules, then the model (production path)',
 }
 
 const V2_SCOPE_LABELS: Record<string, string> = {
@@ -57,7 +57,7 @@ const formatMxn = (centavos: number) =>
 
 function V2ResultRow({ row }: { row: EvaluationV2Result }) {
   return <tr>
-    <th scope="row" className="evaluation-method">{V2_METHOD_LABELS[row.method] ?? row.method}{row.note && <span className="evaluation-row-note">{row.note}</span>}</th>
+    <th scope="row" className="evaluation-method">{row.label ?? V2_METHOD_LABELS[row.method] ?? row.method}{row.note && <span className="evaluation-row-note">{row.note}</span>}</th>
     <td data-label="Proposed">{row.proposals}</td>
     <td data-label="Right">{row.correct}</td>
     <td data-label="Wrong">{row.unsupported}</td>
@@ -81,11 +81,11 @@ export function V2Results({ v2 }: { v2: EvaluationV2 }) {
       <table className="evaluation-v2-table">
         <caption>{`${V2_SCOPE_LABELS[scope] ?? scope}: ${rows.find((row) => row.scope === scope)?.cases ?? 0} cases`}</caption>
         <thead><tr><th scope="col">Method</th><th scope="col">Proposed</th><th scope="col">Right</th><th scope="col">Wrong</th><th scope="col">Deferred correctly</th><th scope="col">Deferred but answerable</th><th scope="col">Unavailable</th><th scope="col">Answerable resolved</th><th scope="col">Value of wrong proposals</th></tr></thead>
-        <tbody>{rows.filter((row) => row.scope === scope).map((row) => <V2ResultRow key={`${scope}-${row.method}`} row={row} />)}</tbody>
+        <tbody>{rows.filter((row) => row.scope === scope).map((row) => <V2ResultRow key={`${scope}-${row.method}-${row.label ?? ''}`} row={row} />)}</tbody>
       </table>
     </div>)}
     {v2.findings && v2.findings.length > 0 && <ul className="evaluation-v2-findings">{v2.findings.map((finding) => <li key={finding}>{finding}</li>)}</ul>}
-    {v2.provider && <p className="muted">{`DeepSeek: ${v2.provider.attempts} calls, about US$${v2.provider.estimated_cost_usd.toFixed(2)} at list price${v2.provider.latency_ms_p50 !== null ? `, median ${(v2.provider.latency_ms_p50 / 1000).toFixed(1)} s per call` : ''}.`}</p>}
+    {v2.provider && <p className="muted">{`${v2.provider.label ?? 'Model'}: ${v2.provider.attempts} calls, about US$${v2.provider.estimated_cost_usd.toFixed(2)} at list price${v2.provider.latency_ms_p50 !== null ? `, median ${(v2.provider.latency_ms_p50 / 1000).toFixed(1)} s per call` : ''}.`}</p>}
     {v2.report_path && <p className="muted">{`Full report, cases, labels and every recorded model call: ${v2.report_path}`}</p>}
   </section>
 }
@@ -119,7 +119,7 @@ export function EvaluationView({ evaluation, loading = false, error = null, onRe
         <div className="evaluation-v2" aria-label="Version two evaluation status">
           <strong>New evaluation (v2): {evaluationStatusLabel(evaluation.v2.status)}</strong>
           <span>Independent accountant review: {evaluationStatusLabel(evaluation.v2.independent_domain_review)}</span>
-          <span>Live DeepSeek calls counted in v2: {evaluation.v2.provider_calls_this_continuation}</span>
+          <span>Live model calls counted in v2: {evaluation.v2.provider_calls_this_continuation}</span>
           <span>Held-out final set opened: {evaluation.v2.final_access_this_continuation ? 'Yes' : 'No'}</span>
         </div>
         <V2Results v2={evaluation.v2} />

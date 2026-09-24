@@ -213,14 +213,14 @@ function interpretationReason(value: string | undefined) {
 }
 
 function interpretationSource(source: Interpretation['source']) {
-  if (source === 'live') return 'Live DeepSeek'
+  if (source === 'live') return 'Live GPT-6 Luna'
   if (source === 'cache') return 'Validated cache'
   return 'Unavailable'
 }
 
 function interpretationSummary(result: Interpretation) {
-  if (result.status === 'selected') return 'DeepSeek chose one of the prepared allocations. Check the quote and the lines before approving.'
-  if (result.status === 'needs_review') return 'DeepSeek made no choice. The payment stays with a person.'
+  if (result.status === 'selected') return 'GPT-6 Luna chose one of the prepared allocations. Check the quote and the lines before approving.'
+  if (result.status === 'needs_review') return 'GPT-6 Luna made no choice. The payment stays with a person.'
   return 'The AI reading is unavailable; the proposal is unchanged.'
 }
 
@@ -489,7 +489,7 @@ export function DecisionSummary({ detail, cash, credits, status }: { detail: Pro
 function decisionSource(detail: ProposalDetail) {
   const mode = typeof detail.trace?.mode === 'string' ? detail.trace.mode : undefined
   if (mode === 'human-correction') return 'a reviewer'
-  if (mode?.startsWith('llm-')) return 'DeepSeek, checked by code'
+  if (mode?.startsWith('llm-')) return 'GPT-6 Luna, checked by code'
   if (mode === 'rules-v2-conservative' || detail.decision_trace?.source === 'rules') return 'deterministic rules'
   return undefined
 }
@@ -499,10 +499,10 @@ function decisionSource(detail: ProposalDetail) {
 function decisionExplanation(detail: ProposalDetail, status: string) {
   const reason = (detail.reason ?? '').replace(/^bounded interpretation:\s*/i, '').replace(/_/g, ' ')
   const source = decisionSource(detail)
-  const byAi = source === 'DeepSeek, checked by code'
+  const byAi = source === 'GPT-6 Luna, checked by code'
   switch (status) {
     case 'PROPOSED':
-      if (byAi) return { label: 'Ready for approval', title: 'DeepSeek proposed this allocation from the customer\'s note', description: 'It could only choose among allocations that code built from open invoices, and it had to quote the note. Code checked the amounts. Nothing is recorded until you approve.', source }
+      if (byAi) return { label: 'Ready for approval', title: 'GPT-6 Luna proposed this allocation from the customer\'s note', description: 'It could only choose among allocations that code built from open invoices, and it had to quote the note. Code checked the amounts. Nothing is recorded until you approve.', source }
       if (source === 'a reviewer') return { label: 'Ready for approval', title: 'A reviewer entered this allocation', description: 'Check the lines and balances before approving. Nothing is recorded until you approve.', source }
       return { label: 'Ready for approval', title: 'The rules matched an exact invoice number', description: 'The reference names the invoice exactly, so no AI call was needed. Nothing is recorded until you approve.', source }
     case 'APPLIED': return { label: 'Recorded', title: 'Allocation recorded', description: 'A reviewer approved this allocation. It is part of the ledger history; no bank money moved. It can be reversed with a reason.', source }
@@ -606,7 +606,7 @@ export function SourceViewer({ sourceId, source, busy, error, onClose }: { sourc
 
 const HOW_IT_WORKS: Array<[string, string]> = [
   ['Rules take the clean ones', 'An exact invoice number is matched instantly, with no AI call.'],
-  ['AI reads the messy ones', 'When a customer abbreviates, DeepSeek chooses among allocations the code built, and has to quote the note.'],
+  ['AI reads the messy ones', 'When a customer abbreviates, GPT-6 Luna chooses among allocations the code built, and has to quote the note.'],
   ['Code checks the math', 'Amounts, credit notes and open balances are validated in integer centavos.'],
   ['A person approves', 'Nothing is recorded until a reviewer confirms. Reversals keep the history.'],
 ]
@@ -1024,17 +1024,17 @@ function DetailView({ id, sessionCapabilities, onBack, onError, onRefresh }: { i
   const canInterpret = status === 'NEEDS_REVIEW' && !hasUnsavedChanges && interpretationEnabled && !variantBusy && !reliabilityBusy
   const provenance = typeof detail.trace?.mode === 'string' ? detail.trace.mode : detail.decision_trace?.source
   const interpretationDisabledReason = status === 'APPLIED'
-    ? 'DeepSeek is unavailable because this allocation is already applied. Review details remain available for reversal.'
+    ? 'GPT-6 Luna is unavailable because this allocation is already applied. Review details remain available for reversal.'
     : status === 'REVERSED'
-      ? 'DeepSeek is unavailable because this allocation has been reversed. The financial history remains immutable.'
+      ? 'GPT-6 Luna is unavailable because this allocation has been reversed. The financial history remains immutable.'
       : status === 'PROPOSED' && provenance === 'rules-v2-conservative'
         ? 'Not needed: the rules matched an exact invoice number. A reviewer still has to approve it.'
         : status === 'PROPOSED' && provenance === 'human-correction'
-          ? 'DeepSeek is unavailable for this revision because a reviewer supplied the allocation.'
+          ? 'GPT-6 Luna is unavailable for this revision because a reviewer supplied the allocation.'
           : status === 'PROPOSED' && typeof provenance === 'string' && provenance.startsWith('llm-')
-            ? 'DeepSeek is unavailable because this revision already contains an interpretation result.'
+            ? 'GPT-6 Luna is unavailable because this revision already contains an interpretation result.'
             : status !== 'NEEDS_REVIEW'
-              ? 'DeepSeek is available only for proposals that still need review.'
+              ? 'GPT-6 Luna is available only for proposals that still need review.'
               : capabilities?.interpret === false || (capabilities?.interpret === undefined && sessionCapabilities?.interpret === false)
                 ? 'Live interpretation is disabled for this session.'
                 : hasUnsavedChanges ? 'Save or discard unsaved changes before requesting interpretation.'
@@ -1484,9 +1484,9 @@ export function InterpretationAction({
             : undefined
   return <section className="panel interpretation-panel" aria-labelledby="interpretation-heading">
     <div className="panel-heading">
-      <div><p className="eyebrow">AI reading · DeepSeek</p><h2 id="interpretation-heading">{interpretation && !interpretationRefreshPending ? 'What the AI read' : 'Ask AI to read the note'}</h2></div>
+      <div><p className="eyebrow">AI reading · GPT-6 Luna</p><h2 id="interpretation-heading">{interpretation && !interpretationRefreshPending ? 'What the AI read' : 'Ask AI to read the note'}</h2></div>
     </div>
-    {showControls && <p className="interpretation-help" id="interpretation-help">DeepSeek reads the bank reference and the customer's note. It can only choose among allocations that code built from open invoices, must quote the note, and never applies money. You approve or correct the result.</p>}
+    {showControls && <p className="interpretation-help" id="interpretation-help">GPT-6 Luna reads the bank reference and the customer's note. It can only choose among allocations that code built from open invoices, must quote the note, and never applies money. You approve or correct the result.</p>}
     {showControls && <div className="interpretation-actions" role="group" aria-label="Interpretation mode">
       <button className="button button-primary" type="button" onClick={() => void onInterpret('direct')} disabled={!enabled || Boolean(busy)} aria-describedby="interpretation-help" title="Direct mode: the model sees the evidence and the prepared allocations">
         {busy === 'interpret-direct' ? 'Reading the note…' : 'Read with AI'}
@@ -1538,7 +1538,7 @@ function progressLabel(stage: string) {
     case 'rank_if_hybrid': return 'Checking optional rank context'
     case 'compile_and_validate': return 'Checking the request'
     case 'read_cache': return 'Checking for a saved result'
-    case 'reserve_and_call': return 'Waiting for DeepSeek'
+    case 'reserve_and_call': return 'Waiting for GPT-6 Luna'
     case 'validate_and_cache': return 'Checking the proposed match'
     case 'record_proposal_revision': return 'Preparing the review result'
     case 'workflow': return 'Workflow'

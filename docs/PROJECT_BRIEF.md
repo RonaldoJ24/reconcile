@@ -2,6 +2,8 @@
 
 Version: 1.1 · 2026-09-14 · Render Free / Neon Free / DeepSeek only
 
+Update 2026-09-23: the owner switched the runtime model from DeepSeek to OpenAI `gpt-6-luna`. The DeepSeek references below describe the original plan; `AGENTS.md` and `contracts/LLM_V1.md` hold the current provider rules.
+
 ## 1. Mandate
 
 Act as the lead software engineer and applied-ML engineer. Build Reconcile as a maintainable Python-first cash-application exception resolver, not a chatbot, scenario viewer, or general accounting platform.

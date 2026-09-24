@@ -8,7 +8,7 @@ from reconcile.interpretation.cache import cache_key, source_fingerprint
 
 def test_live_interpretation_is_disabled_without_explicit_enable(monkeypatch) -> None:
     monkeypatch.delenv("RECONCILE_LLM_ENABLED", raising=False)
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("RECONCILE_LLM_EXECUTION_ID", raising=False)
     monkeypatch.delenv("RECONCILE_LLM_EXECUTION_BUDGET_USD", raising=False)
 
@@ -35,11 +35,11 @@ def test_cache_key_changes_with_evidence_and_rank_context() -> None:
         "source_spans": [{"source_id": "s", "sha256": "a", "text": "invoice i"}],
         "candidates": [{"candidate_id": "c"}],
         "ranked_candidates": [],
-        "model": "deepseek-flash",
+        "model": "gpt-6-luna",
         "prompt_version": "v1",
         "schema_version": "v1",
         "budget_policy_version": "v1",
-        "thinking": "disabled",
+        "reasoning_effort": "none",
         "max_output_tokens": 2048,
     }
     changed_evidence = {**base, "source_spans": [{"source_id": "s", "sha256": "b"}]}

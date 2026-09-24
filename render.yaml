@@ -15,7 +15,7 @@ services:
       - key: RECONCILE_LLM_ENABLED
         value: "0"
       - key: RECONCILE_LLM_MODEL
-        value: deepseek-flash
+        value: gpt-6-luna
       - key: RECONCILE_LLM_EXECUTION_BUDGET_USD
         value: "0"
       - key: DATABASE_URL
