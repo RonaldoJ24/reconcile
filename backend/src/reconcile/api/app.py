@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
+from starlette.types import Scope
 
 from reconcile.api.cases import get_case, list_cases
 from reconcile.api.comparison import compare_snapshot
@@ -626,6 +627,16 @@ def _invalid_citation_check(
         citations=(Citation(source_id="foreign-source", start=0, end=1, quote="x"),),
     )
     validate_result(request, result)
+
+
+class _FrontendFiles(StaticFiles):
+    """Serve the built interface; browsers revalidate the HTML shell so a deploy shows at once."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def create_app() -> FastAPI:
@@ -2013,7 +2024,7 @@ def create_app() -> FastAPI:
 
     frontend_dir = Path(os.getenv("RECONCILE_FRONTEND_DIR", "frontend/dist"))
     if frontend_dir.is_dir():
-        app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+        app.mount("/", _FrontendFiles(directory=frontend_dir, html=True), name="frontend")
 
     return app
 
