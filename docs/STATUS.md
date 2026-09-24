@@ -1,5 +1,56 @@
 # Status
 
+## Runtime model switched to OpenAI GPT-6 Luna — 2026-09-23
+
+The owner asked to replace DeepSeek with OpenAI `gpt-6-luna`, using a temporary API
+key that expires after a day. The authenticated catalog listed `gpt-6-luna`, and a
+one-call check accepted reasoning effort `none`, temperature 0 and JSON output.
+
+**Code.**
+- The adapter posts to OpenAI Chat Completions with `reasoning_effort: none` and
+  `max_completion_tokens`, and reads cached tokens from `prompt_tokens_details`.
+- The rate card holds the 2026-09-23 prices: USD 0.10 per 1M input, 0.125 per 1M
+  cache writes, 0.01 per 1M cached input and 0.50 per 1M output. Reservations
+  price uncached input at the cache-write rate, so a full attempt reserves 1,774
+  microdollars.
+- `OPENAI_API_KEY` replaces `DEEPSEEK_API_KEY`.
+- The UI names GPT-6 Luna, and the Evaluation page takes labels from the packaged
+  summary.
+- Operational docs and contracts describe the new provider. Planning docs carry a
+  dated note instead of rewritten history.
+
+**Model swap on the v2 cases.** The plan was written before the run, in
+`reports/eval-v2-openai/PLAN.md`. The run was frozen at `37dda8c`, and only the
+provider changed from `c4524a2`. It used the isolated `test-release1` branch,
+schema `reconcile_eval_v2_openai`, 107 recorded attempts and about US$0.017 at list
+price. Results for rules then GPT-6 Luna, all 178 cases:
+- 53 proposals: 50 right, 3 wrong, 1 unavailable after an invalid response.
+- 50 of 127 answerable cases resolved.
+- Against DeepSeek's 74 proposals, 61 right and 13 wrong: every payment GPT-6 Luna
+  resolved, DeepSeek also resolved.
+- Exact McNemar tests on the paired cases gave p = 0.001 for resolution and 0.006
+  for wrong proposals. These are exploratory, because the cases are public.
+- Re-scoring from the published files reproduces the report byte for byte.
+
+**Charts.** `reports/charts.py` now draws both runs: resolution, precision,
+outcomes, the rescue rate, and per-model case types and errors.
+
+**Checks.**
+- Ruff and strict mypy passed.
+- The offline suite passed 1,113 tests.
+- The PostgreSQL suite passed 67 tests in a full run. Its two reservation tests
+  were then updated for the new rate card and pass.
+- A live adapter smoke test selected the right candidate with gpt-6-luna.
+- Frontend typecheck, 59 tests and the build passed.
+
+**Blocked.** Render's CLI has no environment-variable command, and reading the
+CLI's own token to call the API is credential access that stays off limits. The
+owner sets `OPENAI_API_KEY` (and `RECONCILE_LLM_MODEL=gpt-6-luna` if present) in the
+Render dashboard before the deploy. The temporary key expires after a day.
+
+**Next.** Deploy after the key is set. Retake the README screenshots, which still
+show the DeepSeek UI, then continue the v2 next steps with a new blind set.
+
 ## Evaluation v2: measured once — 2026-09-23
 
 The pre-registered v2 run finished, and its results are published in

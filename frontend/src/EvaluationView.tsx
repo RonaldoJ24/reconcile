@@ -81,7 +81,7 @@ export function V2Results({ v2 }: { v2: EvaluationV2 }) {
       <table className="evaluation-v2-table">
         <caption>{`${V2_SCOPE_LABELS[scope] ?? scope}: ${rows.find((row) => row.scope === scope)?.cases ?? 0} cases`}</caption>
         <thead><tr><th scope="col">Method</th><th scope="col">Proposed</th><th scope="col">Right</th><th scope="col">Wrong</th><th scope="col">Deferred correctly</th><th scope="col">Deferred but answerable</th><th scope="col">Unavailable</th><th scope="col">Answerable resolved</th><th scope="col">Value of wrong proposals</th></tr></thead>
-        <tbody>{rows.filter((row) => row.scope === scope).map((row) => <V2ResultRow key={`${scope}-${row.method}`} row={row} />)}</tbody>
+        <tbody>{rows.filter((row) => row.scope === scope).map((row) => <V2ResultRow key={`${scope}-${row.method}-${row.label ?? ''}`} row={row} />)}</tbody>
       </table>
     </div>)}
     {v2.findings && v2.findings.length > 0 && <ul className="evaluation-v2-findings">{v2.findings.map((finding) => <li key={finding}>{finding}</li>)}</ul>}
