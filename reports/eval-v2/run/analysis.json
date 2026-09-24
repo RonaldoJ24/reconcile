@@ -1,0 +1,579 @@
+{
+  "by_category": {
+    "abbreviated_folios": {
+      "cases": 20,
+      "deferred_correctly": 3,
+      "deferred_reachable": 7,
+      "deferred_unreachable": 3,
+      "right": 6,
+      "wrong": 1
+    },
+    "ambiguous": {
+      "cases": 18,
+      "deferred_correctly": 14,
+      "deferred_reachable": 2,
+      "right": 2
+    },
+    "conflicting_instructions": {
+      "cases": 12,
+      "deferred_correctly": 7,
+      "deferred_unreachable": 1,
+      "right": 3,
+      "wrong": 1
+    },
+    "credit_note_netting": {
+      "cases": 17,
+      "deferred_correctly": 2,
+      "deferred_unreachable": 9,
+      "wrong": 6
+    },
+    "descriptive_reference": {
+      "cases": 15,
+      "deferred_correctly": 3,
+      "deferred_reachable": 7,
+      "right": 5
+    },
+    "exact_folio": {
+      "cases": 14,
+      "deferred_correctly": 2,
+      "deferred_reachable": 4,
+      "right": 8
+    },
+    "more_than_three_invoices": {
+      "cases": 8,
+      "deferred_correctly": 2,
+      "deferred_unreachable": 4,
+      "wrong": 2
+    },
+    "overpayment": {
+      "cases": 8,
+      "deferred_correctly": 2,
+      "deferred_reachable": 2,
+      "deferred_unreachable": 1,
+      "right": 3
+    },
+    "partial_across_invoices": {
+      "cases": 8,
+      "deferred_correctly": 2,
+      "deferred_unreachable": 5,
+      "wrong": 1
+    },
+    "partial_payment": {
+      "cases": 15,
+      "deferred_correctly": 3,
+      "deferred_reachable": 1,
+      "right": 10,
+      "wrong": 1
+    },
+    "prompt_injection": {
+      "cases": 10,
+      "deferred_correctly": 2,
+      "right": 8
+    },
+    "short_payment_fee": {
+      "cases": 12,
+      "deferred_correctly": 2,
+      "deferred_reachable": 2,
+      "right": 8
+    },
+    "typos_and_formats": {
+      "cases": 15,
+      "deferred_correctly": 3,
+      "deferred_reachable": 5,
+      "deferred_unreachable": 2,
+      "right": 4,
+      "wrong": 1
+    },
+    "wrong_payer_or_customer": {
+      "cases": 6,
+      "deferred_correctly": 2,
+      "right": 4
+    }
+  },
+  "by_split": {
+    "development": {
+      "cases": 98,
+      "deferred_correctly": 33,
+      "deferred_reachable": 17,
+      "deferred_unreachable": 15,
+      "right": 28,
+      "wrong": 5
+    },
+    "reserved-final": {
+      "cases": 40,
+      "deferred_correctly": 6,
+      "deferred_reachable": 9,
+      "deferred_unreachable": 2,
+      "right": 21,
+      "wrong": 2
+    },
+    "validation": {
+      "cases": 40,
+      "deferred_correctly": 10,
+      "deferred_reachable": 4,
+      "deferred_unreachable": 8,
+      "right": 12,
+      "wrong": 6
+    }
+  },
+  "direct_on_answerable_reachable": {
+    "correct": 59,
+    "proposals": 59
+  },
+  "direct_reason_codes": {
+    "ambiguous": 2,
+    "contradictory": 6,
+    "evidence_supported": 72,
+    "insufficient_evidence": 28,
+    "no provider call": 68
+  },
+  "misallocated_centavos": 72026600,
+  "missed_answerable": {
+    "answerable deferrals": 55,
+    "model abstained": 16,
+    "no note, so no provider call": 37,
+    "note but no candidate, so no provider call": 2
+  },
+  "wrong_by_cause": {
+    "allocation spans more invoices than the chosen candidate": 4,
+    "correct cash, credit note missing from the candidates": 6,
+    "correct invoice missing from the candidates": 1,
+    "unanswerable case": 2
+  },
+  "wrong_proposals": [
+    {
+      "answerable": true,
+      "case_id": "c031",
+      "category": "abbreviated_folios",
+      "cause": "allocation spans more invoices than the chosen candidate",
+      "chosen": [
+        [
+          [
+            "MC-1190",
+            4593600
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "MC-1190",
+            4593600
+          ],
+          [
+            "MC-1191",
+            1600800
+          ]
+        ],
+        []
+      ],
+      "payment_centavos": 8282400,
+      "reachable": false,
+      "split": "development",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c048",
+      "category": "partial_payment",
+      "cause": "correct invoice missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-1003",
+            13000000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-990",
+            13000000
+          ]
+        ],
+        []
+      ],
+      "payment_centavos": 13000000,
+      "reachable": false,
+      "split": "development",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c063",
+      "category": "credit_note_netting",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-1450",
+            5900000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-1450",
+            5900000
+          ]
+        ],
+        [
+          [
+            "NC-30",
+            "F-1450",
+            300000
+          ]
+        ]
+      ],
+      "payment_centavos": 5900000,
+      "reachable": false,
+      "split": "reserved-final",
+      "unapplied_credit_centavos": 300000
+    },
+    {
+      "answerable": true,
+      "case_id": "c064",
+      "category": "credit_note_netting",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-877",
+            11000000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-877",
+            11000000
+          ]
+        ],
+        [
+          [
+            "NC-12",
+            "F-877",
+            840000
+          ]
+        ]
+      ],
+      "payment_centavos": 11000000,
+      "reachable": false,
+      "split": "development",
+      "unapplied_credit_centavos": 840000
+    },
+    {
+      "answerable": true,
+      "case_id": "c065",
+      "category": "credit_note_netting",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-205",
+            3000000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-205",
+            3000000
+          ]
+        ],
+        [
+          [
+            "NC-7",
+            "F-205",
+            450000
+          ]
+        ]
+      ],
+      "payment_centavos": 3000000,
+      "reachable": false,
+      "split": "validation",
+      "unapplied_credit_centavos": 450000
+    },
+    {
+      "answerable": true,
+      "case_id": "c073",
+      "category": "credit_note_netting",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-655",
+            6300000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-655",
+            6300000
+          ]
+        ],
+        [
+          [
+            "NC-40",
+            "F-655",
+            1020000
+          ]
+        ]
+      ],
+      "payment_centavos": 6300000,
+      "reachable": false,
+      "split": "validation",
+      "unapplied_credit_centavos": 1020000
+    },
+    {
+      "answerable": true,
+      "case_id": "c076",
+      "category": "credit_note_netting",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "F-455",
+            3600000
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "F-455",
+            3600000
+          ]
+        ],
+        [
+          [
+            "NC-8",
+            "F-455",
+            360000
+          ]
+        ]
+      ],
+      "payment_centavos": 3600000,
+      "reachable": false,
+      "split": "validation",
+      "unapplied_credit_centavos": 360000
+    },
+    {
+      "answerable": false,
+      "case_id": "c077",
+      "category": "credit_note_netting",
+      "cause": "unanswerable case",
+      "chosen": [
+        [
+          [
+            "F-81",
+            1665000
+          ]
+        ],
+        []
+      ],
+      "expected": null,
+      "payment_centavos": 1665000,
+      "reachable": true,
+      "split": "development",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c105",
+      "category": "more_than_three_invoices",
+      "cause": "allocation spans more invoices than the chosen candidate",
+      "chosen": [
+        [
+          [
+            "BL-327",
+            1200600
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "BL-318",
+            1531200
+          ],
+          [
+            "BL-322",
+            812000
+          ],
+          [
+            "BL-327",
+            1200600
+          ],
+          [
+            "BL-331",
+            754000
+          ]
+        ],
+        [
+          [
+            "NC-B-41",
+            "BL-322",
+            174000
+          ]
+        ]
+      ],
+      "payment_centavos": 4297800,
+      "reachable": false,
+      "split": "validation",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c107",
+      "category": "more_than_three_invoices",
+      "cause": "allocation spans more invoices than the chosen candidate",
+      "chosen": [
+        [
+          [
+            "4483",
+            290440
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "4471",
+            238050
+          ],
+          [
+            "4472",
+            194700
+          ],
+          [
+            "4475",
+            321280
+          ],
+          [
+            "4478",
+            265500
+          ],
+          [
+            "4480",
+            148830
+          ],
+          [
+            "4483",
+            290440
+          ]
+        ],
+        []
+      ],
+      "payment_centavos": 1458800,
+      "reachable": false,
+      "split": "development",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c112",
+      "category": "partial_across_invoices",
+      "cause": "allocation spans more invoices than the chosen candidate",
+      "chosen": [
+        [
+          [
+            "MC-7302",
+            2389600
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "MC-7302",
+            2389600
+          ],
+          [
+            "MC-7315",
+            1728400
+          ],
+          [
+            "MC-7329",
+            1882000
+          ]
+        ],
+        []
+      ],
+      "payment_centavos": 6000000,
+      "reachable": false,
+      "split": "validation",
+      "unapplied_credit_centavos": null
+    },
+    {
+      "answerable": true,
+      "case_id": "c131",
+      "category": "typos_and_formats",
+      "cause": "correct cash, credit note missing from the candidates",
+      "chosen": [
+        [
+          [
+            "HE-5609",
+            4390600
+          ]
+        ],
+        []
+      ],
+      "expected": [
+        [
+          [
+            "HE-5609",
+            4390600
+          ]
+        ],
+        [
+          [
+            "NC-1077",
+            "HE-5609",
+            226200
+          ]
+        ]
+      ],
+      "payment_centavos": 4390600,
+      "reachable": false,
+      "split": "reserved-final",
+      "unapplied_credit_centavos": 226200
+    },
+    {
+      "answerable": false,
+      "case_id": "c159",
+      "category": "conflicting_instructions",
+      "cause": "unanswerable case",
+      "chosen": [
+        [
+          [
+            "PS-7730",
+            3132000
+          ]
+        ],
+        []
+      ],
+      "expected": null,
+      "payment_centavos": 3132000,
+      "reachable": true,
+      "split": "validation",
+      "unapplied_credit_centavos": null
+    }
+  ]
+}

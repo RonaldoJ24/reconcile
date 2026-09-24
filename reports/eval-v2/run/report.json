@@ -1,0 +1,858 @@
+{
+  "end_to_end": {
+    "all-cases": {
+      "answerable_unreachable": 36,
+      "ranker_excluding_validation": {
+        "answerable": 98,
+        "answerable_resolved": 0.0,
+        "cases": 138,
+        "correct_deferrals": 40,
+        "deferred": 138,
+        "misallocated_centavos": 0,
+        "precision": null,
+        "unnecessary_deferrals": 98
+      },
+      "rules": {
+        "answerable": 127,
+        "answerable_resolved": 0.015748031496062992,
+        "cases": 178,
+        "correct": 2,
+        "correct_deferrals": 51,
+        "deferred": 176,
+        "misallocated_centavos": 0,
+        "precision": 1.0,
+        "proposals": 2,
+        "unnecessary_deferrals": 125
+      },
+      "rules_then_direct": {
+        "answerable": 127,
+        "answerable_resolved": 0.48031496062992124,
+        "cases": 178,
+        "correct": 61,
+        "correct_deferrals": 49,
+        "deferred": 104,
+        "misallocated_centavos": 72026600,
+        "precision": 0.8243243243243243,
+        "proposals": 74,
+        "unnecessary_deferrals": 55,
+        "unsupported": 13
+      }
+    },
+    "reserved-final": {
+      "answerable_unreachable": 4,
+      "ranker_excluding_validation": {
+        "answerable": 34,
+        "answerable_resolved": 0.0,
+        "cases": 40,
+        "correct_deferrals": 6,
+        "deferred": 40,
+        "misallocated_centavos": 0,
+        "precision": null,
+        "unnecessary_deferrals": 34
+      },
+      "rules": {
+        "answerable": 34,
+        "answerable_resolved": 0.029411764705882353,
+        "cases": 40,
+        "correct": 1,
+        "correct_deferrals": 6,
+        "deferred": 39,
+        "misallocated_centavos": 0,
+        "precision": 1.0,
+        "proposals": 1,
+        "unnecessary_deferrals": 33
+      },
+      "rules_then_direct": {
+        "answerable": 34,
+        "answerable_resolved": 0.6176470588235294,
+        "cases": 40,
+        "correct": 21,
+        "correct_deferrals": 6,
+        "deferred": 17,
+        "misallocated_centavos": 10290600,
+        "precision": 0.9130434782608695,
+        "proposals": 23,
+        "unnecessary_deferrals": 11,
+        "unsupported": 2
+      }
+    }
+  },
+  "evaluator": {
+    "development": {
+      "direct_on_rules_deferred": {
+        "citation_location": {
+          "denominator": 28,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 28,
+          "validity": 1.0
+        },
+        "deferral": {
+          "correct": 33,
+          "deferred": 50,
+          "denominator": 50,
+          "unnecessary": 17
+        },
+        "denominators": {
+          "all_cases": 78,
+          "answerable_cases": 44,
+          "citation_labeled_proposals": 28,
+          "deferred": 50,
+          "payment_value_centavos": 346463512,
+          "proposals": 28,
+          "semantic_labeled_proposals": 28
+        },
+        "method": "direct",
+        "outcomes": {
+          "error_denominator": 78,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 78
+        },
+        "proposal": {
+          "all_case_coverage": 0.358974358974359,
+          "correct": 27,
+          "precision": 0.9642857142857143,
+          "proposals": 28
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 78,
+          "input_sha256": "c074f664cfd399b804ec0f64671db222da8de63623c72994d5f4d29f7dba74ac",
+          "target_count": 78,
+          "target_sha256": "5b1c9d530ca3be1c0abe47b439249d895b604f5c1dfea9baec55f97f3d3b34bb"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 27,
+          "denominator": 44,
+          "rate": 0.6136363636363636
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": 0.03571428571428571,
+          "proposal_coverage": 0.358974358974359,
+          "unsupported_proposals": 1
+        },
+        "semantic_support": {
+          "denominator": 28,
+          "support_rate": 0.9642857142857143,
+          "supported": 27,
+          "unknown": 0,
+          "unsupported": 1
+        },
+        "split": "development",
+        "support": {
+          "denominator": 28,
+          "supported": 27,
+          "unknown": 0,
+          "unsupported": 1
+        },
+        "timing": {
+          "mean_ms": 1037.6417537441862,
+          "measured": 43,
+          "p95_ms": 1266.557416,
+          "unknown": 35
+        }
+      },
+      "ranker": {
+        "citation_location": {
+          "denominator": 0,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 0,
+          "validity": null
+        },
+        "deferral": {
+          "correct": 34,
+          "deferred": 79,
+          "denominator": 79,
+          "unnecessary": 45
+        },
+        "denominators": {
+          "all_cases": 79,
+          "answerable_cases": 45,
+          "citation_labeled_proposals": 0,
+          "deferred": 79,
+          "payment_value_centavos": 346857912,
+          "proposals": 0,
+          "semantic_labeled_proposals": 0
+        },
+        "method": "ranker",
+        "outcomes": {
+          "error_denominator": 79,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 79
+        },
+        "proposal": {
+          "all_case_coverage": 0.0,
+          "correct": 0,
+          "precision": null,
+          "proposals": 0
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 79,
+          "input_sha256": "f665332608a67787da15ccda36cdcd048fcfb4386c387e6597bfbcb8355bcf93",
+          "target_count": 79,
+          "target_sha256": "a26f24da75773430c0234f003bfb29659d51f712dd991849047644f9302dd625"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 0,
+          "denominator": 45,
+          "rate": 0.0
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": null,
+          "proposal_coverage": 0.0,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 0,
+          "support_rate": null,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "development",
+        "support": {
+          "denominator": 0,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 238.591253164557,
+          "measured": 79,
+          "p95_ms": 6.655,
+          "unknown": 0
+        }
+      },
+      "rules": {
+        "citation_location": {
+          "denominator": 1,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 1,
+          "validity": 1.0
+        },
+        "deferral": {
+          "correct": 34,
+          "deferred": 78,
+          "denominator": 78,
+          "unnecessary": 44
+        },
+        "denominators": {
+          "all_cases": 79,
+          "answerable_cases": 45,
+          "citation_labeled_proposals": 1,
+          "deferred": 78,
+          "payment_value_centavos": 346857912,
+          "proposals": 1,
+          "semantic_labeled_proposals": 1
+        },
+        "method": "rules",
+        "outcomes": {
+          "error_denominator": 79,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 79
+        },
+        "proposal": {
+          "all_case_coverage": 0.012658227848101266,
+          "correct": 1,
+          "precision": 1.0,
+          "proposals": 1
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 79,
+          "input_sha256": "f665332608a67787da15ccda36cdcd048fcfb4386c387e6597bfbcb8355bcf93",
+          "target_count": 79,
+          "target_sha256": "a26f24da75773430c0234f003bfb29659d51f712dd991849047644f9302dd625"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 1,
+          "denominator": 45,
+          "rate": 0.022222222222222223
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": 0.0,
+          "proposal_coverage": 0.012658227848101266,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 1,
+          "support_rate": 1.0,
+          "supported": 1,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "development",
+        "support": {
+          "denominator": 1,
+          "supported": 1,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 0.31524050632911393,
+          "measured": 79,
+          "p95_ms": 0.65,
+          "unknown": 0
+        }
+      }
+    },
+    "reserved-final": {
+      "direct_on_rules_deferred": {
+        "citation_location": {
+          "denominator": 20,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 20,
+          "validity": 1.0
+        },
+        "deferral": {
+          "correct": 6,
+          "deferred": 15,
+          "denominator": 15,
+          "unnecessary": 9
+        },
+        "denominators": {
+          "all_cases": 35,
+          "answerable_cases": 29,
+          "citation_labeled_proposals": 20,
+          "deferred": 15,
+          "payment_value_centavos": 178782944,
+          "proposals": 20,
+          "semantic_labeled_proposals": 20
+        },
+        "method": "direct",
+        "outcomes": {
+          "error_denominator": 35,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 35
+        },
+        "proposal": {
+          "all_case_coverage": 0.5714285714285714,
+          "correct": 20,
+          "precision": 1.0,
+          "proposals": 20
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 35,
+          "input_sha256": "d8fabf289f3d434b57688d93d10b8cfb1363f427ec260af2934ee7425f3db268",
+          "target_count": 35,
+          "target_sha256": "613e0d46461123feeb4e55cf1f9b6c2865dda88b1451bb145da4a2d70e3bbf54"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 20,
+          "denominator": 29,
+          "rate": 0.6896551724137931
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": 0.0,
+          "proposal_coverage": 0.5714285714285714,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 20,
+          "support_rate": 1.0,
+          "supported": 20,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "reserved-final",
+        "support": {
+          "denominator": 20,
+          "supported": 20,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 1062.464130375,
+          "measured": 24,
+          "p95_ms": 1342.348667,
+          "unknown": 11
+        }
+      },
+      "ranker": {
+        "citation_location": {
+          "denominator": 0,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 0,
+          "validity": null
+        },
+        "deferral": {
+          "correct": 6,
+          "deferred": 36,
+          "denominator": 36,
+          "unnecessary": 30
+        },
+        "denominators": {
+          "all_cases": 36,
+          "answerable_cases": 30,
+          "citation_labeled_proposals": 0,
+          "deferred": 36,
+          "payment_value_centavos": 179861744,
+          "proposals": 0,
+          "semantic_labeled_proposals": 0
+        },
+        "method": "ranker",
+        "outcomes": {
+          "error_denominator": 36,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 36
+        },
+        "proposal": {
+          "all_case_coverage": 0.0,
+          "correct": 0,
+          "precision": null,
+          "proposals": 0
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 36,
+          "input_sha256": "8f270d8933ce47a64108710dbbb3e7d3771b4067f37b6debccd035d1712f50da",
+          "target_count": 36,
+          "target_sha256": "69b781c69f745909538274f08e2035bfe22b06d7fd78a4a9abf2b102073e827a"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 0,
+          "denominator": 30,
+          "rate": 0.0
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": null,
+          "proposal_coverage": 0.0,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 0,
+          "support_rate": null,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "reserved-final",
+        "support": {
+          "denominator": 0,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 4.099694444444444,
+          "measured": 36,
+          "p95_ms": 5.902,
+          "unknown": 0
+        }
+      },
+      "rules": {
+        "citation_location": {
+          "denominator": 1,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 1,
+          "validity": 1.0
+        },
+        "deferral": {
+          "correct": 6,
+          "deferred": 35,
+          "denominator": 35,
+          "unnecessary": 29
+        },
+        "denominators": {
+          "all_cases": 36,
+          "answerable_cases": 30,
+          "citation_labeled_proposals": 1,
+          "deferred": 35,
+          "payment_value_centavos": 179861744,
+          "proposals": 1,
+          "semantic_labeled_proposals": 1
+        },
+        "method": "rules",
+        "outcomes": {
+          "error_denominator": 36,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 36
+        },
+        "proposal": {
+          "all_case_coverage": 0.027777777777777776,
+          "correct": 1,
+          "precision": 1.0,
+          "proposals": 1
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 36,
+          "input_sha256": "8f270d8933ce47a64108710dbbb3e7d3771b4067f37b6debccd035d1712f50da",
+          "target_count": 36,
+          "target_sha256": "69b781c69f745909538274f08e2035bfe22b06d7fd78a4a9abf2b102073e827a"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 1,
+          "denominator": 30,
+          "rate": 0.03333333333333333
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": 0.0,
+          "proposal_coverage": 0.027777777777777776,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 1,
+          "support_rate": 1.0,
+          "supported": 1,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "reserved-final",
+        "support": {
+          "denominator": 1,
+          "supported": 1,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 0.39475,
+          "measured": 36,
+          "p95_ms": 0.732,
+          "unknown": 0
+        }
+      }
+    },
+    "validation": {
+      "direct_on_rules_deferred": {
+        "citation_location": {
+          "denominator": 13,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 13,
+          "validity": 1.0
+        },
+        "deferral": {
+          "correct": 10,
+          "deferred": 14,
+          "denominator": 14,
+          "unnecessary": 4
+        },
+        "denominators": {
+          "all_cases": 27,
+          "answerable_cases": 16,
+          "citation_labeled_proposals": 13,
+          "deferred": 14,
+          "payment_value_centavos": 143980040,
+          "proposals": 13,
+          "semantic_labeled_proposals": 13
+        },
+        "method": "direct",
+        "outcomes": {
+          "error_denominator": 27,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 27
+        },
+        "proposal": {
+          "all_case_coverage": 0.48148148148148145,
+          "correct": 12,
+          "precision": 0.9230769230769231,
+          "proposals": 13
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 27,
+          "input_sha256": "1f0277222540e52b8f8d7717b111a3989eff4d2f16f65bc76c8f2bc038b4bb4a",
+          "target_count": 27,
+          "target_sha256": "5f0138bc99e17b1846452d7cc9bdb247c6bcfd997df1cc206e33dca4c15963de"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 12,
+          "denominator": 16,
+          "rate": 0.75
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": 0.07692307692307693,
+          "proposal_coverage": 0.48148148148148145,
+          "unsupported_proposals": 1
+        },
+        "semantic_support": {
+          "denominator": 13,
+          "support_rate": 0.9230769230769231,
+          "supported": 12,
+          "unknown": 0,
+          "unsupported": 1
+        },
+        "split": "validation",
+        "support": {
+          "denominator": 13,
+          "supported": 12,
+          "unknown": 0,
+          "unsupported": 1
+        },
+        "timing": {
+          "mean_ms": 1013.5966447894738,
+          "measured": 19,
+          "p95_ms": 1388.293,
+          "unknown": 8
+        }
+      },
+      "ranker": {
+        "citation_location": {
+          "denominator": 0,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 0,
+          "validity": null
+        },
+        "deferral": {
+          "correct": 11,
+          "deferred": 27,
+          "denominator": 27,
+          "unnecessary": 16
+        },
+        "denominators": {
+          "all_cases": 27,
+          "answerable_cases": 16,
+          "citation_labeled_proposals": 0,
+          "deferred": 27,
+          "payment_value_centavos": 143980040,
+          "proposals": 0,
+          "semantic_labeled_proposals": 0
+        },
+        "method": "ranker",
+        "outcomes": {
+          "error_denominator": 27,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 27
+        },
+        "proposal": {
+          "all_case_coverage": 0.0,
+          "correct": 0,
+          "precision": null,
+          "proposals": 0
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 27,
+          "input_sha256": "1f0277222540e52b8f8d7717b111a3989eff4d2f16f65bc76c8f2bc038b4bb4a",
+          "target_count": 27,
+          "target_sha256": "5f0138bc99e17b1846452d7cc9bdb247c6bcfd997df1cc206e33dca4c15963de"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 0,
+          "denominator": 16,
+          "rate": 0.0
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": null,
+          "proposal_coverage": 0.0,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 0,
+          "support_rate": null,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "validation",
+        "support": {
+          "denominator": 0,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 3.6135925925925925,
+          "measured": 27,
+          "p95_ms": 7.196,
+          "unknown": 0
+        }
+      },
+      "rules": {
+        "citation_location": {
+          "denominator": 0,
+          "invalid": 0,
+          "unknown": 0,
+          "valid": 0,
+          "validity": null
+        },
+        "deferral": {
+          "correct": 11,
+          "deferred": 27,
+          "denominator": 27,
+          "unnecessary": 16
+        },
+        "denominators": {
+          "all_cases": 27,
+          "answerable_cases": 16,
+          "citation_labeled_proposals": 0,
+          "deferred": 27,
+          "payment_value_centavos": 143980040,
+          "proposals": 0,
+          "semantic_labeled_proposals": 0
+        },
+        "method": "rules",
+        "outcomes": {
+          "error_denominator": 27,
+          "errors": 0,
+          "unavailable": 0,
+          "unavailable_denominator": 27
+        },
+        "proposal": {
+          "all_case_coverage": 0.0,
+          "correct": 0,
+          "precision": null,
+          "proposals": 0
+        },
+        "protocol": "reconcile-eval-v2",
+        "provenance": {
+          "input_count": 27,
+          "input_sha256": "1f0277222540e52b8f8d7717b111a3989eff4d2f16f65bc76c8f2bc038b4bb4a",
+          "target_count": 27,
+          "target_sha256": "5f0138bc99e17b1846452d7cc9bdb247c6bcfd997df1cc206e33dca4c15963de"
+        },
+        "provider_usage": {
+          "cost_usd": null,
+          "input_tokens": null,
+          "output_tokens": null
+        },
+        "resolution": {
+          "answerable_correct": 0,
+          "denominator": 16,
+          "rate": 0.0
+        },
+        "risk_vs_coverage": {
+          "observed_unsupported_rate": null,
+          "proposal_coverage": 0.0,
+          "unsupported_proposals": 0
+        },
+        "semantic_support": {
+          "denominator": 0,
+          "support_rate": null,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "split": "validation",
+        "support": {
+          "denominator": 0,
+          "supported": 0,
+          "unknown": 0,
+          "unsupported": 0
+        },
+        "timing": {
+          "mean_ms": 0.3164814814814815,
+          "measured": 27,
+          "p95_ms": 0.613,
+          "unknown": 0
+        }
+      }
+    }
+  },
+  "identity": {
+    "frozen_commit": "c4524a27222757f835364e643cf4f14551e78ec7",
+    "model": "deepseek-flash",
+    "prompt_version": "reconcile-interpretation-prompt-v3",
+    "rules_identity": "rules-v2-conservative",
+    "schema_version": "reconcile-interpretation-schema-v1",
+    "temperature": 0
+  },
+  "provider": {
+    "attempts": 108,
+    "cases_recorded": 176,
+    "estimated_cost_usd_at_peak_list_price": 0.038185,
+    "input_tokens": 110029,
+    "latency_ms_p50": 1048.481584,
+    "latency_ms_p95": 1310.978958,
+    "output_tokens": 11041
+  },
+  "ranker_selection": {
+    "rule": "max coverage with zero unsupported proposals on validation; ties choose higher",
+    "selected_threshold": null,
+    "validation_metrics": {
+      "0.0": {
+        "all_case_coverage": 0.037037037037037035,
+        "correct": 0,
+        "precision": 0.0,
+        "proposals": 1
+      },
+      "0.25": {
+        "all_case_coverage": 0.037037037037037035,
+        "correct": 0,
+        "precision": 0.0,
+        "proposals": 1
+      },
+      "0.5": {
+        "all_case_coverage": 0.037037037037037035,
+        "correct": 0,
+        "precision": 0.0,
+        "proposals": 1
+      },
+      "0.75": {
+        "all_case_coverage": 0.037037037037037035,
+        "correct": 0,
+        "precision": 0.0,
+        "proposals": 1
+      },
+      "0.9": {
+        "all_case_coverage": 0.037037037037037035,
+        "correct": 0,
+        "precision": 0.0,
+        "proposals": 1
+      },
+      "1.0": {
+        "all_case_coverage": 0.037037037037037035,
+        "correct": 0,
+        "precision": 0.0,
+        "proposals": 1
+      }
+    }
+  }
+}
