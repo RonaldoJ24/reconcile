@@ -1,5 +1,19 @@
 # Status
 
+## Reviewer polish — 2026-09-25
+
+This applies the interviewer audit (kept in the owner's CV workspace):
+- `START_HERE.md`, the original Codex kickoff prompt, moved from the repository root
+  to `docs/history/` with a provenance note. Its opening lines described the project
+  as specifications, which a reviewer skimming the root could take literally.
+- The README now opens with the problem ("Which invoices does this payment
+  settle?") before the numbers.
+- A "Five minutes for reviewers" section links the demo, both evaluation reports and
+  the six files that carry the guarantees.
+- The repository topic `deepseek` became `openai`.
+
+Docs only; the running app is unchanged.
+
 ## Start over and fresh pages after deploys — 2026-09-23
 
 After the switch, the owner kept seeing DeepSeek labels. Their browser session still

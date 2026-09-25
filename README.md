@@ -2,11 +2,12 @@
 
 **Models propose. Code decides. Humans approve.**
 
-Reconcile is a cash-application review system for Mexican accounts receivable. It
-proposes which invoices a payment settles, quotes the evidence, and changes balances
-only after validation and human approval. When a bank reference is too messy for the
-rules, a bounded LLM (OpenAI GPT-6 Luna) reads it, but the model can only choose among
-allocations that code built, and it can never move money.
+Which invoices does this payment settle? Mexican customers pay by SPEI transfer with
+references like `PAGO FACT 1432 Y 33 MENOS NC-88`, and accounts-receivable teams still
+work that out by hand. Reconcile proposes the answer, quotes its evidence, and changes
+balances only after a person approves. Rules match the clean references. For the messy
+ones, an LLM (OpenAI GPT-6 Luna) chooses among allocations that code built, or abstains.
+It can never move money.
 
 **[Open the live demo](https://reconcile-preview.onrender.com)** · synthetic data,
 free hosting (the first load can take about a minute while the server wakes).
@@ -24,6 +25,25 @@ a pre-registered run, resolved more (48%) but made 13 wrong proposals to GPT-6 L
 ![How often a proposal was right across all cases: DeepSeek 82% (61 right, 13 wrong), GPT-6 Luna 94% (50 right, 3 wrong)](docs/images/results/precision.svg)
 
 ![An abbreviated SPEI reference read by GPT-6 Luna: the rules deferred, the model chose F-1432 and F-1433 with credit note NC-88, and balances wait for approval](docs/images/ai-reading.png)
+
+## Five minutes for reviewers
+
+1. **See it work.** In the [live demo](https://reconcile-preview.onrender.com), open
+   "Abbreviated SPEI reference" and click **Read with AI**. Allow a minute on first
+   load while the free server wakes. **Start over** gives you fresh cases.
+2. **See how it was measured.** Read the
+   [model comparison](reports/eval-v2-openai/README.md) and the
+   [pre-registered evaluation](reports/eval-v2/README.md), including what went wrong.
+3. **Read the code that carries the guarantees.** Paths are under `backend/src/reconcile/`:
+
+| Guarantee | Where |
+|---|---|
+| Rules act only on exact invoice identifiers | `propose()` in [`domain/matching.py`](backend/src/reconcile/domain/matching.py) |
+| Customer text reaches the model fenced as untrusted data | [`interpretation/prompt.py`](backend/src/reconcile/interpretation/prompt.py) |
+| The model's answer must name an offered candidate and quote the note exactly | `validate_result()` in [`interpretation/schemas.py`](backend/src/reconcile/interpretation/schemas.py) |
+| Spend is reserved before every model call | `reserve_attempt()` in [`interpretation/budget.py`](backend/src/reconcile/interpretation/budget.py) |
+| Money moves once, under row locks and version checks | `apply()` in [`persistence/service.py`](backend/src/reconcile/persistence/service.py) |
+| The evaluation is frozen, recorded and re-scorable | [`ml/run_v2.py`](backend/src/reconcile/ml/run_v2.py) and [`ml/evaluate_v2.py`](backend/src/reconcile/ml/evaluate_v2.py) |
 
 ## The problem
 
