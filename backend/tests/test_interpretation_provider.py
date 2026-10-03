@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import random
+from collections.abc import Callable
 
 import httpx
 import pytest
@@ -22,7 +24,8 @@ from reconcile.interpretation import (
     compile_prompt,
     validate_result,
 )
-from reconcile.interpretation.provider import AttemptContext, AttemptEvent
+from reconcile.interpretation import provider as provider_module
+from reconcile.interpretation.provider import AttemptContext, AttemptEvent, ProviderOutcome
 
 
 def make_request(*, mode: str = "direct", source_text: str = "INV-1") -> InterpretationRequest:
@@ -81,6 +84,42 @@ def response(result: dict[str, object], *, status_code: int = 200) -> httpx.Resp
             },
         },
     )
+
+
+def review_response() -> httpx.Response:
+    return response(
+        {
+            "decision": "needs_review",
+            "candidate_id": None,
+            "reason_code": "insufficient_evidence",
+            "citations": [],
+        }
+    )
+
+
+def run_responses(
+    responses: list[httpx.Response],
+    *,
+    sleep: Callable[[float], None],
+    rng: Callable[[float, float], float],
+) -> tuple[ProviderOutcome, int]:
+    calls = 0
+    remaining = iter(responses)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return next(remaining)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        outcome = OpenAIProvider(
+            api_key="provided-explicitly",
+            enabled=True,
+            client=client,
+            sleep=sleep,
+            rng=rng,
+        ).interpret(make_request())
+    return outcome, calls
 
 
 def test_strict_models_and_exact_citations() -> None:
@@ -295,6 +334,7 @@ def test_only_transient_failures_retry_and_hooks_run_per_attempt() -> None:
         client=client,
         reserve_attempt=lambda context: reservations.append(context) or context.attempt,
         finalize_attempt=finalized.append,
+        sleep=lambda _seconds: None,
     )
     outcome = provider.interpret(make_request())
     assert outcome.ok
@@ -355,6 +395,244 @@ def test_semantic_failure_reconciles_complete_usage() -> None:
     client.close()
 
 
+def test_retry_uses_seeded_full_jitter_with_first_retry_bound() -> None:
+    sleeps: list[float] = []
+    rng = random.Random(23)
+    for _ in range(50):
+        outcome, calls = run_responses(
+            [httpx.Response(503), review_response()],
+            sleep=sleeps.append,
+            rng=rng.uniform,
+        )
+        assert outcome.ok
+        assert calls == 2
+    assert len(sleeps) == 50
+    assert all(0 <= delay <= 0.25 for delay in sleeps)
+    assert len(set(sleeps)) > 1
+
+
+def test_exponential_bound_and_cap_if_attempt_limit_grows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(provider_module, "MAX_ATTEMPTS", 6)
+    bounds: list[float] = []
+    sleeps: list[float] = []
+    seeded = random.Random(7)
+
+    def sample(low: float, high: float) -> float:
+        bounds.append(high)
+        return seeded.uniform(low, high)
+
+    outcome, calls = run_responses(
+        [httpx.Response(503) for _ in range(5)] + [review_response()],
+        sleep=sleeps.append,
+        rng=sample,
+    )
+    assert outcome.ok
+    assert calls == 6
+    assert bounds == [0.25, 0.5, 1.0, 2.0, 2.0]
+    assert all(0 <= delay <= bound for delay, bound in zip(sleeps, bounds, strict=True))
+
+
+def test_retry_sleeps_once_after_finalization_and_before_fresh_reservation() -> None:
+    events: list[str] = []
+    statuses = iter((503, 200))
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        status = next(statuses)
+        events.append(f"request:{status}")
+        return httpx.Response(503) if status == 503 else review_response()
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        outcome = OpenAIProvider(
+            api_key="provided-explicitly",
+            enabled=True,
+            client=client,
+            rng=lambda _low, _high: 0.2,
+            sleep=lambda seconds: events.append(f"sleep:{seconds}"),
+            reserve_attempt=lambda context: events.append(f"reserve:{context.attempt}"),
+            finalize_attempt=lambda event: events.append(f"finalize:{event.context.attempt}"),
+        ).interpret(make_request())
+    assert outcome.ok
+    assert events == [
+        "reserve:1",
+        "request:503",
+        "finalize:1",
+        "sleep:0.2",
+        "reserve:2",
+        "request:200",
+        "finalize:2",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("responses", "expected_calls", "expected_sleeps"),
+    [
+        ([review_response()], 1, []),
+        ([httpx.Response(400)], 1, []),
+        ([httpx.Response(503), httpx.Response(503)], 2, [0.1]),
+    ],
+)
+def test_sleep_only_precedes_a_retry(
+    responses: list[httpx.Response], expected_calls: int, expected_sleeps: list[float]
+) -> None:
+    sleeps: list[float] = []
+    _, calls = run_responses(
+        responses,
+        sleep=sleeps.append,
+        rng=lambda _low, _high: 0.1,
+    )
+    assert calls == expected_calls
+    assert sleeps == expected_sleeps
+
+
+def test_transport_error_retries_after_one_sleep() -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise httpx.ConnectError("connection failed", request=request)
+        return review_response()
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        outcome = OpenAIProvider(
+            api_key="provided-explicitly",
+            enabled=True,
+            client=client,
+            sleep=sleeps.append,
+            rng=lambda _low, _high: 0.1,
+        ).interpret(make_request())
+    assert outcome.ok
+    assert calls == 2
+    assert sleeps == [0.1]
+
+
+@pytest.mark.parametrize(
+    ("retry_after", "expected_delay"),
+    [
+        ("1.5", 1.5),
+        ("900", 5.0),
+        ("garbage", 0.1),
+        ("-1", 0.1),
+        ("Wed, 21 Oct 2015 07:28:00 GMT", 0.1),
+        ("inf", 0.1),
+    ],
+)
+def test_rate_limit_retry_after_is_bounded_or_ignored(
+    retry_after: str, expected_delay: float
+) -> None:
+    sleeps: list[float] = []
+    outcome, calls = run_responses(
+        [httpx.Response(429, headers={"rEtRy-AfTeR": retry_after}), review_response()],
+        sleep=sleeps.append,
+        rng=lambda _low, _high: 0.1,
+    )
+    assert outcome.ok
+    assert calls == 2
+    assert sleeps == [expected_delay]
+
+
+def test_retry_sleep_is_clamped_to_leave_attempt_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ticks = [0]
+    sleeps: list[float] = []
+    reservations: list[int] = []
+    monkeypatch.setattr(provider_module, "perf_counter_ns", lambda: ticks[0])
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        if not sleeps:
+            ticks[0] = 43_500_000_000
+            return httpx.Response(429, headers={"Retry-After": "1.5"})
+        return review_response()
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        ticks[0] += int(seconds * 1_000_000_000)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        outcome = OpenAIProvider(
+            api_key="provided-explicitly",
+            enabled=True,
+            client=client,
+            sleep=sleep,
+            rng=lambda _low, _high: 0.1,
+            reserve_attempt=lambda context: reservations.append(context.attempt),
+        ).interpret(make_request())
+    assert outcome.ok
+    assert sleeps == pytest.approx([0.5])
+    assert reservations == [1, 2]
+
+
+def test_exhausted_retry_budget_preserves_original_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ticks = [0]
+    sleeps: list[float] = []
+    reservations: list[int] = []
+    finalized: list[AttemptEvent] = []
+    monkeypatch.setattr(provider_module, "perf_counter_ns", lambda: ticks[0])
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        ticks[0] = 44_900_000_000
+        return httpx.Response(429, headers={"Retry-After": "1.5"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        outcome = OpenAIProvider(
+            api_key="provided-explicitly",
+            enabled=True,
+            client=client,
+            sleep=sleeps.append,
+            rng=lambda _low, _high: 0.1,
+            reserve_attempt=lambda context: reservations.append(context.attempt),
+            finalize_attempt=finalized.append,
+        ).interpret(make_request())
+    assert outcome.failure is not None
+    assert outcome.failure.code is FailureCode.RATE_LIMITED
+    assert outcome.failure.http_status == 429
+    assert outcome.failure.attempt == 1
+    assert outcome.failure.reservation_state == "unknown"
+    assert [item.failure_code for item in outcome.attempts] == [FailureCode.RATE_LIMITED]
+    assert reservations == [1]
+    assert [item.context.attempt for item in finalized] == [1]
+    assert sleeps == []
+
+
+def test_sleep_overrun_keeps_first_failure_without_another_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ticks = [0]
+    calls = 0
+    reservations: list[int] = []
+    monkeypatch.setattr(provider_module, "perf_counter_ns", lambda: ticks[0])
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503)
+
+    def sleep(_seconds: float) -> None:
+        ticks[0] = 46_000_000_000
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        outcome = OpenAIProvider(
+            api_key="provided-explicitly",
+            enabled=True,
+            client=client,
+            sleep=sleep,
+            rng=lambda _low, _high: 0.1,
+            reserve_attempt=lambda context: reservations.append(context.attempt),
+        ).interpret(make_request())
+    assert outcome.failure is not None
+    assert outcome.failure.code is FailureCode.SERVER_ERROR
+    assert outcome.failure.http_status == 503
+    assert calls == 1
+    assert reservations == [1]
+
+
 def test_timeout_retries_once_and_retains_each_unknown_reservation() -> None:
     finalized: list[AttemptEvent] = []
 
@@ -371,6 +649,7 @@ def test_timeout_retries_once_and_retains_each_unknown_reservation() -> None:
         client=client,
         reserve_attempt=lambda context: context.attempt,
         finalize_attempt=finalized.append,
+        sleep=lambda _seconds: None,
     ).interpret(make_request())
 
     assert not outcome.ok
