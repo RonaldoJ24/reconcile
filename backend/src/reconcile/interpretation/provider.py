@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import math
+import random
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter_ns
@@ -34,6 +37,12 @@ DEFAULT_MODEL = "gpt-6-luna"
 ATTEMPT_TIMEOUT_SECONDS = 20.0
 OVERALL_TIMEOUT_SECONDS = 45.0
 MAX_ATTEMPTS = 2
+# Short pauses fit the 20s and 45s budgets; the exponent matters if attempts grow.
+BACKOFF_BASE_SECONDS = 0.25
+BACKOFF_CAP_SECONDS = 2.0
+RETRY_AFTER_CAP_SECONDS = 5.0
+# A provider call cannot finish in less than this, so a shorter retry is not worth its reservation.
+MIN_RETRY_ATTEMPT_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +104,8 @@ class OpenAIProvider:
         reserve_attempt: ReserveAttempt | None = None,
         finalize_attempt: FinalizeAttempt | None = None,
         allocation_validator: AllocationValidator | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        rng: Callable[[float, float], float] = random.uniform,
     ) -> None:
         if not model.strip():
             raise ValueError("model must not be blank")
@@ -112,6 +123,8 @@ class OpenAIProvider:
         self.reserve_attempt = reserve_attempt
         self.finalize_attempt = finalize_attempt
         self.allocation_validator = allocation_validator
+        self.sleep = sleep
+        self.rng = rng
         self._owns_client = client is None
         self.client = client or httpx.Client(
             base_url=self.base_url,
@@ -357,7 +370,37 @@ class OpenAIProvider:
         finalize = finalize_attempt or self.finalize_attempt
         attempts: list[AttemptTelemetry] = []
         workflow_started = perf_counter_ns()
+        previous_failure: InterpretationFailure | None = None
+        retry_after: str | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            if attempt > 1:
+                assert previous_failure is not None
+                remaining = (
+                    OVERALL_TIMEOUT_SECONDS
+                    - (perf_counter_ns() - workflow_started) / 1_000_000_000
+                )
+                if remaining <= MIN_RETRY_ATTEMPT_SECONDS:
+                    return ProviderOutcome(None, previous_failure, tuple(attempts))
+                delay = self.rng(
+                    0.0,
+                    min(BACKOFF_CAP_SECONDS, BACKOFF_BASE_SECONDS * 2 ** (attempt - 2)),
+                )
+                if retry_after is not None:
+                    try:
+                        seconds = float(retry_after)
+                    except ValueError:
+                        pass
+                    else:
+                        if math.isfinite(seconds) and seconds >= 0:
+                            delay = max(delay, min(seconds, RETRY_AFTER_CAP_SECONDS))
+                # Leave time for a useful attempt even when Retry-After exceeds the budget.
+                self.sleep(min(delay, remaining - MIN_RETRY_ATTEMPT_SECONDS))
+                remaining = (
+                    OVERALL_TIMEOUT_SECONDS
+                    - (perf_counter_ns() - workflow_started) / 1_000_000_000
+                )
+                if remaining < MIN_RETRY_ATTEMPT_SECONDS:
+                    return ProviderOutcome(None, previous_failure, tuple(attempts))
             context = AttemptContext(attempt, attempt - 1, self.model)
             reservation: object | None = None
             if reserve is not None:
@@ -419,8 +462,6 @@ class OpenAIProvider:
                 )
                 attempts.append(telemetry)
                 self._finish(finalize, context, telemetry, reservation, "unknown")
-                if attempt < MAX_ATTEMPTS:
-                    continue
                 failure = self._failure(
                     FailureCode.TIMEOUT,
                     "provider attempt timed out",
@@ -428,6 +469,10 @@ class OpenAIProvider:
                     telemetry,
                     retryable=True,
                 )
+                if attempt < MAX_ATTEMPTS:
+                    previous_failure = failure
+                    retry_after = None
+                    continue
                 return ProviderOutcome(None, failure, tuple(attempts))
             except httpx.TransportError:
                 telemetry = self._telemetry(
@@ -438,8 +483,6 @@ class OpenAIProvider:
                 )
                 attempts.append(telemetry)
                 self._finish(finalize, context, telemetry, reservation, "unknown")
-                if attempt < MAX_ATTEMPTS:
-                    continue
                 failure = self._failure(
                     FailureCode.TRANSPORT_ERROR,
                     "provider transport failed",
@@ -447,6 +490,10 @@ class OpenAIProvider:
                     telemetry,
                     retryable=True,
                 )
+                if attempt < MAX_ATTEMPTS:
+                    previous_failure = failure
+                    retry_after = None
+                    continue
                 return ProviderOutcome(None, failure, tuple(attempts))
 
             status = int(response.status_code)
@@ -462,8 +509,6 @@ class OpenAIProvider:
                 )
                 attempts.append(telemetry)
                 self._finish(finalize, context, telemetry, reservation, state)
-                if retryable and attempt < MAX_ATTEMPTS:
-                    continue
                 failure = self._failure(
                     code,
                     message,
@@ -472,6 +517,10 @@ class OpenAIProvider:
                     retryable=retryable,
                     status=status,
                 )
+                if retryable and attempt < MAX_ATTEMPTS:
+                    previous_failure = failure
+                    retry_after = response.headers.get("Retry-After") if status == 429 else None
+                    continue
                 return ProviderOutcome(None, failure, tuple(attempts))
 
             try:
